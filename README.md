@@ -69,15 +69,62 @@ Demo accounts created by the seed script (password `password123`):
 > run `npm run emulators` + `npm run seed` yourself on a machine without
 > that restriction before treating this as fully verified.
 
+## Dev vs. prod environments
+
+Beyond the emulator (for local development) and needing its own separate
+Firebase project from anything else the school runs, this repo also expects
+**two live Firebase projects of its own**: one for **dev/staging** (safe to
+break, used for testing changes and training staff) and one for **prod**
+(what real admissions staff use day-to-day). They are two completely
+separate Firebase projects — separate Firestore, separate Auth users,
+separate everything — not two "modes" of one project.
+
+`.firebaserc` already has aliases set up for this:
+
+```json
+{
+  "projects": {
+    "default": "littlemillennium-crm",
+    "dev": "littlemillennium-crm",
+    "prod": "REPLACE_WITH_YOUR_PROD_PROJECT_ID"
+  }
+}
+```
+
+`littlemillennium-crm` (the project created first) is wired up as **dev**.
+When you're ready for prod: create a second, brand-new Firebase project the
+same way (Section "Create the project" below), then replace
+`REPLACE_WITH_YOUR_PROD_PROJECT_ID` with its real project id.
+
+Each environment needs its **own** web app config, so instead of one
+`web/.env.local`, keep two files (both git-ignored, both copied from
+`web/.env.example`):
+
+- `web/.env.dev.local` — dev project's config
+- `web/.env.prod.local` — prod project's config
+
+And two deploy commands, which switch the CLI's active project, build with
+the matching env file, then deploy:
+
+```bash
+npm run deploy:dev     # → littlemillennium-crm (dev)
+npm run deploy:prod    # → your prod project, once .firebaserc is filled in
+```
+
+Everything else below (creating a project, enabling Auth/Firestore,
+bootstrapping the first admin) is per-project — you'll do it once for dev
+and, separately, once for prod when you're ready to go live.
+
 ## Deploying to a real Firebase project
 
 There's no separate "database" to provision or link with a connection
 string — Firestore lives *inside* your Firebase project and is created the
 moment you enable it in the console. The app "connects" to it purely
-through the config values in `web/.env.local` (`VITE_FIREBASE_PROJECT_ID`
-etc.) — those tell the Firebase SDK which project's Auth/Firestore to talk
-to. Once that config is right, every read/write in the app goes straight to
-that project's Firestore automatically.
+through the config values in `web/.env.dev.local` /
+`web/.env.prod.local` (`VITE_FIREBASE_PROJECT_ID` etc.) — those tell
+the Firebase SDK which project's Auth/Firestore to talk to. Once that config
+is right, every read/write in the app goes straight to that project's
+Firestore automatically.
 
 ### 0. Spark (free) plan vs. Blaze
 
@@ -99,16 +146,12 @@ needs to change, you'd just start deploying `functions` too.
 ### 2. Point this repo at it
 
 1. Install the CLI if you haven't: `npm install -g firebase-tools`, then `firebase login` (opens a browser to sign in with the same Google account).
-2. In `.firebaserc`, replace the placeholder project id:
-   ```json
-   { "projects": { "default": "little-millennium-crm" } }
-   ```
-   (use your actual project id, shown in Project settings → General).
-3. In the Firebase Console → Project settings → General → **Your apps**, click **Add app** → the `</>` (web) icon to register a web app (no Hosting setup needed in that wizard — skip/ignore the "Add Firebase Hosting" checkbox, we deploy that via CLI below). It'll show you a `firebaseConfig` object — copy those values into `web/.env.local` (copy `web/.env.example` first):
+2. In `.firebaserc`, set the alias for whichever environment this is — `dev` is already filled in; for `prod`, replace `REPLACE_WITH_YOUR_PROD_PROJECT_ID` with the new project's real id (Project settings → General).
+3. In the Firebase Console → Project settings → General → **Your apps**, click **Add app** → the `</>` (web) icon to register a web app (no Hosting setup needed in that wizard — skip/ignore the "Add Firebase Hosting" checkbox, we deploy that via CLI below). It'll show you a `firebaseConfig` object — copy those values into `web/.env.dev.local` (for the dev project) or `web/.env.prod.local` (for the prod project), whichever applies — copy from `web/.env.example` first:
    ```
    VITE_FIREBASE_API_KEY=...
    VITE_FIREBASE_AUTH_DOMAIN=...
-   VITE_FIREBASE_PROJECT_ID=littlemillennium-crm
+   VITE_FIREBASE_PROJECT_ID=...
    VITE_FIREBASE_STORAGE_BUCKET=...
    VITE_FIREBASE_MESSAGING_SENDER_ID=...
    VITE_FIREBASE_APP_ID=...
@@ -118,47 +161,53 @@ needs to change, you'd just start deploying `functions` too.
 
 ### 3. Deploy rules and the built frontend
 
-**On Spark** (no Cloud Functions):
-
 ```bash
-npm --prefix web install
-npm --prefix web run build              # builds web/dist, which Hosting serves
+npm install                            # once, for firebase-tools
+npm --prefix web install               # once
 
-firebase deploy --only firestore:rules,firestore:indexes,hosting
+npm run deploy:dev                     # or: npm run deploy:prod
 ```
 
-**On Blaze**, additionally install and deploy `functions`:
-
-```bash
-npm --prefix functions install
-firebase deploy --only firestore:rules,firestore:indexes,functions,hosting
-```
+That one command switches the CLI to the right project (`firebase use dev`
+or `prod`), builds `web/` with the matching `.env.*.local` file, and deploys
+Firestore rules/indexes + Hosting together. **On Blaze**, also run
+`npm --prefix functions install` once and add `functions` to the deploy —
+either edit the `deploy:dev`/`deploy:prod` scripts in `package.json` to
+include `,functions` in the `--only` list, or run it as a separate command:
+`firebase deploy --only functions` (after `firebase use dev` or `prod`).
 
 Either way, Firebase prints your live URL (`https://<project-id>.web.app`)
 when it finishes.
 
-### 4. Grant your first admin (one-time either way)
+### 4. Grant your first admin (one-time, per project)
 
 The app can only grant roles through an existing admin (Admin → Staff, which
-needs Blaze), so the very first one — and *every* role grant if you're
-staying on Spark — goes through `scripts/set-role.mjs` instead:
+needs Blaze), so the very first one on **each** project — dev and prod both
+need this done separately — goes through `scripts/set-role.mjs` instead:
 
-1. Firebase Console → Authentication → **Add user** — create their login (email + password), and copy their **User UID**.
-2. Firebase Console → Project settings → **Service accounts** → **Generate new private key** → save the downloaded file as `service-account.json` in the repo root (it's git-ignored, never commit it).
+1. In that project's Firebase Console → Authentication → **Add user** — create their login (email + password), and copy their **User UID**.
+2. That same project's Console → Project settings → **Service accounts** → **Generate new private key** → save the downloaded file as `service-account.json` in the repo root (it's git-ignored, never commit it, and each project needs its own key — don't reuse dev's key against prod or vice versa).
 3. Run:
    ```bash
-   npm install                # if you haven't yet — installs firebase-admin at the repo root
    GOOGLE_APPLICATION_CREDENTIALS=./service-account.json \
      node scripts/set-role.mjs <their-UID> <their-email> admin "Their Name"
    ```
-4. Repeat step 3 for each other staff member, swapping `admin` for `counsellor` or `management` — **on Spark, this script is how you manage roles going forward**, not the Admin → Staff screen. Delete `service-account.json` when you're done for now (or keep it somewhere safe outside the repo) — it grants full admin access to your Firebase project.
+4. Repeat step 3 for each other staff member on that project, swapping `admin` for `counsellor` or `management` — **on Spark, this script is how you manage roles going forward**, not the Admin → Staff screen. Delete `service-account.json` when done for now (or keep it somewhere safe outside the repo).
+
+A sensible pattern: use fake/test staff logins on **dev** to try things out
+freely, then create real staff accounts only on **prod** once you're
+confident.
 
 ### 5. Test it
 
-1. Open the Hosting URL, sign in as the admin you just granted.
+Do this against **dev** first, always — never use prod as your first test
+of a new change.
+
+1. Open the dev Hosting URL, sign in as the admin you just granted there.
 2. Go to **Admin** and add at least one program (e.g. "Nursery") and a lead source or two — `leadSources`/`programs` start empty on a fresh project (the seed script only populates the *emulator*, not a real project).
 3. Go to **New Lead**, log a walk-in, and confirm it appears on **Leads** and moves through the pipeline on its **Lead Profile** page.
 4. Check the **Dashboard**'s Attention panel and **Reports** reflect what you just created.
+5. Only once that all looks right, repeat the relevant steps above against **prod** (its own project, its own admin, its own programs/sources) before putting it in front of real admissions staff.
 
 If anything 403s in the browser console, it's almost always one of: Firestore
 rules not deployed yet (`firebase deploy --only firestore:rules`), the
