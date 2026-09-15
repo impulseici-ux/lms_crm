@@ -1,0 +1,124 @@
+rules_version = '2';
+
+// Security model — see Section 18 of the CRM blueprint.
+// Role is carried as a custom claim on the ID token (admin / counsellor / management),
+// set only via the admin-only `setUserRole` Cloud Function — never client-writable.
+// The `users/{uid}` Firestore document mirrors profile fields (name, branch, active)
+// for display/reporting; role there is a read-only copy of the claim, kept in sync
+// by the same Cloud Function, and is NOT trusted for authorization decisions.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return request.auth.token.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && role() == 'admin';
+    }
+
+    function isManagement() {
+      return isSignedIn() && role() == 'management';
+    }
+
+    function isCounsellor() {
+      return isSignedIn() && role() == 'counsellor';
+    }
+
+    function isStaff() {
+      return isSignedIn() && role() in ['admin', 'counsellor', 'management'];
+    }
+
+    // ---- Reference / lookup collections ----
+    // Small, admin-editable lists. Any authenticated staff member can read them
+    // (needed to populate dropdowns); only admin can write.
+    match /leadSources/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /programs/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /branches/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /campaigns/{docId} {
+      allow read: if isStaff();
+      allow create, update: if isAdmin() || isCounsellor();
+      allow delete: if isAdmin();
+    }
+
+    // ---- Staff directory ----
+    // A user may always read their own profile document; admin can read/write all.
+    // Regular staff can read the directory (needed for "assigned staff" pickers /
+    // staff performance reports) but never write it — role changes only happen
+    // through the setUserRole callable function.
+    match /users/{uid} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---- Leads (the hub) ----
+    match /leads/{leadId} {
+      allow read: if isAdmin() || isManagement() ||
+        (isCounsellor() && resource.data.assignedStaffId == request.auth.uid);
+
+      allow create: if isStaff() &&
+        request.resource.data.createdByStaffId == request.auth.uid &&
+        // Guardrail (Section 6): an open lead cannot be created without a
+        // next follow-up date, unless it is already in a closed status.
+        (request.resource.data.status in
+          ['Not Interested', 'Not Reachable', 'Wrong/Invalid Number',
+           'Future Requirement', 'Lost to Competitor', 'Duplicate'] ||
+         (request.resource.data.nextFollowUpAt != null));
+
+      allow update: if (isAdmin() ||
+          (isCounsellor() && resource.data.assignedStaffId == request.auth.uid)) &&
+        // Reassignment (assignedStaffId change) is admin-only.
+        (request.resource.data.assignedStaffId == resource.data.assignedStaffId || isAdmin()) &&
+        (request.resource.data.status in
+          ['Not Interested', 'Not Reachable', 'Wrong/Invalid Number',
+           'Future Requirement', 'Lost to Competitor', 'Duplicate'] ||
+         (request.resource.data.nextFollowUpAt != null));
+
+      allow delete: if isAdmin();
+
+      // ---- Unified activity timeline ----
+      // Append-only: create is allowed, update/delete never — this is the
+      // audit trail enforced at the rules layer, not just by convention.
+      match /activities/{activityId} {
+        allow read: if isAdmin() || isManagement() ||
+          (isCounsellor() && get(/databases/$(database)/documents/leads/$(leadId)).data.assignedStaffId == request.auth.uid);
+        allow create: if (isAdmin() ||
+          (isCounsellor() && get(/databases/$(database)/documents/leads/$(leadId)).data.assignedStaffId == request.auth.uid)) &&
+          request.resource.data.byStaffId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // Collection-group read of activities (dashboard "overdue across the whole
+    // school" queries, Section 16). Per-document rules above still apply to
+    // every document a collection-group query touches, but Firestore requires
+    // the query itself to also be legal — management/admin only, since a
+    // counsellor-scoped query can't safely be expressed as a single
+    // collection-group filter here.
+    match /{path=**}/activities/{activityId} {
+      allow read: if isAdmin() || isManagement();
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

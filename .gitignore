@@ -1,0 +1,11 @@
+node_modules/
+dist/
+lib/
+.env.local
+.env*.local
+.emulator-data/
+firebase-debug*.log
+firestore-debug.log
+ui-debug.log
+*.tsbuildinfo
+.DS_Store
