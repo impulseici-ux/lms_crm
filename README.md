@@ -25,9 +25,26 @@ share it with another system's Auth tenant or Firestore database.
 firebase.json / firestore.rules / firestore.indexes.json   Firebase project config
 functions/           Cloud Functions (TypeScript)
 web/                 React frontend (Vite)
-scripts/seed.mjs        Seeds demo staff/leads into the local emulators
-scripts/set-role.mjs    Grants a staff member's role on a real Firebase project (see "Staying on Spark" below)
+scripts/seed.mjs            Seeds demo staff/leads into the local emulators
+scripts/create-admin.mjs    Creates a brand-new Auth user and grants them admin, in one step
+scripts/set-role.mjs        Grants an EXISTING staff member's role (see "Staying on Spark" below)
+scripts/deploy-rules.mjs    Fallback: deploys firestore.rules directly via the Rules API
+scripts/deploy-indexes.mjs  Fallback: creates composite indexes directly via the Firestore Admin API
 ```
+
+The two `deploy-*` fallback scripts exist because `firebase deploy` runs a
+preflight check (via `serviceusage.googleapis.com`) that some restricted
+service-account keys — e.g. the default "firebase-adminsdk" key you download
+from Project settings → Service accounts — aren't authorized to answer, even
+though the underlying Firestore/Rules APIs work fine for them. If
+`firebase deploy --only firestore:rules` fails with a `serviceusage`/403
+error, use `node scripts/deploy-rules.mjs <projectId>` instead (same
+`GOOGLE_APPLICATION_CREDENTIALS` env var as the other scripts). Composite
+index *creation* needs a different permission (`datastore.indexes.create`)
+that key doesn't have either — `deploy-indexes.mjs` will report a clear 403
+per index rather than silently doing nothing; if you hit that, create them
+via the Firebase Console (Firestore → Indexes) or through a Google account
+with Owner/Editor on the project instead.
 
 ## Local development
 
