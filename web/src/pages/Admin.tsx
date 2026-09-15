@@ -174,6 +174,10 @@ function StaffEditor() {
         <p className="text-xs text-ink-faint mb-3">
           Create the account in Firebase Auth first (console or emulator UI), then paste its UID here to grant a role.
         </p>
+        <p className="text-xs text-warn bg-warn-soft rounded-lg px-3 py-2 mb-3">
+          This calls a Cloud Function, which requires the Blaze plan. On the free Spark plan this will fail —
+          use <code className="font-mono">scripts/set-role.mjs</code> from the repo instead (see README).
+        </p>
         <form onSubmit={submit}>
           <Field label="Firebase Auth UID">
             <Input value={uid} onChange={(e) => setUid(e.target.value)} required />

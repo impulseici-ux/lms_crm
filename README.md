@@ -25,8 +25,8 @@ share it with another system's Auth tenant or Firestore database.
 firebase.json / firestore.rules / firestore.indexes.json   Firebase project config
 functions/           Cloud Functions (TypeScript)
 web/                 React frontend (Vite)
-scripts/seed.mjs                Seeds demo staff/leads into the local emulators
-scripts/bootstrap-admin.mjs     One-time first-admin grant on a real Firebase project
+scripts/seed.mjs        Seeds demo staff/leads into the local emulators
+scripts/set-role.mjs    Grants a staff member's role on a real Firebase project (see "Staying on Spark" below)
 ```
 
 ## Local development
@@ -79,10 +79,20 @@ etc.) — those tell the Firebase SDK which project's Auth/Firestore to talk
 to. Once that config is right, every read/write in the app goes straight to
 that project's Firestore automatically.
 
+### 0. Spark (free) plan vs. Blaze
+
+**Cloud Functions require the Blaze (pay-as-you-go) plan** — even a single
+function. If you're staying on **Spark** for now (no billing account), skip
+deploying `functions` entirely and use `scripts/set-role.mjs` for all role
+management instead of the in-app Admin → Staff screen (which calls a Cloud
+Function and will fail on Spark). Firestore, Auth and Hosting all work fully
+on Spark. You can upgrade to Blaze later — nothing about the data or rules
+needs to change, you'd just start deploying `functions` too.
+
 ### 1. Create the project
 
-1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project**. Give it its own name (e.g. `little-millennium-crm`) — do **not** reuse an existing project.
-2. In **Project settings → Usage and billing**, upgrade to the **Blaze (pay-as-you-go)** plan. This is required for Cloud Functions; Firestore/Auth/Hosting usage at this scale (a few hundred leads a season) costs close to nothing.
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project**. Give it its own name — do **not** reuse an existing project. *(Already done if you're following along with an existing project.)*
+2. **Only if going Blaze:** Project settings → **Usage and billing** → upgrade. Firestore/Auth/Hosting usage at this scale (a few hundred leads a season) costs close to nothing either way.
 3. In the left sidebar → **Build → Authentication → Get started → Sign-in method**, enable **Email/Password**.
 4. In **Build → Firestore Database → Create database**, choose **Native mode** and a region close to you (e.g. `asia-south1` for India).
 
@@ -94,52 +104,61 @@ that project's Firestore automatically.
    { "projects": { "default": "little-millennium-crm" } }
    ```
    (use your actual project id, shown in Project settings → General).
-3. In the Firebase Console → Project settings → General → **Your apps**, click the `</>` (web) icon to register a web app, then copy the `firebaseConfig` values it gives you into `web/.env.local` (copy `web/.env.example` first):
+3. In the Firebase Console → Project settings → General → **Your apps**, click **Add app** → the `</>` (web) icon to register a web app (no Hosting setup needed in that wizard — skip/ignore the "Add Firebase Hosting" checkbox, we deploy that via CLI below). It'll show you a `firebaseConfig` object — copy those values into `web/.env.local` (copy `web/.env.example` first):
    ```
    VITE_FIREBASE_API_KEY=...
    VITE_FIREBASE_AUTH_DOMAIN=...
-   VITE_FIREBASE_PROJECT_ID=little-millennium-crm
+   VITE_FIREBASE_PROJECT_ID=littlemillennium-crm
    VITE_FIREBASE_STORAGE_BUCKET=...
    VITE_FIREBASE_MESSAGING_SENDER_ID=...
    VITE_FIREBASE_APP_ID=...
    VITE_USE_EMULATORS=false
    ```
+   (The exact **Project ID** — not the display name shown at the top of the console — is in Project settings → General; it's what `firebaseConfig.projectId` will already show you.)
 
-### 3. Deploy rules, functions and the built frontend
+### 3. Deploy rules and the built frontend
+
+**On Spark** (no Cloud Functions):
 
 ```bash
-npm --prefix functions install
 npm --prefix web install
 npm --prefix web run build              # builds web/dist, which Hosting serves
 
+firebase deploy --only firestore:rules,firestore:indexes,hosting
+```
+
+**On Blaze**, additionally install and deploy `functions`:
+
+```bash
+npm --prefix functions install
 firebase deploy --only firestore:rules,firestore:indexes,functions,hosting
 ```
 
-Firebase will print your live URL (`https://little-millennium-crm.web.app`).
-Cloud Functions deploy will ask to enable a couple of Google Cloud APIs the
-first time — accept those prompts.
+Either way, Firebase prints your live URL (`https://<project-id>.web.app`)
+when it finishes.
 
-### 4. Bootstrap your first admin (one-time)
+### 4. Grant your first admin (one-time either way)
 
-The app can only grant roles through an existing admin (Admin → Staff), so
-the very first one has to be created outside the app:
+The app can only grant roles through an existing admin (Admin → Staff, which
+needs Blaze), so the very first one — and *every* role grant if you're
+staying on Spark — goes through `scripts/set-role.mjs` instead:
 
-1. Firebase Console → Authentication → **Add user** — create the admin's login (email + password), and copy their **User UID**.
+1. Firebase Console → Authentication → **Add user** — create their login (email + password), and copy their **User UID**.
 2. Firebase Console → Project settings → **Service accounts** → **Generate new private key** → save the downloaded file as `service-account.json` in the repo root (it's git-ignored, never commit it).
 3. Run:
    ```bash
+   npm install                # if you haven't yet — installs firebase-admin at the repo root
    GOOGLE_APPLICATION_CREDENTIALS=./service-account.json \
-     node scripts/bootstrap-admin.mjs <their-UID> <their-email> "Their Name"
+     node scripts/set-role.mjs <their-UID> <their-email> admin "Their Name"
    ```
-4. Delete `service-account.json` once you're done (or keep it somewhere safe outside the repo) — it grants full admin access to your Firebase project.
+4. Repeat step 3 for each other staff member, swapping `admin` for `counsellor` or `management` — **on Spark, this script is how you manage roles going forward**, not the Admin → Staff screen. Delete `service-account.json` when you're done for now (or keep it somewhere safe outside the repo) — it grants full admin access to your Firebase project.
 
 ### 5. Test it
 
-1. Open the Hosting URL, sign in as the admin you just bootstrapped.
+1. Open the Hosting URL, sign in as the admin you just granted.
 2. Go to **Admin** and add at least one program (e.g. "Nursery") and a lead source or two — `leadSources`/`programs` start empty on a fresh project (the seed script only populates the *emulator*, not a real project).
-3. Create your other staff accounts the same way as step 1 above (Console → Authentication → Add user), then use **Admin → Staff** in the app itself to grant them `counsellor` or `management` roles (paste their UID) — from here on you no longer need the bootstrap script.
-4. Go to **New Lead**, log a walk-in, and confirm it appears on **Leads** and moves through the pipeline on its **Lead Profile** page.
-5. Check the **Dashboard**'s Attention panel and **Reports** reflect what you just created.
+3. Go to **New Lead**, log a walk-in, and confirm it appears on **Leads** and moves through the pipeline on its **Lead Profile** page.
+4. Check the **Dashboard**'s Attention panel and **Reports** reflect what you just created.
 
 If anything 403s in the browser console, it's almost always one of: Firestore
 rules not deployed yet (`firebase deploy --only firestore:rules`), the
