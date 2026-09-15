@@ -2,6 +2,6 @@
   "projects": {
     "default": "littlemillennium-crm",
     "dev": "littlemillennium-crm",
-    "prod": "REPLACE_WITH_YOUR_PROD_PROJECT_ID"
+    "prod": "littlemillennium-crm-prod"
   }
 }
