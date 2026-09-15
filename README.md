@@ -25,7 +25,8 @@ share it with another system's Auth tenant or Firestore database.
 firebase.json / firestore.rules / firestore.indexes.json   Firebase project config
 functions/           Cloud Functions (TypeScript)
 web/                 React frontend (Vite)
-scripts/seed.mjs      Seeds demo staff/leads into the local emulators
+scripts/seed.mjs                Seeds demo staff/leads into the local emulators
+scripts/bootstrap-admin.mjs     One-time first-admin grant on a real Firebase project
 ```
 
 ## Local development
@@ -70,12 +71,80 @@ Demo accounts created by the seed script (password `password123`):
 
 ## Deploying to a real Firebase project
 
-1. Create a new, separate Firebase project (Blaze plan, needed for Cloud Functions).
-2. `firebase login`, then set `.firebaserc`'s `default` project to your real project ID (replace the `lms-crm-dev` placeholder).
-3. In the Firebase Console, enable **Authentication** (email/password) and **Firestore** (Native mode).
-4. Copy your web app's SDK config into `web/.env.local` (see `web/.env.example`) and set `VITE_USE_EMULATORS=false`.
-5. Bootstrap the first admin: create their user in Firebase Auth, then temporarily call the `setUserRole` callable for that UID (e.g. from the Functions shell or a one-off script) since the app itself requires an existing admin to grant roles.
-6. `firebase deploy --only firestore:rules,firestore:indexes,functions,hosting` (after `npm --prefix web run build`).
+There's no separate "database" to provision or link with a connection
+string — Firestore lives *inside* your Firebase project and is created the
+moment you enable it in the console. The app "connects" to it purely
+through the config values in `web/.env.local` (`VITE_FIREBASE_PROJECT_ID`
+etc.) — those tell the Firebase SDK which project's Auth/Firestore to talk
+to. Once that config is right, every read/write in the app goes straight to
+that project's Firestore automatically.
+
+### 1. Create the project
+
+1. Go to [console.firebase.google.com](https://console.firebase.google.com) → **Add project**. Give it its own name (e.g. `little-millennium-crm`) — do **not** reuse an existing project.
+2. In **Project settings → Usage and billing**, upgrade to the **Blaze (pay-as-you-go)** plan. This is required for Cloud Functions; Firestore/Auth/Hosting usage at this scale (a few hundred leads a season) costs close to nothing.
+3. In the left sidebar → **Build → Authentication → Get started → Sign-in method**, enable **Email/Password**.
+4. In **Build → Firestore Database → Create database**, choose **Native mode** and a region close to you (e.g. `asia-south1` for India).
+
+### 2. Point this repo at it
+
+1. Install the CLI if you haven't: `npm install -g firebase-tools`, then `firebase login` (opens a browser to sign in with the same Google account).
+2. In `.firebaserc`, replace the placeholder project id:
+   ```json
+   { "projects": { "default": "little-millennium-crm" } }
+   ```
+   (use your actual project id, shown in Project settings → General).
+3. In the Firebase Console → Project settings → General → **Your apps**, click the `</>` (web) icon to register a web app, then copy the `firebaseConfig` values it gives you into `web/.env.local` (copy `web/.env.example` first):
+   ```
+   VITE_FIREBASE_API_KEY=...
+   VITE_FIREBASE_AUTH_DOMAIN=...
+   VITE_FIREBASE_PROJECT_ID=little-millennium-crm
+   VITE_FIREBASE_STORAGE_BUCKET=...
+   VITE_FIREBASE_MESSAGING_SENDER_ID=...
+   VITE_FIREBASE_APP_ID=...
+   VITE_USE_EMULATORS=false
+   ```
+
+### 3. Deploy rules, functions and the built frontend
+
+```bash
+npm --prefix functions install
+npm --prefix web install
+npm --prefix web run build              # builds web/dist, which Hosting serves
+
+firebase deploy --only firestore:rules,firestore:indexes,functions,hosting
+```
+
+Firebase will print your live URL (`https://little-millennium-crm.web.app`).
+Cloud Functions deploy will ask to enable a couple of Google Cloud APIs the
+first time — accept those prompts.
+
+### 4. Bootstrap your first admin (one-time)
+
+The app can only grant roles through an existing admin (Admin → Staff), so
+the very first one has to be created outside the app:
+
+1. Firebase Console → Authentication → **Add user** — create the admin's login (email + password), and copy their **User UID**.
+2. Firebase Console → Project settings → **Service accounts** → **Generate new private key** → save the downloaded file as `service-account.json` in the repo root (it's git-ignored, never commit it).
+3. Run:
+   ```bash
+   GOOGLE_APPLICATION_CREDENTIALS=./service-account.json \
+     node scripts/bootstrap-admin.mjs <their-UID> <their-email> "Their Name"
+   ```
+4. Delete `service-account.json` once you're done (or keep it somewhere safe outside the repo) — it grants full admin access to your Firebase project.
+
+### 5. Test it
+
+1. Open the Hosting URL, sign in as the admin you just bootstrapped.
+2. Go to **Admin** and add at least one program (e.g. "Nursery") and a lead source or two — `leadSources`/`programs` start empty on a fresh project (the seed script only populates the *emulator*, not a real project).
+3. Create your other staff accounts the same way as step 1 above (Console → Authentication → Add user), then use **Admin → Staff** in the app itself to grant them `counsellor` or `management` roles (paste their UID) — from here on you no longer need the bootstrap script.
+4. Go to **New Lead**, log a walk-in, and confirm it appears on **Leads** and moves through the pipeline on its **Lead Profile** page.
+5. Check the **Dashboard**'s Attention panel and **Reports** reflect what you just created.
+
+If anything 403s in the browser console, it's almost always one of: Firestore
+rules not deployed yet (`firebase deploy --only firestore:rules`), the
+signed-in user has no role set yet (Admin → Staff), or `web/.env.local` still
+has `VITE_USE_EMULATORS=true` while no emulator is running.
 
 ## What's implemented (Phase 1) vs. deferred
 
