@@ -14,9 +14,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/functions'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('firebase')) return 'firebase';
+          if (id.includes('react-router') || id.includes('/react/') || id.includes('react-dom')) return 'react';
+          return undefined;
         },
       },
     },
