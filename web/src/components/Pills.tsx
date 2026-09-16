@@ -1,39 +1,38 @@
 import type { LeadStatus, Priority } from "@/types";
 import { isOpenStatus } from "@/types";
-import { deriveFollowUpState, FOLLOW_UP_STATE_STYLES } from "@/utils/followUp";
+import { deriveFollowUpState } from "@/utils/followUp";
 import type { Timestamp } from "firebase/firestore";
+import { Badge } from "@/components/ui";
+import { AlertTriangle, Clock, GraduationCap } from "lucide-react";
 
 export function StatusPill({ status }: { status: LeadStatus }) {
   const open = isOpenStatus(status);
   const isWon = status === "Admission Confirmed";
-  const cls = isWon
-    ? "bg-good-soft text-good"
-    : open
-    ? "bg-accent-soft text-accent-strong"
-    : "bg-bad-soft text-bad";
+  const tone = isWon ? "good" : open ? "accent" : "bad";
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${cls}`}>
+    <Badge tone={tone} icon={isWon ? <GraduationCap className="w-3 h-3" /> : undefined}>
       {status}
-    </span>
+    </Badge>
   );
 }
 
+const PRIORITY_TONE: Record<Priority, "bad" | "warn" | "neutral"> = {
+  High: "bad",
+  Medium: "warn",
+  Low: "neutral",
+};
+
 export function PriorityPill({ priority }: { priority: Priority }) {
-  const cls =
-    priority === "High"
-      ? "bg-bad-soft text-bad"
-      : priority === "Medium"
-      ? "bg-warn-soft text-warn"
-      : "bg-surface-2 text-ink-soft";
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`}>{priority}</span>;
+  return <Badge tone={PRIORITY_TONE[priority]}>{priority}</Badge>;
 }
 
 export function FollowUpPill({ nextFollowUpAt }: { nextFollowUpAt: Timestamp | null }) {
   const state = deriveFollowUpState(nextFollowUpAt);
-  const style = FOLLOW_UP_STATE_STYLES[state];
+  const tone = state === "Overdue" ? "bad" : state === "Due Today" ? "warn" : state === "Upcoming" ? "accent" : "neutral";
+  const icon = state === "Overdue" ? <AlertTriangle className="w-3 h-3" /> : state === "Due Today" ? <Clock className="w-3 h-3" /> : undefined;
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${style.bg} ${style.fg}`}>
-      {style.label}
-    </span>
+    <Badge tone={tone} icon={icon}>
+      {state}
+    </Badge>
   );
 }

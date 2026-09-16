@@ -3,14 +3,25 @@ import type { LeadDoc } from "@/types";
 import { useLeads } from "@/hooks/useLeads";
 import { useLookups } from "@/hooks/useLookups";
 import { FilterBar, EMPTY_FILTERS, applyFilters } from "@/components/FilterBar";
-import { Button, Card, Select } from "@/components/ui";
+import { Button, Card, SectionHeading, ProgressBar, EmptyState } from "@/components/ui";
 import { downloadCsv } from "@/utils/csv";
 import { breakdownBySource, breakdownByCampaign, breakdownByStaff, stageFunnel, lostLeadBreakdown, type GroupBreakdown } from "@/utils/metrics";
 import { deriveFollowUpState } from "@/utils/followUp";
 import { StatusPill } from "@/components/Pills";
+import { Download, ClipboardList, Radio, Megaphone, UserCog, CalendarClock, CalendarCheck, TrendingUp, UserX, FileBarChart } from "lucide-react";
+import type { ComponentType } from "react";
 
-const REPORTS = ["Lead report", "Source-wise report", "Campaign report", "Staff performance", "Follow-up report", "Visit report", "Admission conversion report", "Lost lead report"] as const;
-type ReportName = (typeof REPORTS)[number];
+const REPORTS = [
+  { key: "Lead report", icon: ClipboardList },
+  { key: "Source-wise report", icon: Radio },
+  { key: "Campaign report", icon: Megaphone },
+  { key: "Staff performance", icon: UserCog },
+  { key: "Follow-up report", icon: CalendarClock },
+  { key: "Visit report", icon: CalendarCheck },
+  { key: "Admission conversion report", icon: TrendingUp },
+  { key: "Lost lead report", icon: UserX },
+] as const;
+type ReportName = (typeof REPORTS)[number]["key"];
 
 export function Reports() {
   const { leads, loading } = useLeads();
@@ -22,18 +33,29 @@ export function Reports() {
   if (loading) return <div className="text-ink-soft">Loading reports…</div>;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-        <div>
-          <h1 className="font-display text-2xl font-semibold">Reports</h1>
-          <p className="text-sm text-ink-soft mt-1">Filter the pipeline and export operational reports.</p>
-        </div>
-        <Select value={report} onChange={(e) => setReport(e.target.value as ReportName)} className="w-full sm:w-72">
-          {REPORTS.map((r) => <option key={r}>{r}</option>)}
-        </Select>
-      </div>
+    <div className="max-w-7xl mx-auto pb-8">
+      <SectionHeading eyebrow="Analytics" title="Reports" description="Filter the pipeline and export operational reports." />
 
       <FilterBar filters={filters} onChange={setFilters} />
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        {REPORTS.map((r) => {
+          const active = report === r.key;
+          return (
+            <button
+              key={r.key}
+              type="button"
+              onClick={() => setReport(r.key)}
+              className={`inline-flex items-center gap-2 text-[13px] font-semibold px-3.5 py-2 rounded-xl border transition-colors ${
+                active ? "bg-accent-soft text-accent-strong border-accent/30" : "bg-surface text-ink-soft border-border hover:border-ink-faint/40 hover:text-ink"
+              }`}
+            >
+              <r.icon className="w-4 h-4" />
+              {r.key}
+            </button>
+          );
+        })}
+      </div>
 
       {report === "Lead report" && <LeadReport rows={rows} programName={programName} staffName={staffName} />}
       {report === "Source-wise report" && <BreakdownReport title="Source" data={breakdownBySource(rows)} labelFor={(k) => k} />}
@@ -47,33 +69,87 @@ export function Reports() {
   );
 }
 
-function LeadReport({ rows, programName, staffName }: { rows: LeadDoc[]; programName: (id: string | null) => string; staffName: (id: string | null) => string }) {
-  const exportCsv = () => downloadCsv("lead-report.csv", rows.map((l) => ({ parent: l.parentName, phone: l.parentPhone, child: l.childName, program: programName(l.interestedProgramId), source: l.sourceChannel, status: l.status, priority: l.priority, staff: staffName(l.assignedStaffId), createdAt: l.createdAt?.toDate().toISOString() ?? "" })));
+function ReportCard({ icon: Icon, title, subtitle, action, children }: { icon: ComponentType<{ className?: string }>; title: string; subtitle: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
-        <div><h2 className="font-semibold">Every lead and its current state</h2><p className="text-xs text-ink-faint mt-0.5">{rows.length} leads in this filtered view.</p></div>
-        <Button variant="secondary" onClick={exportCsv}>Export CSV</Button>
+    <Card className="overflow-hidden" padded={false}>
+      <div className="p-5 pb-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0"><Icon className="w-4 h-4" /></div>
+          <div><h2 className="font-semibold text-ink">{title}</h2><p className="text-xs text-ink-faint mt-0.5">{subtitle}</p></div>
+        </div>
+        {action}
       </div>
-      <div className="overflow-x-auto"><table className="w-full text-sm min-w-[620px]">
-        <thead><tr className="text-left text-ink-faint text-xs uppercase"><th className="pb-2">Parent</th><th>Child</th><th>Program</th><th>Status</th><th>Staff</th></tr></thead>
-        <tbody>{rows.map((l) => <tr key={l.id} className="border-t border-border-soft"><td className="py-2">{l.parentName}</td><td>{l.childName}</td><td>{programName(l.interestedProgramId)}</td><td><StatusPill status={l.status} /></td><td>{staffName(l.assignedStaffId)}</td></tr>)}</tbody>
-      </table></div>
-      {rows.length === 0 && <p className="py-8 text-center text-sm text-ink-faint">No leads match these filters.</p>}
+      {children}
     </Card>
+  );
+}
+
+function LeadReport({ rows, programName, staffName }: { rows: LeadDoc[]; programName: (id: string | null) => string; staffName: (id: string | null) => string }) {
+  const exportCsv = () =>
+    downloadCsv("lead-report.csv", rows.map((l) => ({
+      parent: l.parentName, phone: l.parentPhone, child: l.childName,
+      program: programName(l.interestedProgramId), source: l.sourceChannel,
+      status: l.status, priority: l.priority, staff: staffName(l.assignedStaffId),
+      createdAt: l.createdAt?.toDate().toISOString() ?? "",
+    })));
+  return (
+    <ReportCard
+      icon={ClipboardList}
+      title="Every lead and its current state"
+      subtitle={`${rows.length} leads in this filtered view`}
+      action={<Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export CSV</Button>}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[620px]">
+          <thead><tr className="text-left text-ink-faint text-[11px] uppercase tracking-wide"><th className="pb-2 pl-5">Parent</th><th className="pb-2">Child</th><th className="pb-2">Program</th><th className="pb-2">Status</th><th className="pb-2 pr-5">Staff</th></tr></thead>
+          <tbody>{rows.map((l) => <tr key={l.id} className="border-t border-border-soft"><td className="py-2.5 pl-5 font-medium">{l.parentName}</td><td className="py-2.5">{l.childName}</td><td className="py-2.5">{programName(l.interestedProgramId)}</td><td className="py-2.5"><StatusPill status={l.status} /></td><td className="py-2.5 pr-5">{staffName(l.assignedStaffId)}</td></tr>)}</tbody>
+        </table>
+      </div>
+      {rows.length === 0 && <EmptyState icon={<FileBarChart />} title="No leads match these filters" />}
+    </ReportCard>
   );
 }
 
 function BreakdownReport({ title, data, labelFor }: { title: string; data: GroupBreakdown[]; labelFor: (key: string) => string }) {
   const exportCsv = () => downloadCsv(`${title.toLowerCase()}-report.csv`, data.map((d) => ({ [title]: labelFor(d.key), ...d })));
+  const icon = title === "Staff" ? UserCog : title === "Campaign" ? Megaphone : title === "Closed reason" ? UserX : Radio;
   return (
-    <Card className="overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3"><h2 className="font-semibold">{title} breakdown</h2><Button variant="secondary" onClick={exportCsv}>Export CSV</Button></div>
-      <div className="overflow-x-auto"><table className="w-full text-sm min-w-[760px]"><thead><tr className="text-left text-ink-faint text-xs uppercase"><th className="pb-2">{title}</th><th className="text-right">Leads</th><th className="text-right">Contacted</th><th className="text-right">Visits</th><th className="text-right">Admissions</th><th className="text-right">Overdue</th><th className="text-right">Conversion</th></tr></thead>
-        <tbody>{data.map((d) => <tr key={d.key} className="border-t border-border-soft"><td className="py-2 font-medium">{labelFor(d.key)}</td><td className="text-right">{d.total}</td><td className="text-right">{d.contacted}</td><td className="text-right">{d.visits}</td><td className="text-right">{d.admissions}</td><td className="text-right text-bad">{d.overdue}</td><td className="text-right">{(d.conversionRate * 100).toFixed(0)}%</td></tr>)}</tbody>
-      </table></div>
-      {data.length === 0 && <p className="py-8 text-center text-sm text-ink-faint">No data for this filter.</p>}
-    </Card>
+    <ReportCard
+      icon={icon}
+      title={`${title} breakdown`}
+      subtitle={`${data.length} ${title.toLowerCase()}${data.length === 1 ? "" : "s"} in this view`}
+      action={<Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export CSV</Button>}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[680px]">
+          <thead>
+            <tr className="text-left text-ink-faint text-[11px] uppercase tracking-wide">
+              <th className="pb-2 pl-5">{title}</th><th className="pb-2 text-right">Leads</th><th className="pb-2 text-right">Contacted</th>
+              <th className="pb-2 text-right">Visits</th><th className="pb-2 text-right">Admissions</th><th className="pb-2 text-right">Overdue</th><th className="pb-2 pr-5">Conversion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.key} className="border-t border-border-soft">
+                <td className="py-2.5 pl-5 font-medium">{labelFor(d.key)}</td>
+                <td className="py-2.5 text-right">{d.total}</td>
+                <td className="py-2.5 text-right">{d.contacted}</td>
+                <td className="py-2.5 text-right">{d.visits}</td>
+                <td className="py-2.5 text-right">{d.admissions}</td>
+                <td className="py-2.5 text-right">{d.overdue > 0 ? <span className="text-bad font-semibold">{d.overdue}</span> : d.overdue}</td>
+                <td className="py-2.5 pr-5">
+                  <div className="flex items-center gap-2 justify-end">
+                    <span className="text-xs font-semibold w-9 text-right">{(d.conversionRate * 100).toFixed(0)}%</span>
+                    <ProgressBar value={d.conversionRate * 100} tone="good" className="w-16" />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {data.length === 0 && <EmptyState icon={<FileBarChart />} title="No data for this filter" />}
+    </ReportCard>
   );
 }
 
@@ -87,22 +163,72 @@ function FollowUpReport({ rows }: { rows: LeadDoc[] }) {
   const dueOrPast = rows.filter((l) => l.nextFollowUpAt && l.nextFollowUpAt.toDate() <= new Date());
   const completed = dueOrPast.filter((l) => l.lastContactedAt && (!l.nextFollowUpAt || l.lastContactedAt.toDate() >= l.createdAt!.toDate()));
   const completionRate = dueOrPast.length ? (completed.length / dueOrPast.length) * 100 : 0;
-  return <Card><h2 className="font-semibold mb-4">Follow-up completion</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">{Object.entries(states).map(([k, v]) => <div key={k} className="rounded-lg bg-surface-2 p-3 text-center"><div className="font-display text-2xl font-semibold">{v}</div><div className="text-xs text-ink-faint">{k}</div></div>)}</div><div className="text-sm text-ink-soft">Estimated completion rate on due/overdue follow-ups: <span className="font-semibold text-ink">{completionRate.toFixed(0)}%</span></div></Card>;
+  const toneFor: Record<string, "bad" | "warn" | "accent" | "neutral"> = { Overdue: "bad", "Due Today": "warn", Upcoming: "accent", "None Set": "neutral" };
+  return (
+    <ReportCard icon={CalendarClock} title="Follow-up completion" subtitle={`${rows.length} leads in this view`}>
+      <div className="px-5 pb-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          {Object.entries(states).map(([k, v]) => (
+            <div key={k} className="rounded-xl bg-surface-2 p-4 text-center">
+              <div className={`font-display text-2xl font-semibold ${toneFor[k] === "bad" ? "text-bad" : toneFor[k] === "warn" ? "text-warn" : ""}`}>{v}</div>
+              <div className="text-xs text-ink-faint mt-1">{k}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <ProgressBar value={completionRate} tone="good" className="flex-1" />
+          <span className="text-sm font-semibold text-ink shrink-0">{completionRate.toFixed(0)}% completion</span>
+        </div>
+        <p className="text-xs text-ink-faint mt-2">Estimated completion rate on due/overdue follow-ups.</p>
+      </div>
+    </ReportCard>
+  );
 }
 
 function VisitReport({ rows }: { rows: LeadDoc[] }) {
   const scheduled = rows.filter((l) => l.status === "Visit Scheduled").length;
   const completed = rows.filter((l) => ["Visit Completed", "Admission Discussion", "Admission Confirmed"].includes(l.status)).length;
   const overdueScheduled = rows.filter((l) => l.status === "Visit Scheduled" && l.visitDate && l.visitDate.toDate() < new Date()).length;
-  return <Card><h2 className="font-semibold mb-4">Visits</h2><div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center"><Metric label="Scheduled (upcoming)" value={scheduled} /><Metric label="Completed" value={completed} /><Metric label="Past visit date" value={overdueScheduled} bad /></div></Card>;
+  return (
+    <ReportCard icon={CalendarCheck} title="Visits" subtitle={`${rows.length} leads in this view`}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-5 pt-0">
+        <Metric label="Scheduled (upcoming)" value={scheduled} />
+        <Metric label="Completed" value={completed} />
+        <Metric label="Past visit date" value={overdueScheduled} bad />
+      </div>
+    </ReportCard>
+  );
 }
 
 function ConversionReport({ rows }: { rows: LeadDoc[] }) {
   const funnel = stageFunnel(rows);
   const max = funnel[0]?.count || 1;
-  return <Card><h2 className="font-semibold mb-4">Stage-to-stage conversion</h2><div className="space-y-3">{funnel.map((f, i) => { const pct = max ? (f.count / max) * 100 : 0; const prevPct = i > 0 && funnel[i - 1].count ? (f.count / funnel[i - 1].count) * 100 : null; return <div key={f.stage}><div className="flex justify-between gap-3 text-sm mb-1"><span>{f.stage}</span><span className="text-ink-faint shrink-0">{f.count}{prevPct != null && ` · ${prevPct.toFixed(0)}% of prev.`}</span></div><div className="h-3 bg-surface-2 rounded-full overflow-hidden"><div className="h-full bg-accent rounded-full" style={{ width: `${pct}%` }} /></div></div>; })}</div></Card>;
+  return (
+    <ReportCard icon={TrendingUp} title="Stage-to-stage conversion" subtitle={`${rows.length} leads in this view`}>
+      <div className="p-5 pt-0 space-y-4">
+        {funnel.map((f, i) => {
+          const pct = max ? (f.count / max) * 100 : 0;
+          const prevPct = i > 0 && funnel[i - 1].count ? (f.count / funnel[i - 1].count) * 100 : null;
+          return (
+            <div key={f.stage}>
+              <div className="flex justify-between gap-3 text-sm mb-1.5">
+                <span className="font-medium text-ink">{i + 1}. {f.stage}</span>
+                <span className="text-ink-faint shrink-0 font-semibold">{f.count}{prevPct != null && <span className="text-ink-faint font-normal"> · {prevPct.toFixed(0)}% of prev.</span>}</span>
+              </div>
+              <ProgressBar value={pct} tone={f.stage === "Admission Confirmed" ? "good" : "accent"} />
+            </div>
+          );
+        })}
+      </div>
+    </ReportCard>
+  );
 }
 
 function Metric({ label, value, bad = false }: { label: string; value: number; bad?: boolean }) {
-  return <div className="rounded-lg bg-surface-2 p-4"><div className={`font-display text-2xl font-semibold ${bad ? "text-bad" : ""}`}>{value}</div><div className="text-xs text-ink-faint mt-1">{label}</div></div>;
+  return (
+    <div className="rounded-xl bg-surface-2 p-4">
+      <div className={`font-display text-2xl font-semibold ${bad ? "text-bad" : ""}`}>{value}</div>
+      <div className="text-xs text-ink-faint mt-1">{label}</div>
+    </div>
+  );
 }
