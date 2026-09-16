@@ -25,16 +25,32 @@
   --color-bad-soft: #F7E7E2;
 }
 
+html { scroll-behavior: smooth; }
+
 body {
+  margin: 0;
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-h1, h2, .font-display {
-  font-family: var(--font-display);
+h1, h2, .font-display { font-family: var(--font-display); }
+code, .font-mono { font-family: var(--font-mono); }
+
+::selection { background: var(--color-accent-soft); color: var(--color-accent-strong); }
+
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
+  outline-offset: 2px;
 }
 
-code, .font-mono {
-  font-family: var(--font-mono);
-}
+input[type="date"], input[type="datetime-local"] { color-scheme: light; }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C9C1AA; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #AFA68F; background-clip: padding-box; }
