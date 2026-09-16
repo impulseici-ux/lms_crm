@@ -8,7 +8,7 @@ import { downloadCsv } from "@/utils/csv";
 import { breakdownBySource, breakdownByCampaign, breakdownByStaff, stageFunnel, lostLeadBreakdown, type GroupBreakdown } from "@/utils/metrics";
 import { deriveFollowUpState } from "@/utils/followUp";
 import { StatusPill } from "@/components/Pills";
-import { Download, ClipboardList, Radio, Megaphone, UserCog, CalendarClock, CalendarCheck, TrendingUp, UserX, FileBarChart } from "lucide-react";
+import { Download, ClipboardList, Radio, Megaphone, UserCog, CalendarClock, CalendarCheck, TrendingUp, UserX, FileBarChart, Search } from "lucide-react";
 import type { ComponentType } from "react";
 
 const REPORTS = [
@@ -36,7 +36,7 @@ export function Reports() {
     <div className="max-w-7xl mx-auto pb-8">
       <SectionHeading eyebrow="Analytics" title="Reports" description="Filter the pipeline and export operational reports." />
 
-      <FilterBar filters={filters} onChange={setFilters} />
+      <FilterBar filters={filters} onApply={setFilters} />
 
       <div className="flex flex-wrap gap-2 mb-5">
         {REPORTS.map((r) => {
@@ -85,6 +85,7 @@ function ReportCard({ icon: Icon, title, subtitle, action, children }: { icon: C
 }
 
 function LeadReport({ rows, programName, staffName }: { rows: LeadDoc[]; programName: (id: string | null) => string; staffName: (id: string | null) => string }) {
+  const [q, setQ] = useState("");
   const exportCsv = () =>
     downloadCsv("lead-report.csv", rows.map((l) => ({
       parent: l.parentName, phone: l.parentPhone, child: l.childName,
@@ -92,20 +93,35 @@ function LeadReport({ rows, programName, staffName }: { rows: LeadDoc[]; program
       status: l.status, priority: l.priority, staff: staffName(l.assignedStaffId),
       createdAt: l.createdAt?.toDate().toISOString() ?? "",
     })));
+  const query = q.trim().toLowerCase();
+  const shown = query
+    ? rows.filter((l) => `${l.parentName} ${l.childName} ${programName(l.interestedProgramId)} ${staffName(l.assignedStaffId)}`.toLowerCase().includes(query))
+    : rows;
   return (
     <ReportCard
       icon={ClipboardList}
       title="Every lead and its current state"
-      subtitle={`${rows.length} leads in this filtered view`}
+      subtitle={`${shown.length} of ${rows.length} leads in this filtered view`}
       action={<Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export CSV</Button>}
     >
+      <div className="px-5 pb-3">
+        <div className="relative max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-faint pointer-events-none" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search this table…"
+            className="w-full rounded-lg border border-border bg-surface pl-8 pr-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
+          />
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[620px]">
           <thead><tr className="text-left text-ink-faint text-[11px] uppercase tracking-wide"><th className="pb-2 pl-5">Parent</th><th className="pb-2">Child</th><th className="pb-2">Program</th><th className="pb-2">Status</th><th className="pb-2 pr-5">Staff</th></tr></thead>
-          <tbody>{rows.map((l) => <tr key={l.id} className="border-t border-border-soft"><td className="py-2.5 pl-5 font-medium">{l.parentName}</td><td className="py-2.5">{l.childName}</td><td className="py-2.5">{programName(l.interestedProgramId)}</td><td className="py-2.5"><StatusPill status={l.status} /></td><td className="py-2.5 pr-5">{staffName(l.assignedStaffId)}</td></tr>)}</tbody>
+          <tbody>{shown.map((l) => <tr key={l.id} className="border-t border-border-soft"><td className="py-2.5 pl-5 font-medium">{l.parentName}</td><td className="py-2.5">{l.childName}</td><td className="py-2.5">{programName(l.interestedProgramId)}</td><td className="py-2.5"><StatusPill status={l.status} /></td><td className="py-2.5 pr-5">{staffName(l.assignedStaffId)}</td></tr>)}</tbody>
         </table>
       </div>
-      {rows.length === 0 && <EmptyState icon={<FileBarChart />} title="No leads match these filters" />}
+      {shown.length === 0 && <EmptyState icon={<FileBarChart />} title="No leads match these filters" />}
     </ReportCard>
   );
 }

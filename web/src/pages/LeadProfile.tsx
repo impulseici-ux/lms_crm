@@ -13,6 +13,7 @@ import {
   recordVisit,
   confirmAdmission,
   reassignLead,
+  updateLeadFields,
 } from "@/lib/data/leads";
 import { subscribeActivities } from "@/lib/data/activities";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
@@ -46,6 +47,9 @@ import {
   ArrowRightLeft,
   Sparkles,
   CircleCheck,
+  Pencil,
+  Landmark,
+  IndianRupee,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -129,6 +133,9 @@ export function LeadProfile() {
   const [reassignTo, setReassignTo] = useState("");
   const [reassignReason, setReassignReason] = useState("");
   const [closingStatus, setClosingStatus] = useState("");
+  const [editingFacts, setEditingFacts] = useState(false);
+  const [editLocation, setEditLocation] = useState("");
+  const [editFees, setEditFees] = useState("");
 
   if (lead === undefined) {
     return (
@@ -259,7 +266,22 @@ export function LeadProfile() {
 
       {/* Key facts */}
       <Card className="mb-4">
-        <h2 className="font-semibold mb-4">Key facts</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold">Key facts</h2>
+          {canEdit && !editingFacts && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditLocation(lead.location ?? "");
+                setEditFees(lead.fees != null ? String(lead.fees) : "");
+                setEditingFacts(true);
+              }}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:text-accent-strong"
+            >
+              <Pencil className="w-3.5 h-3.5" /> Edit
+            </button>
+          )}
+        </div>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm">
           <FactRow icon={Phone} label="Phone" value={lead.parentPhone} />
           <FactRow icon={Mail} label="Email" value={lead.parentEmail ?? "—"} />
@@ -269,7 +291,38 @@ export function LeadProfile() {
           <FactRow icon={Radio} label="Source" value={lead.sourceChannel} />
           <FactRow icon={Megaphone} label="Campaign" value={lead.campaignId ? campaignName(lead.campaignId) : "—"} />
           <FactRow icon={CalendarClock} label="Enquiry date" value={lead.createdAt?.toDate().toLocaleString() ?? "—"} />
+          {!editingFacts && <FactRow icon={Landmark} label="Location" value={lead.location ?? "—"} />}
+          {!editingFacts && <FactRow icon={IndianRupee} label="Fees quoted" value={lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"} />}
         </div>
+        {editingFacts && (
+          <div className="grid sm:grid-cols-2 gap-x-5 mt-4 pt-4 border-t border-border-soft">
+            <Field label="Location">
+              <Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="e.g. Singanallur" />
+            </Field>
+            <Field label="Fees quoted (₹)">
+              <Input type="number" min="0" value={editFees} onChange={(e) => setEditFees(e.target.value)} />
+            </Field>
+            <div className="sm:col-span-2 flex gap-2">
+              <Button
+                size="sm"
+                onClick={() =>
+                  doAction(async () => {
+                    await updateLeadFields(lead.id, {
+                      location: editLocation.trim() || null,
+                      fees: editFees.trim() ? Number(editFees) : null,
+                    });
+                    setEditingFacts(false);
+                  })
+                }
+              >
+                Save
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setEditingFacts(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Pipeline stepper */}

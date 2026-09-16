@@ -4,7 +4,7 @@ import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/
 import { setUserRole } from "@/lib/data/users";
 import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile } from "@/components/ui";
 import type { Role } from "@/types";
-import { Radio, BookOpen, MapPin, Megaphone, Users, AlertTriangle, Plus, ListChecks } from "lucide-react";
+import { Radio, BookOpen, MapPin, Megaphone, Users, AlertTriangle, Plus, ListChecks, Search } from "lucide-react";
 import type { ComponentType } from "react";
 
 const TABS: { key: string; icon: ComponentType<{ className?: string }> }[] = [
@@ -159,6 +159,7 @@ const ROLES: Role[] = ["admin", "counsellor", "management"];
 
 function StaffEditor() {
   const { users, branches } = useLookups();
+  const [staffQuery, setStaffQuery] = useState("");
   const [uid, setUid] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<Role>("counsellor");
@@ -224,21 +225,34 @@ function StaffEditor() {
       </Card>
 
       <Card padded={false}>
-        <div className="flex items-center gap-2.5 p-5 pb-4">
-          <IconTile tone="neutral" size="sm"><ListChecks /></IconTile>
-          <h2 className="font-semibold text-ink">Staff directory</h2>
+        <div className="flex items-center justify-between gap-3 p-5 pb-4">
+          <div className="flex items-center gap-2.5">
+            <IconTile tone="neutral" size="sm"><ListChecks /></IconTile>
+            <h2 className="font-semibold text-ink">Staff directory</h2>
+          </div>
+          <div className="relative w-full max-w-[220px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-faint pointer-events-none" />
+            <input
+              value={staffQuery}
+              onChange={(e) => setStaffQuery(e.target.value)}
+              placeholder="Search staff…"
+              className="w-full rounded-lg border border-border bg-surface pl-8 pr-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[420px]">
             <thead><tr className="text-left text-ink-faint text-[11px] uppercase tracking-wide"><th className="pb-2 pl-5">Name</th><th className="pb-2">Role</th><th className="pb-2 pr-5">Active</th></tr></thead>
             <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-t border-border-soft">
-                  <td className="py-2.5 pl-5 font-medium">{u.displayName}</td>
-                  <td className="py-2.5 capitalize">{u.role}</td>
-                  <td className="py-2.5 pr-5">{u.active ? <span className="text-good font-semibold">Yes</span> : <span className="text-ink-faint">No</span>}</td>
-                </tr>
-              ))}
+              {users
+                .filter((u) => u.displayName.toLowerCase().includes(staffQuery.trim().toLowerCase()))
+                .map((u) => (
+                  <tr key={u.id} className="border-t border-border-soft">
+                    <td className="py-2.5 pl-5 font-medium">{u.displayName}</td>
+                    <td className="py-2.5 capitalize">{u.role}</td>
+                    <td className="py-2.5 pr-5">{u.active ? <span className="text-good font-semibold">Yes</span> : <span className="text-ink-faint">No</span>}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
           {users.length === 0 && <EmptyState icon={<Users />} title="No staff yet" description="Grant your first role using the form above." />}

@@ -11,6 +11,49 @@ export function toCsv(rows: Record<string, unknown>[], columns?: string[]): stri
   return `${header}\n${body}`;
 }
 
+/** Minimal RFC4180-ish CSV parser: handles quoted fields, escaped quotes, and CRLF/LF. */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (c === "\r") {
+      // skip — paired \n handles the line break
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+}
+
 export function downloadCsv(filename: string, rows: Record<string, unknown>[], columns?: string[]) {
   const csv = toCsv(rows, columns);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

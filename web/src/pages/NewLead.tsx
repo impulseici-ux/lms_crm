@@ -8,6 +8,7 @@ import { createLead } from "@/lib/data/leads";
 import { Button, Card, Field, Input, Select, Textarea, SectionHeading } from "@/components/ui";
 import type { FollowUpType, Priority } from "@/types";
 import { AlertTriangle, CalendarClock, StickyNote, UserRound, ArrowRight } from "lucide-react";
+import { normalizePhone } from "@/utils/phone";
 
 const FOLLOW_UP_TYPES: FollowUpType[] = ["Call", "WhatsApp", "Visit Reminder", "Email", "In-Person", "Other"];
 
@@ -15,10 +16,6 @@ function defaultFollowUpLocal(): string {
   const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
   d.setSeconds(0, 0);
   return d.toISOString().slice(0, 16);
-}
-
-function normalizePhone(value: string): string {
-  return value.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "");
 }
 
 function SectionCard({
@@ -67,6 +64,8 @@ export function NewLead() {
   const [childAge, setChildAge] = useState("");
   const [programId, setProgramId] = useState("");
   const [branchId, setBranchId] = useState("");
+  const [location, setLocation] = useState("");
+  const [fees, setFees] = useState("");
   const [campaignId, setCampaignId] = useState("");
   const [referralName, setReferralName] = useState("");
   const [howHeardOther, setHowHeardOther] = useState("");
@@ -104,6 +103,8 @@ export function NewLead() {
           childAge: childAge.trim(),
           interestedProgramId: programId,
           branchId: branchId || null,
+          location: location.trim() || null,
+          fees: fees.trim() ? Number(fees) : null,
           sourceChannel,
           campaignId: campaignId || null,
           referralName: needsReferralName ? referralName.trim() || null : null,
@@ -215,6 +216,12 @@ export function NewLead() {
                 <option value="">None</option>
                 {campaigns.filter((c) => c.active).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
+            </Field>
+            <Field label="Location" hint="Area / locality, if different from branch.">
+              <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Singanallur" />
+            </Field>
+            <Field label="Fees quoted (₹)">
+              <Input type="number" min="0" inputMode="numeric" value={fees} onChange={(e) => setFees(e.target.value)} placeholder="e.g. 12000" />
             </Field>
           </div>
         </SectionCard>

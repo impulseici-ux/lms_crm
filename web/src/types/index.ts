@@ -123,6 +123,8 @@ export interface LeadDoc {
 
   interestedProgramId: string | null;
   branchId: string | null;
+  location: string | null; // free-text area/locality, distinct from branchId
+  fees: number | null; // quoted/agreed fee amount, in rupees
 
   sourceChannel: string;
   campaignId: string | null;
