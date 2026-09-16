@@ -3,6 +3,7 @@ import { useLookups } from "@/hooks/useLookups";
 import { OPEN_STATUSES, CLOSED_STATUSES } from "@/types";
 
 export interface Filters {
+  search: string;
   dateFrom: string;
   dateTo: string;
   staffId: string;
@@ -14,6 +15,7 @@ export interface Filters {
 }
 
 export const EMPTY_FILTERS: Filters = {
+  search: "",
   dateFrom: "",
   dateTo: "",
   staffId: "",
@@ -27,78 +29,92 @@ export const EMPTY_FILTERS: Filters = {
 export function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
   const { leadSources, programs, branches, campaigns, users } = useLookups();
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => key !== "search" && Boolean(value)).length;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2 items-end bg-surface border border-border rounded-xl p-3 mb-5">
-      <div>
-        <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">From</label>
-        <Input type="date" value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} className="py-1.5" />
-      </div>
-      <div>
-        <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">To</label>
-        <Input type="date" value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} className="py-1.5" />
-      </div>
-      <div>
-        <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Staff</label>
-        <Select value={filters.staffId} onChange={(e) => set({ staffId: e.target.value })} className="py-1.5">
-          <option value="">All</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
-        </Select>
-      </div>
-      <div>
-        <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Source</label>
-        <Select value={filters.sourceChannel} onChange={(e) => set({ sourceChannel: e.target.value })} className="py-1.5">
-          <option value="">All</option>
-          {leadSources.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-        </Select>
-      </div>
-      <div>
-        <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Campaign</label>
-        <Select value={filters.campaignId} onChange={(e) => set({ campaignId: e.target.value })} className="py-1.5">
-          <option value="">All</option>
-          {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </Select>
-      </div>
-      <div>
-        <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Program</label>
-        <Select value={filters.programId} onChange={(e) => set({ programId: e.target.value })} className="py-1.5">
-          <option value="">All</option>
-          {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </Select>
-      </div>
-      <div>
-        <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Status</label>
-        <Select value={filters.status} onChange={(e) => set({ status: e.target.value })} className="py-1.5">
-          <option value="">All</option>
-          <optgroup label="Open">
-            {OPEN_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </optgroup>
-          <optgroup label="Closed">
-            {CLOSED_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </optgroup>
-        </Select>
-      </div>
-      {branches.length > 0 && (
-        <div>
-          <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Branch</label>
-          <Select value={filters.branchId} onChange={(e) => set({ branchId: e.target.value })} className="py-1.5">
-            <option value="">All</option>
-            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-          </Select>
+    <div className="bg-surface border border-border rounded-2xl p-3 sm:p-4 mb-5 shadow-sm">
+      <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
+        <div className="lg:flex-1 min-w-0">
+          <label className="block text-[11px] uppercase tracking-wide text-ink-faint font-semibold mb-1.5">Search leads</label>
+          <div className="relative">
+            <Input
+              value={filters.search}
+              onChange={(e) => set({ search: e.target.value })}
+              placeholder="Parent, child or phone number…"
+              className="pl-9"
+              aria-label="Search leads by parent, child or phone number"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint text-sm" aria-hidden="true">⌕</span>
+          </div>
         </div>
-      )}
-      <button
-        type="button"
-        onClick={() => onChange(EMPTY_FILTERS)}
-        className="text-xs font-semibold text-accent hover:text-accent-strong text-left pb-2"
-      >
-        Clear filters
-      </button>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-2 flex-[3]">
+          <div>
+            <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">From</label>
+            <Input type="date" value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} className="py-1.5" />
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">To</label>
+            <Input type="date" value={filters.dateTo} onChange={(e) => set({ dateTo: e.target.value })} className="py-1.5" />
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Staff</label>
+            <Select value={filters.staffId} onChange={(e) => set({ staffId: e.target.value })} className="py-1.5">
+              <option value="">All staff</option>
+              {users.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Source</label>
+            <Select value={filters.sourceChannel} onChange={(e) => set({ sourceChannel: e.target.value })} className="py-1.5">
+              <option value="">All sources</option>
+              {leadSources.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Campaign</label>
+            <Select value={filters.campaignId} onChange={(e) => set({ campaignId: e.target.value })} className="py-1.5">
+              <option value="">All campaigns</option>
+              {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Program</label>
+            <Select value={filters.programId} onChange={(e) => set({ programId: e.target.value })} className="py-1.5">
+              <option value="">All programs</option>
+              {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </Select>
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Status</label>
+            <Select value={filters.status} onChange={(e) => set({ status: e.target.value })} className="py-1.5">
+              <option value="">All statuses</option>
+              <optgroup label="Open">{OPEN_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</optgroup>
+              <optgroup label="Closed">{CLOSED_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</optgroup>
+            </Select>
+          </div>
+          {branches.length > 0 && (
+            <div>
+              <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Branch</label>
+              <Select value={filters.branchId} onChange={(e) => set({ branchId: e.target.value })} className="py-1.5">
+                <option value="">All branches</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </Select>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-border-soft">
+        <span className="text-xs text-ink-faint">{activeFilterCount > 0 ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active` : "Showing all matching leads"}</span>
+        <button type="button" onClick={() => onChange(EMPTY_FILTERS)} className="text-xs font-semibold text-accent hover:text-accent-strong px-2 py-1 rounded-md hover:bg-accent-soft">Clear all</button>
+      </div>
     </div>
   );
 }
 
 export function applyFilters<T extends {
+  parentName: string;
+  childName: string;
+  parentPhone: string;
   createdAt: { toDate: () => Date } | null;
   assignedStaffId: string | null;
   sourceChannel: string;
@@ -107,10 +123,13 @@ export function applyFilters<T extends {
   status: string;
   branchId: string | null;
 }>(rows: T[], f: Filters): T[] {
+  const query = f.search.trim().toLowerCase();
   return rows.filter((r) => {
-    if (f.dateFrom && r.createdAt) {
-      if (r.createdAt.toDate() < new Date(f.dateFrom)) return false;
+    if (query) {
+      const haystack = `${r.parentName} ${r.childName} ${r.parentPhone}`.toLowerCase();
+      if (!haystack.includes(query)) return false;
     }
+    if (f.dateFrom && r.createdAt && r.createdAt.toDate() < new Date(f.dateFrom)) return false;
     if (f.dateTo && r.createdAt) {
       const to = new Date(f.dateTo);
       to.setHours(23, 59, 59, 999);
