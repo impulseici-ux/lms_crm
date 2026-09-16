@@ -1,8 +1,8 @@
 import type { InputHTMLAttributes, LabelHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
   return (
-    <div className={`bg-surface border border-border rounded-xl shadow-sm p-5 ${className}`}>
+    <div id={id} className={`bg-surface border border-border rounded-xl shadow-sm p-5 ${className}`}>
       {children}
     </div>
   );
