@@ -24,13 +24,12 @@ export const EMPTY_FILTERS: Filters = {
   branchId: "",
 };
 
-/** Section 15 — one shared filter bar component used by the leads list and every report. */
 export function FilterBar({ filters, onChange }: { filters: Filters; onChange: (f: Filters) => void }) {
   const { leadSources, programs, branches, campaigns, users } = useLookups();
   const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
 
   return (
-    <div className="flex flex-wrap gap-2 items-end bg-surface border border-border rounded-xl p-3 mb-5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-2 items-end bg-surface border border-border rounded-xl p-3 mb-5">
       <div>
         <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">From</label>
         <Input type="date" value={filters.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} className="py-1.5" />
@@ -89,10 +88,11 @@ export function FilterBar({ filters, onChange }: { filters: Filters; onChange: (
         </div>
       )}
       <button
+        type="button"
         onClick={() => onChange(EMPTY_FILTERS)}
-        className="text-xs font-semibold text-accent hover:text-accent-strong ml-1 pb-2"
+        className="text-xs font-semibold text-accent hover:text-accent-strong text-left pb-2"
       >
-        Clear
+        Clear filters
       </button>
     </div>
   );
