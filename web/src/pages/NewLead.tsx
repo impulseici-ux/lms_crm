@@ -2,10 +2,12 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { useLookups } from "@/hooks/useLookups";
 import { useLeads } from "@/hooks/useLeads";
 import { createLead } from "@/lib/data/leads";
 import { Button, Card, Field, Input, Select, Textarea, SectionHeading } from "@/components/ui";
+import { DateTimePicker } from "@/components/DateTimePicker";
 import type { FollowUpType, Priority } from "@/types";
 import { AlertTriangle, CalendarClock, StickyNote, UserRound, ArrowRight } from "lucide-react";
 import { normalizePhone } from "@/utils/phone";
@@ -52,6 +54,7 @@ function SectionCard({
 
 export function NewLead() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { leadSources, programs, branches, campaigns } = useLookups();
   const { leads } = useLeads();
   const navigate = useNavigate();
@@ -116,6 +119,7 @@ export function NewLead() {
         },
         user.uid
       );
+      showToast("Lead saved");
       navigate(`/leads/${leadId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save this lead.");
@@ -229,7 +233,7 @@ export function NewLead() {
         <SectionCard step={3} icon={<CalendarClock />} title="Next follow-up — required" description="Every new enquiry needs a clear next action.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5">
             <Field label="Date & time *">
-              <Input type="datetime-local" required value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} />
+              <DateTimePicker required value={followUpAt} onChange={setFollowUpAt} />
             </Field>
             <Field label="Follow-up type">
               <Select value={followUpType} onChange={(e) => setFollowUpType(e.target.value as FollowUpType)}>

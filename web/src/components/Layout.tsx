@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut, GraduationCap } from "lucide-react";
 import type { ComponentType } from "react";
@@ -24,7 +24,7 @@ export function Layout() {
   const displayName = profile?.displayName ?? user?.email ?? "";
 
   const brand = (
-    <div className="flex items-center gap-2.5 px-5 py-5">
+    <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5 px-5 py-5 hover:bg-sidebar-bg-raised transition-colors">
       <div className="w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center shrink-0">
         <GraduationCap className="w-[18px] h-[18px]" />
       </div>
@@ -32,7 +32,7 @@ export function Layout() {
         <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-ink-soft leading-none">Little Millennium</div>
         <div className="font-display font-semibold text-[15px] leading-tight mt-0.5 truncate text-sidebar-ink">Admissions CRM</div>
       </div>
-    </div>
+    </Link>
   );
 
   const navigation = (
@@ -85,12 +85,12 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between bg-sidebar-bg border-b border-sidebar-border px-4 py-3">
-        <div className="flex items-center gap-2">
+        <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-accent text-white flex items-center justify-center">
             <GraduationCap className="w-4 h-4" />
           </div>
           <div className="font-display font-semibold text-[15px] leading-tight text-sidebar-ink">Admissions CRM</div>
-        </div>
+        </Link>
         <button
           type="button"
           aria-label={mobileOpen ? "Close navigation" : "Open navigation"}

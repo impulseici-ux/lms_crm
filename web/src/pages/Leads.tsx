@@ -8,6 +8,7 @@ import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
 import { computeAttentionFlags } from "@/utils/attention";
 import { deriveFollowUpState } from "@/utils/followUp";
 import { downloadCsv } from "@/utils/csv";
+import { buildWhatsAppLink } from "@/utils/whatsapp";
 import { breakdownBySource, breakdownByStaff } from "@/utils/metrics";
 import { bulkChangeStatus, bulkReassign, deleteLead } from "@/lib/data/leads";
 import { ImportLeadsModal } from "@/components/ImportLeadsModal";
@@ -252,7 +253,7 @@ export function Leads() {
                     {selectedLeads.map((l) => (
                       <a
                         key={l.id}
-                        href={`https://wa.me/${l.parentPhone.replace(/[^0-9]/g, "")}`}
+                        href={buildWhatsAppLink(l.parentPhone, l.parentName, l.sourceChannel)}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => setShowWhatsApp(false)}

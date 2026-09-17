@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useToast } from "@/context/ToastContext";
 import { useLookups } from "@/hooks/useLookups";
 import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/lib/data/lookups";
 import { setUserRole } from "@/lib/data/users";
@@ -88,11 +89,13 @@ function SimpleListEditor({
   placeholder: string;
 }) {
   const [name, setName] = useState("");
+  const { showToast } = useToast();
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     await onAdd(name.trim());
     setName("");
+    showToast("Saved");
   };
   return (
     <Card padded={false}>
@@ -124,6 +127,7 @@ function SimpleListEditor({
 
 function CampaignsEditor() {
   const { campaigns, leadSources } = useLookups();
+  const { showToast } = useToast();
   const [name, setName] = useState("");
   const [channels, setChannels] = useState<string[]>([]);
   const submit = async (e: FormEvent) => {
@@ -132,6 +136,7 @@ function CampaignsEditor() {
     await addCampaign(name.trim(), channels, null, null, null);
     setName("");
     setChannels([]);
+    showToast("Saved");
   };
   return (
     <Card padded={false}>
@@ -176,6 +181,7 @@ const ROLES: Role[] = ["admin", "counsellor", "management"];
 
 function StaffEditor() {
   const { users, branches } = useLookups();
+  const { showToast } = useToast();
   const [staffQuery, setStaffQuery] = useState("");
   const [uid, setUid] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -193,6 +199,7 @@ function StaffEditor() {
       await setUserRole({ uid: uid.trim(), role, displayName: displayName.trim() || undefined, branchId: branchId || null });
       setUid("");
       setDisplayName("");
+      showToast("Saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not set role.");
     } finally {
