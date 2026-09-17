@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "littlemillennium-crm",
+    "dev": "littlemillennium-crm",
+    "prod": "littlemillennium-crm-prod"
+  }
+}

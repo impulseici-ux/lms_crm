@@ -1,0 +1,24 @@
+{
+  "name": "lms-crm",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Little Millennium Singanallur — School Admissions CRM",
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "build:dev": "npm --prefix web run build -- --mode dev",
+    "build:prod": "npm --prefix web run build -- --mode prod",
+    "use:dev": "firebase use dev",
+    "use:prod": "firebase use prod",
+    "deploy:dev": "firebase use dev && npm run build:dev && firebase deploy --only firestore:rules,firestore:indexes,hosting",
+    "deploy:prod": "firebase use prod && npm run build:prod && firebase deploy --only firestore:rules,firestore:indexes,hosting",
+    "emulators": "firebase emulators:start --import=./.emulator-data --export-on-exit=./.emulator-data",
+    "seed": "node scripts/seed.mjs"
+  },
+  "devDependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-tools": "^15.30.1",
+    "google-auth-library": "^9.15.1"
+  }
+}
