@@ -137,6 +137,15 @@ async function findCampaignIdByName(db, name) {
   return snap.empty ? null : snap.docs[0].id;
 }
 
+/** Case-insensitive match, since a lead form's multiple-choice answer may not
+ * capitalize exactly like the CRM's Programs list (e.g. "nursery" vs "Nursery"). */
+async function findProgramIdByName(db, name) {
+  if (!name) return null;
+  const snap = await db.collection("programs").get();
+  const match = snap.docs.find((d) => (d.data().name ?? "").trim().toLowerCase() === name.trim().toLowerCase());
+  return match ? match.id : null;
+}
+
 /**
  * The idempotent core: given already-fetched header/data rows, claims each
  * row's external-lead-id in the dedupe ledger and creates the lead on first
@@ -149,6 +158,7 @@ export async function processDataRows(db, { headerFields, dataRows, columnOverri
   let failed = 0;
   const failedRows = [];
   const campaignCache = new Map();
+  const programCache = new Map();
 
   for (let i = 0; i < dataRows.length; i++) {
     const sheetRow = i + 2; // +1 for 0-index, +1 for the header row
@@ -173,6 +183,16 @@ export async function processDataRows(db, { headerFields, dataRows, columnOverri
         }
       }
 
+      let interestedProgramId = null;
+      if (fields.program) {
+        if (programCache.has(fields.program)) {
+          interestedProgramId = programCache.get(fields.program);
+        } else {
+          interestedProgramId = await findProgramIdByName(db, fields.program);
+          programCache.set(fields.program, interestedProgramId);
+        }
+      }
+
       const outcome = await db.runTransaction(async (tx) => {
         const ledgerSnap = await tx.get(ledgerRef);
         if (ledgerSnap.exists && ledgerSnap.data().status === "synced") {
@@ -190,7 +210,7 @@ export async function processDataRows(db, { headerFields, dataRows, columnOverri
           childName: fields.childName ?? fields.parentName,
           childAge: fields.childAge ?? null,
           childDob: null,
-          interestedProgramId: null,
+          interestedProgramId,
           branchId: null,
           location: fields.location ?? null,
           fees: null,
@@ -224,7 +244,7 @@ export async function processDataRows(db, { headerFields, dataRows, columnOverri
           admissionFeePlan: null,
           admissionConfirmedAt: null,
           householdId: null,
-          notes: null,
+          notes: fields.notes ?? null,
           createdAt: now,
           updatedAt: now,
         });
