@@ -231,6 +231,53 @@ rules not deployed yet (`firebase deploy --only firestore:rules`), the
 signed-in user has no role set yet (Admin → Staff), or `web/.env.local` still
 has `VITE_USE_EMULATORS=true` while no emulator is running.
 
+## Google Sheets lead sync (Meta Ads)
+
+New rows in a Google Sheet fed by a Meta Lead Ads integration are imported
+automatically into the `leads` collection (sourced as `"Meta Ads"`), on a
+schedule, at no extra cost — no Blaze plan needed. It's a plain Node script
+(`scripts/sync-google-sheets-leads.mjs`) using the Firebase Admin SDK
+directly, same pattern as `scripts/set-role.mjs`/`scripts/seed.mjs`, run on a
+cron by `.github/workflows/sync-leads.yml`. Every row is deduped by an
+"external lead id" (the Meta Lead ID if the sheet has one, else a hash of
+phone+email+created-time) recorded in the `metaLeadSyncLedger` collection, so
+re-running the sync — or two runs overlapping — can never create a duplicate
+lead. A failed row (bad phone, transient API error, etc.) is logged with a
+reason and retried automatically on the next run without blocking the rest
+of the batch.
+
+**One-time setup:**
+
+1. **Google Cloud**: in a Google Cloud project, enable the **Google Sheets
+   API**, create a **Service Account**, and generate a JSON key for it.
+2. **Share the Sheet**: open your Meta Ads lead sheet → Share → add the
+   service account's email (`...@...iam.gserviceaccount.com`) as **Viewer**.
+3. **GitHub repo secrets** (Settings → Secrets and variables → Actions):
+   - `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY` — the full JSON key from step 1, as one string
+   - `GOOGLE_SHEETS_SPREADSHEET_ID` — from the sheet's URL
+   - `GOOGLE_SHEETS_SHEET_NAME` — the tab name, e.g. `Sheet1`
+   - `FIREBASE_SERVICE_ACCOUNT_KEY` — a Firebase Admin SDK service-account JSON key for the target project (dev or prod), as one string
+4. The workflow runs automatically every ~15 minutes. To run it immediately
+   (including the first, historical-backfill run — it processes every
+   existing row the first time, then only new ones after that), go to the
+   repo's **Actions** tab → **Sync Google Sheets Leads** → **Run workflow**.
+5. Check progress in the app under **Admin → Integrations** (last sync time/status,
+   totals, and the last 10 runs with any per-row failures) — that panel is
+   read-only; it never sees your credentials.
+
+**Column mapping**: the script maps common Meta Lead Ads column names
+(`Lead ID`, `Created Time`, `Full Name`, `Phone Number`, `Email`, `Campaign
+Name`, `Ad Set Name`, `Ad Name`, `Form Name`, `Platform`, `Location`) to CRM
+fields automatically — see `scripts/lib/sheetFieldMapping.mjs`. If your
+sheet uses different headers, either rename them to match one of the
+recognized aliases, or add `columnMapping: { "<your header, lowercase>":
+"<field>" }` to the `integrations/googleSheetsSync` Firestore document to
+override/extend the defaults without touching code.
+
+**Want a live in-app "Sync Now" button instead of the Actions tab?** That
+needs a callable Cloud Function, which requires the Blaze plan (see the
+Spark vs. Blaze section above) — happy to add it if/when you upgrade.
+
 ## What's implemented (Phase 1) vs. deferred
 
 See the full blueprint for the complete rationale. In short:
@@ -243,6 +290,7 @@ See the full blueprint for the complete rationale. In short:
 - ✅ Three roles with Firestore-rules-enforced permissions, admin-only reassignment with audit trail
 - ✅ Campaigns as a tag on a lead, with a funnel-style report
 - ✅ All eight Section 15 reports behind one shared filter bar, with CSV export
+- ✅ Automatic Google Sheets → CRM sync for Meta Ads leads (see "Google Sheets lead sync" above)
 - 🚧 **Deferred to Phase 2/3** (per the blueprint, not built here): live website-form webhook, WhatsApp Business API, telephony/IVR, ad-platform lead sync, automated duplicate detection, push/email overdue digests. The Cloud Functions layer (`websiteWebhook`) is scaffolded to the target shape but stays disabled until you're ready for Phase 2.
 
 ## Known open questions

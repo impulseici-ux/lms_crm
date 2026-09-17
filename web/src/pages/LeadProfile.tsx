@@ -50,6 +50,7 @@ import {
   Pencil,
   Landmark,
   IndianRupee,
+  Layers,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -293,6 +294,13 @@ export function LeadProfile() {
           <FactRow icon={CalendarClock} label="Enquiry date" value={lead.createdAt?.toDate().toLocaleString() ?? "—"} />
           {!editingFacts && <FactRow icon={Landmark} label="Location" value={lead.location ?? "—"} />}
           {!editingFacts && <FactRow icon={IndianRupee} label="Fees quoted" value={lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"} />}
+          {lead.metaAds && (
+            <FactRow
+              icon={Layers}
+              label="Meta ad"
+              value={[lead.metaAds.adSetName, lead.metaAds.adName, lead.metaAds.formName].filter(Boolean).join(" / ") || "—"}
+            />
+          )}
         </div>
         {editingFacts && (
           <div className="grid sm:grid-cols-2 gap-x-5 mt-4 pt-4 border-t border-border-soft">

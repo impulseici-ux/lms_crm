@@ -1,10 +1,25 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useLookups } from "@/hooks/useLookups";
 import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/lib/data/lookups";
 import { setUserRole } from "@/lib/data/users";
+import { subscribeSyncConfig, subscribeSyncRuns } from "@/lib/data/sync";
 import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile } from "@/components/ui";
-import type { Role } from "@/types";
-import { Radio, BookOpen, MapPin, Megaphone, Users, AlertTriangle, Plus, ListChecks, Search } from "lucide-react";
+import type { Role, SyncConfigDoc, SyncRunDoc } from "@/types";
+import {
+  Radio,
+  BookOpen,
+  MapPin,
+  Megaphone,
+  Users,
+  AlertTriangle,
+  Plus,
+  ListChecks,
+  Search,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Clock,
+} from "lucide-react";
 import type { ComponentType } from "react";
 
 const TABS: { key: string; icon: ComponentType<{ className?: string }> }[] = [
@@ -13,6 +28,7 @@ const TABS: { key: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "Branches", icon: MapPin },
   { key: "Campaigns", icon: Megaphone },
   { key: "Staff", icon: Users },
+  { key: "Integrations", icon: RefreshCw },
 ];
 type Tab = (typeof TABS)[number]["key"];
 
@@ -53,6 +69,7 @@ export function Admin() {
       )}
       {tab === "Campaigns" && <CampaignsEditor />}
       {tab === "Staff" && <StaffEditor />}
+      {tab === "Integrations" && <IntegrationsPanel />}
     </div>
   );
 }
@@ -258,6 +275,130 @@ function StaffEditor() {
           {users.length === 0 && <EmptyState icon={<Users />} title="No staff yet" description="Grant your first role using the form above." />}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function formatTimestamp(ts: { toDate: () => Date } | null | undefined): string {
+  if (!ts) return "—";
+  try {
+    return ts.toDate().toLocaleString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
+
+/**
+ * Read-only view of the Google Sheets → Meta Ads lead sync (scripts/sync-google-sheets-leads.mjs,
+ * scheduled by .github/workflows/sync-leads.yml). No credentials live here — this panel only
+ * reads the status/history documents the sync script itself writes via the Admin SDK.
+ */
+function IntegrationsPanel() {
+  const [config, setConfig] = useState<SyncConfigDoc | null>(null);
+  const [runs, setRuns] = useState<SyncRunDoc[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const unsubs = [
+      subscribeSyncConfig((c) => {
+        setConfig(c);
+        setLoaded(true);
+      }),
+      subscribeSyncRuns(setRuns, 10),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, []);
+
+  const configured = !!config?.spreadsheetId;
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <div className="flex items-center gap-2.5 mb-1">
+          <IconTile tone="accent" size="sm"><RefreshCw /></IconTile>
+          <h2 className="font-semibold text-ink">Google Sheets — Meta Ads lead sync</h2>
+        </div>
+        <p className="text-xs text-ink-faint mb-4 ml-[42px]">
+          New rows in your Meta Ads lead sheet are imported automatically into Enquiries, sourced as "Meta Ads". Runs on a schedule via
+          GitHub Actions — no Blaze plan required.
+        </p>
+
+        {!loaded ? (
+          <div className="text-sm text-ink-faint">Loading…</div>
+        ) : !configured ? (
+          <div className="flex gap-2.5 rounded-xl border border-warn/25 bg-warn-soft px-4 py-3">
+            <AlertTriangle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+            <p className="text-xs text-ink-soft">
+              Not configured yet. Set up the Google service account and repo secrets described in README.md ("Google Sheets lead sync"),
+              then trigger the <code className="font-mono bg-surface px-1 py-0.5 rounded">Sync Google Sheets Leads</code> workflow once
+              from the GitHub Actions tab to run the initial import.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Stat label="Last sync" value={formatTimestamp(config?.lastSyncAt)} />
+            <Stat
+              label="Last status"
+              value={
+                config?.lastSyncStatus === "success" ? (
+                  <span className="inline-flex items-center gap-1 text-good"><CheckCircle2 className="w-3.5 h-3.5" /> Success</span>
+                ) : config?.lastSyncStatus === "failed" ? (
+                  <span className="inline-flex items-center gap-1 text-bad"><XCircle className="w-3.5 h-3.5" /> Failed</span>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <Stat label="Imported (all-time)" value={String(config?.totalImported ?? 0)} />
+            <Stat label="Duplicates skipped" value={String(config?.totalDuplicates ?? 0)} />
+          </div>
+        )}
+      </Card>
+
+      <Card padded={false}>
+        <div className="flex items-center gap-2.5 p-5 pb-4">
+          <IconTile tone="neutral" size="sm"><Clock /></IconTile>
+          <h2 className="font-semibold text-ink">Recent sync runs</h2>
+        </div>
+        <div className="divide-y divide-border-soft">
+          {runs.map((run) => (
+            <div key={run.id} className="px-5 py-3.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  {run.status === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-good shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-bad shrink-0" />
+                  )}
+                  <span className="font-medium text-ink text-sm">{formatTimestamp(run.startedAt)}</span>
+                  <span className="text-xs text-ink-faint capitalize">· {run.triggeredBy}</span>
+                </div>
+                <span className="text-xs text-ink-soft shrink-0">
+                  {run.importedCount} imported · {run.duplicateCount} duplicates · {run.failedCount} failed
+                </span>
+              </div>
+              {run.error && <p className="text-xs text-bad mt-1.5">{run.error}</p>}
+              {run.failedRows?.length > 0 && (
+                <ul className="mt-1.5 space-y-0.5">
+                  {run.failedRows.slice(0, 5).map((f, i) => (
+                    <li key={i} className="text-xs text-ink-faint">Row {f.row}: {f.reason}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+          {runs.length === 0 && <EmptyState icon={<RefreshCw />} title="No sync runs yet" description="Runs will appear here once the scheduled workflow executes." />}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-border-soft bg-surface-2 px-3.5 py-3">
+      <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">{label}</div>
+      <div className="text-sm font-semibold text-ink mt-1">{value}</div>
     </div>
   );
 }

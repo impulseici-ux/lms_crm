@@ -1,0 +1,30 @@
+name: Sync Google Sheets Leads
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub's scheduler is best-effort and can lag under
+    # load — treat this as "at least every ~15-20 min", not to-the-minute.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Google Sheets lead sync
+        env:
+          GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SHEET_NAME: ${{ secrets.GOOGLE_SHEETS_SHEET_NAME }}
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          SYNC_TRIGGERED_BY: ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'schedule' }}
+        run: node scripts/sync-google-sheets-leads.mjs

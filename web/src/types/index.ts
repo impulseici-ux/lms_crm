@@ -132,6 +132,10 @@ export interface LeadDoc {
   referralName: string | null; // Section 4 — referring parent / staff name
   howHeardOther: string | null; // free text when sourceChannel = "Other / Manual"
 
+  // Google Sheets → Meta Ads sync provenance. Null for every manually/CSV-created lead.
+  externalLeadId: string | null;
+  metaAds: MetaAdsInfo | null;
+
   status: LeadStatus;
   priority: Priority;
 
@@ -223,4 +227,52 @@ export interface ActivityDoc {
   // visit
   visitDate?: Timestamp | null;
   visitNotes?: string | null;
+}
+
+/** Raw Meta Lead Ads context, preserved for campaign-performance analysis (Section: Google Sheets sync). */
+export interface MetaAdsInfo {
+  formName: string | null;
+  adSetName: string | null;
+  adName: string | null;
+  platform: string | null;
+}
+
+/** Per-row outcome recorded in `metaLeadSyncLedger/{externalLeadId}` — the sync's dedupe/idempotency ledger. */
+export type SyncLedgerStatus = "synced" | "duplicate" | "failed";
+
+export interface SyncLedgerDoc {
+  id: string; // == externalLeadId
+  status: SyncLedgerStatus;
+  leadId: string | null;
+  sheetRow: number | null;
+  reason: string | null; // populated when status === "failed"
+  syncedAt: Timestamp | null;
+  lastAttemptAt: Timestamp | null;
+}
+
+/** One doc per sync execution, written to `integrations/googleSheetsSync/runs/{runId}`. */
+export interface SyncRunDoc {
+  id: string;
+  status: "success" | "failed";
+  triggeredBy: "schedule" | "manual" | "initial";
+  startedAt: Timestamp | null;
+  finishedAt: Timestamp | null;
+  rowsFound: number;
+  importedCount: number;
+  duplicateCount: number;
+  failedCount: number;
+  failedRows: { row: number; reason: string }[];
+  error: string | null; // set only if the whole run crashed before processing rows
+}
+
+/** Singleton config/status doc at `integrations/googleSheetsSync`. */
+export interface SyncConfigDoc {
+  spreadsheetId: string | null;
+  sheetName: string | null;
+  columnMapping: Record<string, string> | null; // optional override of the script's default header aliases
+  lastSyncAt: Timestamp | null;
+  lastSyncStatus: "success" | "failed" | null;
+  totalImported: number;
+  totalDuplicates: number;
+  totalFailed: number;
 }
