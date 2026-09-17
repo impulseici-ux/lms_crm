@@ -43,7 +43,7 @@ export function Dashboard() {
     return (
       <div className="max-w-7xl mx-auto animate-pulse">
         <div className="h-40 bg-surface-2 rounded-2xl mb-6" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-28 bg-surface-2 rounded-2xl" />)}
         </div>
       </div>
@@ -90,7 +90,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
         {statConfig.map((stat) => (
           <Link key={stat.key} to={stat.href} className="block">
             <BigStat value={statValue[stat.key]} label={stat.label} color={stat.color} icon={<stat.icon />} />

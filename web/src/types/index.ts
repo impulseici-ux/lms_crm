@@ -173,6 +173,7 @@ export type FollowUpType =
 
 export type FollowUpOutcome =
   | "Reached"
+  | "Interested"
   | "No Answer"
   | "Rescheduled"
   | "Not Interested"

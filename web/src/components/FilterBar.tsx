@@ -74,7 +74,7 @@ export function FilterBar({ filters, onApply }: { filters: Filters; onApply: (f:
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint pointer-events-none" />
             <Input
               value={draft.search}
-              onChange={(e) => { const next = { ...draft, search: e.target.value }; setDraft(next); onApply(next); }}
+              onChange={(e) => set({ search: e.target.value })}
               placeholder="Parent, child or phone…"
               className="pl-9"
               aria-label="Search leads by parent, child or phone number"

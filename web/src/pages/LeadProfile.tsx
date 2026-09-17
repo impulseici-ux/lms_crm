@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { useLookups } from "@/hooks/useLookups";
 import {
   subscribeLead,
@@ -17,7 +18,9 @@ import {
 } from "@/lib/data/leads";
 import { subscribeActivities } from "@/lib/data/activities";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
+import { DateTimePicker } from "@/components/DateTimePicker";
 import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
+import { buildWhatsAppLink } from "@/utils/whatsapp";
 import {
   OPEN_STATUSES,
   CLOSED_STATUSES,
@@ -55,7 +58,7 @@ import {
 import type { ComponentType } from "react";
 
 const FOLLOW_UP_TYPES: FollowUpType[] = ["Call", "WhatsApp", "Visit Reminder", "Email", "In-Person", "Other"];
-const OUTCOMES: FollowUpOutcome[] = ["Reached", "No Answer", "Rescheduled", "Not Interested", "Converted to Visit"];
+const OUTCOMES: FollowUpOutcome[] = ["Reached", "Interested", "No Answer", "Rescheduled", "Not Interested", "Converted to Visit"];
 
 const ACTIVITY_ICON: Record<ActivityType, ComponentType<{ className?: string }>> = {
   follow_up_planned: CalendarClock,
@@ -98,6 +101,7 @@ export function LeadProfile() {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
   const { user, role } = useAuth();
+  const { showToast } = useToast();
   const { programName, branchName, campaignName, staffName, users } = useLookups();
 
   const [lead, setLead] = useState<LeadDoc | null | undefined>(undefined);
@@ -154,11 +158,12 @@ export function LeadProfile() {
     setError(null);
     try {
       await fn();
+      showToast("Saved");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     }
   };
-  const waLink = `https://wa.me/${lead.parentPhone.replace(/[^0-9]/g, "")}`;
+  const waLink = buildWhatsAppLink(lead.parentPhone, lead.parentName, lead.sourceChannel);
   const isVisitStage = ["Visit Scheduled", "Visit Completed", "Admission Discussion", "Admission Confirmed"].includes(lead.status);
   const stageIndex = OPEN_STATUSES.indexOf(lead.status as (typeof OPEN_STATUSES)[number]);
 
@@ -217,7 +222,7 @@ export function LeadProfile() {
             <>
               <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end mb-1">
                 <Field label="Next follow-up">
-                  <Input type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} />
+                  <DateTimePicker value={followUpAt} onChange={setFollowUpAt} />
                 </Field>
                 <Field label="Type">
                   <Select value={followUpType} onChange={(e) => setFollowUpType(e.target.value as FollowUpType)}>
@@ -404,7 +409,7 @@ export function LeadProfile() {
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <Field label="Visit date">
-              <Input type="datetime-local" value={visitDate || toLocalInput(lead.visitDate)} onChange={(e) => setVisitDate(e.target.value)} />
+              <DateTimePicker value={visitDate || toLocalInput(lead.visitDate)} onChange={setVisitDate} />
             </Field>
             <Field label="Visit notes">
               <Input value={visitNotes || lead.visitNotes || ""} onChange={(e) => setVisitNotes(e.target.value)} />
