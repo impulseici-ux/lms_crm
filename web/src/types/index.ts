@@ -2,15 +2,45 @@ import type { Timestamp } from "firebase/firestore";
 
 export type Role = "admin" | "counsellor" | "management";
 
+/**
+ * Onboarding pipeline for a newly-invited user (Admin > Staff > Invite User).
+ * Missing on any pre-existing account created before this flow existed —
+ * always treat that as "active" (see `resolveUserStatus`).
+ */
+export type UserStatus = "pending_activation" | "password_setup_required" | "active" | "inactive";
+
+export function resolveUserStatus(status: UserStatus | undefined | null): UserStatus {
+  return status ?? "active";
+}
+
 export interface UserDoc {
   id: string;
   displayName: string;
   email: string;
+  mobile?: string | null;
   role: Role;
   branchId: string | null;
   active: boolean;
+  status?: UserStatus;
+  passwordSetupCompleted?: boolean;
+  invitedByStaffId?: string | null;
+  activatedAt?: Timestamp | null;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
+}
+
+/** `integrations`-style doc at `userActivations/{uid}` — written only by the activation backend (backend/api/*), read-only for admins in the CRM UI. */
+export interface UserActivationDoc {
+  id: string; // == uid
+  mobile: string;
+  expiresAt: Timestamp | null;
+  verified: boolean;
+  verifiedAt: Timestamp | null;
+  verifyAttempts: number;
+  whatsappStatus: "not_sent" | "sending" | "sent" | "failed" | "delivered" | "read";
+  whatsappError: string | null;
+  lastSentAt: Timestamp | null;
+  resendCount: number;
 }
 
 /** Section 5 — seven sequential open pipeline stages. */

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button, Field, Input } from "@/components/ui";
 import { Users, CalendarClock, TrendingUp } from "lucide-react";
@@ -86,6 +86,9 @@ export function Login() {
               {busy ? "Signing in…" : "Sign in"}
             </Button>
           </form>
+          <p className="text-sm text-ink-faint text-center mt-5">
+            New here? <Link to="/activate" className="font-semibold text-accent hover:text-accent-strong">Activate your account</Link>
+          </p>
         </div>
       </div>
     </div>

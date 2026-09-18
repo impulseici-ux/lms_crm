@@ -7,6 +7,7 @@ export const activitiesCol = (leadId: string) => collection(db, "leads", leadId,
 
 export const usersCol = () => collection(db, "users");
 export const userDoc = (uid: string) => doc(db, "users", uid);
+export const userActivationDoc = (uid: string) => doc(db, "userActivations", uid);
 
 export const leadSourcesCol = () => collection(db, "leadSources");
 export const programsCol = () => collection(db, "programs");

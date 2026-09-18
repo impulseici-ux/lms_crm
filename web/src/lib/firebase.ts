@@ -1,4 +1,4 @@
-import { initializeApp, deleteApp } from "firebase/app";
+import { initializeApp } from "firebase/app";
 import {
   getAuth,
   connectAuthEmulator,
@@ -32,21 +32,4 @@ if (useEmulators) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
   connectFirestoreEmulator(db, "127.0.0.1", 8080);
   connectFunctionsEmulator(functions, "127.0.0.1", 5001);
-}
-
-/**
- * A throwaway, isolated Firebase App + Auth instance for creating a NEW
- * user's login from the browser (Admin → Staff → Create User). The Auth
- * client SDK signs in as whichever user it just created — running that on
- * an isolated app, instead of the real `auth`, is what stops creating a
- * staff account from kicking the signed-in admin out of their own session.
- * Callers must call the returned `cleanup()` once done.
- */
-export function createIsolatedAuthApp() {
-  const isolatedApp = initializeApp(firebaseConfig, `isolated-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  const isolatedAuth = getAuth(isolatedApp);
-  if (useEmulators) {
-    connectAuthEmulator(isolatedAuth, "http://127.0.0.1:9099", { disableWarnings: true });
-  }
-  return { auth: isolatedAuth, cleanup: () => deleteApp(isolatedApp) };
 }
