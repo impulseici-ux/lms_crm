@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut, GraduationCap } from "lucide-react";
+import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut } from "lucide-react";
 import type { ComponentType } from "react";
+import logo from "@/assets/brand/lm-singanallur-logo.webp";
 
 const navItems: { to: string; label: string; roles: string[]; icon: ComponentType<{ className?: string }> }[] = [
   { to: "/", label: "Dashboard", roles: ["admin", "counsellor", "management"], icon: LayoutDashboard },
@@ -24,13 +25,9 @@ export function Layout() {
   const displayName = profile?.displayName ?? user?.email ?? "";
 
   const brand = (
-    <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5 px-5 py-5 hover:bg-sidebar-bg-raised transition-colors">
-      <div className="w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center shrink-0">
-        <GraduationCap className="w-[18px] h-[18px]" />
-      </div>
-      <div className="min-w-0">
-        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-ink-soft leading-none">Little Millennium</div>
-        <div className="font-display font-semibold text-[15px] leading-tight mt-0.5 truncate text-sidebar-ink">Admissions CRM</div>
+    <Link to="/" onClick={() => setMobileOpen(false)} className="block px-5 py-5 hover:bg-sidebar-bg-raised transition-colors">
+      <div className="bg-white rounded-xl p-2 inline-block">
+        <img src={logo} alt="Little Millennium Singanallur" className="h-10 w-auto object-contain" />
       </div>
     </Link>
   );
@@ -85,11 +82,8 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-bg text-ink">
       <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between bg-sidebar-bg border-b border-sidebar-border px-4 py-3">
-        <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-md bg-accent text-white flex items-center justify-center">
-            <GraduationCap className="w-4 h-4" />
-          </div>
-          <div className="font-display font-semibold text-[15px] leading-tight text-sidebar-ink">Admissions CRM</div>
+        <Link to="/" onClick={() => setMobileOpen(false)} className="bg-white rounded-lg p-1.5 inline-block">
+          <img src={logo} alt="Little Millennium Singanallur" className="h-8 w-auto object-contain" />
         </Link>
         <button
           type="button"
