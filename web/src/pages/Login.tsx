@@ -2,7 +2,8 @@ import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button, Field, Input } from "@/components/ui";
-import { GraduationCap, Users, CalendarClock, TrendingUp } from "lucide-react";
+import { Users, CalendarClock, TrendingUp } from "lucide-react";
+import logo from "@/assets/brand/lm-singanallur-logo.webp";
 
 const highlights = [
   { icon: Users, text: "Every enquiry — walk-in, call, WhatsApp or web — in one pipeline." },
@@ -38,11 +39,8 @@ export function Login() {
         <div className="absolute -right-24 -top-24 w-96 h-96 rounded-full border-[48px] border-white/[0.06]" />
         <div className="absolute -left-16 bottom-0 w-72 h-72 rounded-full border-[36px] border-white/[0.05]" />
         <div className="relative">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/60">Little Millennium</div>
+          <div className="inline-block bg-white rounded-2xl p-3 shadow-lg">
+            <img src={logo} alt="Little Millennium Singanallur" className="h-16 w-auto object-contain" />
           </div>
           <h1 className="font-display text-[38px] leading-[1.12] font-semibold mt-8 max-w-md">
             One place for every admissions enquiry.
@@ -65,14 +63,8 @@ export function Login() {
 
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10">
         <div className="w-full max-w-[380px]">
-          <div className="lg:hidden flex items-center gap-2.5 mb-8">
-            <div className="w-9 h-9 rounded-lg bg-accent text-white flex items-center justify-center">
-              <GraduationCap className="w-[18px] h-[18px]" />
-            </div>
-            <div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-ink-faint leading-none">Little Millennium</div>
-              <div className="font-display font-semibold text-[15px] mt-0.5">Admissions CRM</div>
-            </div>
+          <div className="lg:hidden mb-8">
+            <img src={logo} alt="Little Millennium Singanallur" className="h-14 w-auto object-contain" />
           </div>
 
           <h2 className="font-display text-2xl font-semibold text-ink">Sign in</h2>
