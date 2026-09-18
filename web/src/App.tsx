@@ -4,6 +4,7 @@ import { ToastProvider } from "@/context/ToastContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import { Login } from "@/pages/Login";
+import { Activate } from "@/pages/Activate";
 import { Dashboard } from "@/pages/Dashboard";
 import { Leads } from "@/pages/Leads";
 import { NewLead } from "@/pages/NewLead";
@@ -18,6 +19,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/activate" element={<Activate />} />
             <Route
               element={
                 <ProtectedRoute>

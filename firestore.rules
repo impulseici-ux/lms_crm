@@ -65,7 +65,17 @@ service cloud.firestore {
     // through the setUserRole callable function.
     match /users/{uid} {
       allow read: if isStaff();
-      allow create, update, delete: if isAdmin();
+      // The activation backend (Admin SDK, bypasses these rules) is the only writer of
+      // status/passwordSetupCompleted/activatedAt — an admin's own browser session can
+      // manage everything else (name, branch, role display, the legacy `active` flag)
+      // but can never flip these directly, which is what makes "verify code -> access"
+      // or "no password -> active" structurally impossible from the client (Part 10).
+      allow create: if isAdmin();
+      allow update: if isAdmin() &&
+        request.resource.data.get('status', null) == resource.data.get('status', null) &&
+        request.resource.data.get('passwordSetupCompleted', null) == resource.data.get('passwordSetupCompleted', null) &&
+        request.resource.data.get('activatedAt', null) == resource.data.get('activatedAt', null);
+      allow delete: if isAdmin();
     }
 
     // ---- Leads (the hub) ----
@@ -131,6 +141,18 @@ service cloud.firestore {
     }
 
     match /metaLeadSyncLedger/{ledgerId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ---- New-user activation (mandatory WhatsApp code + self-set password) ----
+    // Written exclusively by the activation backend (backend/api/*, a separate
+    // Vercel deployment using the Admin SDK, which bypasses these rules) —
+    // never by a client, including an admin's browser session. This is what
+    // makes "code verified -> CRM access" structurally impossible: no client
+    // write path exists to flip a user's status without also having gone
+    // through /api/set-password, which is the only place a password is set.
+    match /userActivations/{uid} {
       allow read: if isAdmin();
       allow write: if false;
     }

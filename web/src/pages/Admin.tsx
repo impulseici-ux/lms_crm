@@ -2,10 +2,12 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useToast } from "@/context/ToastContext";
 import { useLookups } from "@/hooks/useLookups";
 import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/lib/data/lookups";
-import { setUserRole, createStaffUser } from "@/lib/data/users";
+import { setUserRole } from "@/lib/data/users";
 import { subscribeSyncConfig, subscribeSyncRuns } from "@/lib/data/sync";
-import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile } from "@/components/ui";
-import type { Role, SyncConfigDoc, SyncRunDoc } from "@/types";
+import { inviteUser, resendActivationCode, setUserActive, type IssueCodeResult } from "@/lib/data/onboarding";
+import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile, Badge } from "@/components/ui";
+import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc } from "@/types";
+import { resolveUserStatus } from "@/types";
 import {
   Radio,
   BookOpen,
@@ -25,6 +27,9 @@ import {
   UserPlus,
   ChevronDown,
   ChevronUp,
+  MessageCircle,
+  Ban,
+  Power,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -184,53 +189,41 @@ function CampaignsEditor() {
 
 const ROLES: Role[] = ["admin", "counsellor", "management"];
 
-function CreateUserCard() {
+/**
+ * Part 1/2: no password field here — an admin never sets or sees a new
+ * user's password. This only creates the account (Pending Activation) and
+ * attempts to send a one-time WhatsApp code; the user sets their own
+ * password later, in the separate /activate flow.
+ */
+function InviteUserCard() {
   const { branches } = useLookups();
   const { showToast } = useToast();
-  const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
   const [role, setRole] = useState<Role>("counsellor");
   const [branchId, setBranchId] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ email: string; activationCommand: string } | null>(null);
+  const [result, setResult] = useState<IssueCodeResult | null>(null);
   const [copied, setCopied] = useState(false);
 
   const reset = () => {
-    setUsername("");
-    setDisplayName("");
+    setFullName("");
+    setMobile("");
     setRole("counsellor");
     setBranchId("");
-    setPassword("");
-    setConfirmPassword("");
   };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!username.trim() || !password) return;
-    if (password !== confirmPassword) {
-      setError("Passwords don't match.");
-      return;
-    }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
+    if (!fullName.trim() || !mobile.trim()) return;
     setBusy(true);
     try {
-      const created = await createStaffUser({
-        username: username.trim(),
-        password,
-        role,
-        displayName: displayName.trim(),
-        branchId: branchId || null,
-      });
-      setResult({ email: created.email, activationCommand: created.activationCommand });
+      const created = await inviteUser({ fullName: fullName.trim(), mobile: mobile.trim(), role, branchId: branchId || null });
+      setResult(created);
       reset();
-      showToast("User created");
+      showToast(created.whatsappStatus === "sent" ? "Activation code sent" : "User created — activation code could not be sent via WhatsApp");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create this user.");
     } finally {
@@ -238,9 +231,9 @@ function CreateUserCard() {
     }
   };
 
-  const copyCommand = async () => {
-    if (!result) return;
-    await navigator.clipboard.writeText(result.activationCommand);
+  const copyCode = async () => {
+    if (!result?.fallbackCode) return;
+    await navigator.clipboard.writeText(result.fallbackCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -250,40 +243,54 @@ function CreateUserCard() {
       <div className="flex items-center gap-2.5 mb-1">
         <IconTile tone="accent" size="sm"><UserPlus /></IconTile>
         <div>
-          <h2 className="font-semibold text-ink">Create user</h2>
-          <p className="text-xs text-ink-faint">Set up login access for a new staff member.</p>
+          <h2 className="font-semibold text-ink">Invite user</h2>
+          <p className="text-xs text-ink-faint">Set up login access for a new Staff or Manager.</p>
         </div>
       </div>
 
       {result ? (
         <div className="mt-4">
-          <div className="flex gap-2.5 rounded-xl border border-good/25 bg-good-soft px-4 py-3 mb-3">
-            <CheckCircle2 className="w-4 h-4 text-good shrink-0 mt-0.5" />
-            <p className="text-sm text-ink">
-              <span className="font-semibold">{result.email}</span> can sign in now. One more step to activate their role — run this from
-              the repo (with your service-account key):
-            </p>
-          </div>
-          <div className="flex items-start gap-2 rounded-xl border border-border bg-surface-2 px-3.5 py-3 mb-3">
-            <code className="flex-1 font-mono text-xs text-ink-soft break-all">{result.activationCommand}</code>
-            <button
-              type="button"
-              onClick={copyCommand}
-              className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:text-accent-strong"
-            >
-              {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
-            </button>
-          </div>
-          <Button size="sm" variant="secondary" onClick={() => setResult(null)}>Create another</Button>
+          {result.whatsappStatus === "sent" ? (
+            <div className="flex gap-2.5 rounded-xl border border-good/25 bg-good-soft px-4 py-3 mb-3">
+              <CheckCircle2 className="w-4 h-4 text-good shrink-0 mt-0.5" />
+              <p className="text-sm text-ink">
+                <span className="font-semibold">{result.email}</span> was created and their activation code was sent via WhatsApp.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2.5 rounded-xl border border-warn/25 bg-warn-soft px-4 py-3 mb-3">
+                <AlertTriangle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+                <p className="text-sm text-ink">
+                  <span className="font-semibold">{result.email}</span> was created, but the activation code could not be sent via
+                  WhatsApp{result.whatsappError ? `: ${result.whatsappError}` : "."} They remain <em>Pending Activation</em>.
+                </p>
+              </div>
+              {result.fallbackCode && (
+                <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3.5 py-3 mb-3">
+                  <span className="text-xs text-ink-faint shrink-0">Share this code with them for now:</span>
+                  <code className="flex-1 font-mono text-sm font-bold text-ink tracking-widest">{result.fallbackCode}</code>
+                  <button
+                    type="button"
+                    onClick={copyCode}
+                    className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:text-accent-strong"
+                  >
+                    {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          <Button size="sm" variant="secondary" onClick={() => setResult(null)}>Invite another</Button>
         </div>
       ) : (
         <form onSubmit={submit} className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
-            <Field label="Username" hint="No @ needed — becomes username@littlemillennium.local. Or type a full email.">
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="off" />
+            <Field label="Full name">
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="off" />
             </Field>
-            <Field label="Display name">
-              <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Optional" />
+            <Field label="WhatsApp / mobile number" hint="10-digit Indian number, or include a country code.">
+              <Input value={mobile} onChange={(e) => setMobile(e.target.value)} required inputMode="tel" autoComplete="off" />
             </Field>
             <Field label="Role">
               <Select value={role} onChange={(e) => setRole(e.target.value as Role)}>
@@ -298,15 +305,9 @@ function CreateUserCard() {
                 </Select>
               </Field>
             )}
-            <Field label="Password">
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password" />
-            </Field>
-            <Field label="Confirm password">
-              <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password" />
-            </Field>
           </div>
           {error && <div className="text-sm text-bad mb-3">{error}</div>}
-          <Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create user"}</Button>
+          <Button type="submit" disabled={busy}>{busy ? "Creating…" : "Create User & Send Activation Code"}</Button>
         </form>
       )}
     </Card>
@@ -394,13 +395,103 @@ function AdvancedRoleEditor() {
   );
 }
 
+const STATUS_BADGE: Record<UserStatus, { label: string; tone: "good" | "warn" | "accent" | "neutral" }> = {
+  pending_activation: { label: "Pending Activation", tone: "warn" },
+  password_setup_required: { label: "Password Setup Required", tone: "accent" },
+  active: { label: "Active", tone: "good" },
+  inactive: { label: "Inactive", tone: "neutral" },
+};
+
+function StaffRow({ user, onChanged }: { user: UserDoc; onChanged: (message: string) => void }) {
+  const status = resolveUserStatus(user.status);
+  const badge = STATUS_BADGE[status];
+  const [busy, setBusy] = useState(false);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  const doResend = async () => {
+    setBusy(true);
+    setRowError(null);
+    try {
+      const result = await resendActivationCode(user.id);
+      onChanged(
+        result.whatsappStatus === "sent"
+          ? "Activation code resent via WhatsApp."
+          : `Code regenerated, but WhatsApp send failed${result.fallbackCode ? ` — new code: ${result.fallbackCode}` : "."}`
+      );
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Could not resend the code.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleActive = async () => {
+    setBusy(true);
+    setRowError(null);
+    try {
+      await setUserActive(user.id, status === "inactive");
+      onChanged(status === "inactive" ? "Account reactivated." : "Account deactivated.");
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Could not update this account.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <tr className="border-t border-border-soft align-top">
+      <td className="py-2.5 pl-5 font-medium">
+        {user.displayName}
+        {rowError && <div className="text-xs text-bad font-normal mt-0.5">{rowError}</div>}
+      </td>
+      <td className="py-2.5 text-ink-soft">{user.mobile ?? "—"}</td>
+      <td className="py-2.5 capitalize">{user.role}</td>
+      <td className="py-2.5">
+        <Badge tone={badge.tone}>{badge.label}</Badge>
+        {status === "pending_activation" && user.mobile && (
+          <div className="flex items-center gap-1 mt-1 text-[11px] text-ink-faint">
+            <MessageCircle className="w-3 h-3" /> WhatsApp
+          </div>
+        )}
+      </td>
+      <td className="py-2.5 pr-5">
+        <div className="flex flex-wrap gap-2 justify-end">
+          {status === "pending_activation" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={doResend}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:text-accent-strong disabled:opacity-50"
+            >
+              <RefreshCw className="w-3 h-3" /> Resend code
+            </button>
+          )}
+          {(status === "active" || status === "inactive") && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={toggleActive}
+              className={`inline-flex items-center gap-1 text-xs font-semibold disabled:opacity-50 ${
+                status === "active" ? "text-bad hover:text-bad" : "text-good hover:text-good"
+              }`}
+            >
+              {status === "active" ? <><Ban className="w-3 h-3" /> Deactivate</> : <><Power className="w-3 h-3" /> Activate</>}
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function StaffEditor() {
   const { users } = useLookups();
+  const { showToast } = useToast();
   const [staffQuery, setStaffQuery] = useState("");
 
   return (
     <div className="space-y-5">
-      <CreateUserCard />
+      <InviteUserCard />
       <AdvancedRoleEditor />
 
       <Card padded={false}>
@@ -420,21 +511,25 @@ function StaffEditor() {
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[420px]">
-            <thead><tr className="text-left text-ink-faint text-[11px] uppercase tracking-wide"><th className="pb-2 pl-5">Name</th><th className="pb-2">Role</th><th className="pb-2 pr-5">Active</th></tr></thead>
+          <table className="w-full text-sm min-w-[620px]">
+            <thead>
+              <tr className="text-left text-ink-faint text-[11px] uppercase tracking-wide">
+                <th className="pb-2 pl-5">Name</th>
+                <th className="pb-2">Mobile</th>
+                <th className="pb-2">Role</th>
+                <th className="pb-2">Status</th>
+                <th className="pb-2 pr-5 text-right">Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {users
                 .filter((u) => u.displayName.toLowerCase().includes(staffQuery.trim().toLowerCase()))
                 .map((u) => (
-                  <tr key={u.id} className="border-t border-border-soft">
-                    <td className="py-2.5 pl-5 font-medium">{u.displayName}</td>
-                    <td className="py-2.5 capitalize">{u.role}</td>
-                    <td className="py-2.5 pr-5">{u.active ? <span className="text-good font-semibold">Yes</span> : <span className="text-ink-faint">No</span>}</td>
-                  </tr>
+                  <StaffRow key={u.id} user={u} onChanged={showToast} />
                 ))}
             </tbody>
           </table>
-          {users.length === 0 && <EmptyState icon={<Users />} title="No staff yet" description="Grant your first role using the form above." />}
+          {users.length === 0 && <EmptyState icon={<Users />} title="No staff yet" description="Invite your first staff member using the form above." />}
         </div>
       </Card>
     </div>
