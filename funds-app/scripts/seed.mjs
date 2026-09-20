@@ -3,14 +3,14 @@
 // and a handful of transactions so the app has something to show.
 // Never point this at a real project.
 
-import { initializeApp, cert } from "firebase-admin/app";
+import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 process.env.FIRESTORE_EMULATOR_HOST ??= "localhost:8080";
 process.env.FIREBASE_AUTH_EMULATOR_HOST ??= "localhost:9099";
 
-initializeApp({ projectId: "littlemillennium-funds", credential: cert({ projectId: "littlemillennium-funds" }) });
+initializeApp({ projectId: "littlemillennium-funds" });
 
 const auth = getAuth();
 const db = getFirestore();
