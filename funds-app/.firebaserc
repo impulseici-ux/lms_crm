@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "littlemillennium-funds",
+    "dev": "littlemillennium-funds",
+    "prod": "REPLACE_WITH_YOUR_FUNDS_PROD_PROJECT_ID"
+  }
+}

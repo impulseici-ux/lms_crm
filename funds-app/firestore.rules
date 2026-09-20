@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return request.auth.token.role;
+    }
+
+    function isManager() {
+      return isSignedIn() && role() == 'manager';
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // --- users ---------------------------------------------------------
+    // Each staff member's profile. Role itself lives on the Auth custom
+    // claim (set only by Cloud Functions / admin scripts); this doc is a
+    // readable mirror used for listing/display purposes.
+    match /users/{uid} {
+      allow get: if isSelf(uid) || isManager();
+      allow list: if isManager();
+      allow create: if false; // only via Cloud Function / admin script
+      allow update: if isSelf(uid) &&
+                      request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['name', 'themePreference']);
+      allow delete: if false;
+    }
+
+    // --- transactions ----------------------------------------------------
+    // Day-to-day received/spent entries. An employee only ever sees and
+    // writes their own; a manager can read everyone's but never edit them.
+    match /transactions/{txId} {
+      allow read: if isManager() || (isSignedIn() && resource.data.employeeId == request.auth.uid);
+      allow create: if isSignedIn() &&
+                      request.resource.data.employeeId == request.auth.uid &&
+                      request.resource.data.createdBy == request.auth.uid &&
+                      request.resource.data.type in ['received', 'spent'] &&
+                      request.resource.data.amount is number &&
+                      request.resource.data.amount > 0;
+      allow update: if isSignedIn() &&
+                      resource.data.employeeId == request.auth.uid &&
+                      request.resource.data.employeeId == request.auth.uid &&
+                      request.resource.data.type in ['received', 'spent'] &&
+                      request.resource.data.amount is number &&
+                      request.resource.data.amount > 0;
+      allow delete: if isSignedIn() && resource.data.employeeId == request.auth.uid;
+    }
+
+    // --- reminders ---------------------------------------------------------
+    // Personal "pay/receive on this date" reminders, private to the employee
+    // who created them.
+    match /reminders/{reminderId} {
+      allow read, update, delete: if isSignedIn() && resource.data.employeeId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.employeeId == request.auth.uid;
+    }
+
+    // --- monthlyExports ------------------------------------------------
+    // One doc per employee per month, tracking whether the export-reminder
+    // popup has been actioned/dismissed for that month.
+    match /monthlyExports/{docId} {
+      allow read: if isManager() || (isSignedIn() && resource.data.employeeId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.employeeId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.employeeId == request.auth.uid &&
+                      request.resource.data.employeeId == request.auth.uid;
+      allow delete: if false;
+    }
+  }
+}

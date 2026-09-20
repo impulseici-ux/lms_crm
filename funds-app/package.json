@@ -1,0 +1,19 @@
+{
+  "name": "funds-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "emulators": "firebase emulators:start --import=./.emulator-data --export-on-exit",
+    "seed": "node scripts/seed.mjs",
+    "dev": "npm --prefix web run dev",
+    "build:web": "npm --prefix web run build",
+    "deploy:dev": "firebase use dev && npm run build:web && firebase deploy --only firestore,hosting",
+    "deploy:prod": "firebase use prod && npm run build:web && firebase deploy --only firestore,hosting"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.20.0"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}
