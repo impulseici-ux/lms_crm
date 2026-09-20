@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# React Router uses client-side routing, so every path must fall back
+# to index.html or refreshing a deep link (e.g. /history) would 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
