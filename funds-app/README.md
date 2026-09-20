@@ -25,11 +25,11 @@ Firestore data with the admissions CRM in the rest of this repo.
 
 ## Stack
 
-Same pattern as the rest of this repo: Firebase Auth (email/password,
-`role` custom claim: `manager` / `employee`) + Firestore (Native mode) +
-Cloud Functions (`createEmployee`, `setUserRole`, `setEmployeeActive` —
-Blaze plan only) + Hosting, with React + Vite + TypeScript + Tailwind on
-the frontend.
+Firebase Auth (email/password, `role` custom claim: `manager` /
+`employee`) + Firestore (Native mode) + Cloud Functions (`createEmployee`,
+`setUserRole`, `setEmployeeActive` — Blaze plan only) for the backend.
+The frontend (React + Vite + TypeScript + Tailwind) is deployed
+separately to **Netlify** — Firebase Hosting isn't used.
 
 ## Repo layout
 
@@ -71,34 +71,49 @@ at the emulators). Demo accounts (password `password123`):
 | `employee@company.test` | employee |
 | `employee2@company.test` | employee |
 
-## Deploying to a real (separate) Firebase project
+## Deploying: Firebase (backend) + Netlify (frontend)
 
 This needs its **own** Firebase project — do not reuse the admissions CRM's
 project or any other Firebase project.
 
+### Firebase (Auth + Firestore only — no Hosting)
+
 1. [console.firebase.google.com](https://console.firebase.google.com) →
    **Add project**. Enable **Authentication → Email/Password** and
    **Firestore Database (Native mode)**.
-2. Update `.firebaserc` in this folder with the real project id (`dev`
-   and, later, `prod`).
+2. Update `.firebaserc` in this folder with the real project id.
 3. Firebase Console → Project settings → **Your apps** → add a web app,
-   copy the config into `web/.env.dev.local` / `web/.env.prod.local`
-   (copy from `web/.env.example`; set `VITE_USE_EMULATORS=false`).
-4. `npm run deploy:dev` (or `deploy:prod`) — builds `web/` and deploys
-   Firestore rules/indexes + Hosting.
+   copy the config into `web/.env.local` (copy from `web/.env.example`;
+   set `VITE_USE_EMULATORS=false`) — these are the same values you'll
+   paste into Netlify's environment variables below.
+4. Deploy the security rules/indexes: `npm run deploy:rules`.
 5. **Cloud Functions require the Blaze plan.** If staying on Spark, skip
    `functions` and use `scripts/set-role.mjs` / `scripts/create-admin.mjs`
    for all employee/role management instead of the in-app "Add employee"
-   flow. On Blaze, also run `npm --prefix functions install` once and
-   `firebase deploy --only functions` (after `firebase use dev`/`prod`).
+   flow. On Blaze, run `npm --prefix functions install` once, then
+   `firebase deploy --only functions`.
 6. **Bootstrap the first manager** (works on Spark too):
    ```bash
    # Console → Project settings → Service accounts → Generate new private key
    GOOGLE_APPLICATION_CREDENTIALS=./service-account.json \
      node scripts/create-admin.mjs manager@yourcompany.com 'a-strong-password' 'Manager Name'
    ```
-7. Sign in as that manager, go to **Employees**, and add the team (Blaze),
-   or run `scripts/set-role.mjs` per employee (Spark).
+
+### Netlify (frontend hosting)
+
+1. [app.netlify.com](https://app.netlify.com) → **Add new site → Import
+   an existing project** → connect this GitHub repo.
+2. Build settings: **base directory** `funds-app/web`, **build command**
+   `npm run build`, **publish directory** `funds-app/web/dist`
+   (`web/netlify.toml` already sets these plus the SPA redirect).
+3. Site settings → **Environment variables** → add the same 6
+   `VITE_FIREBASE_*` values from `web/.env.local` above, plus
+   `VITE_USE_EMULATORS=false`.
+4. Deploy. Then in Firebase Console → **Authentication → Settings →
+   Authorized domains**, add the Netlify URL — sign-in is blocked from
+   unauthorized domains.
+5. Sign in as the manager you bootstrapped, go to **Employees**, and add
+   the team (Blaze), or run `scripts/set-role.mjs` per employee (Spark).
 
 ## Data model
 

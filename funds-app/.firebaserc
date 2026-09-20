@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "littlemillennium-funds",
-    "dev": "littlemillennium-funds",
+    "default": "imfunds-8f430",
+    "dev": "imfunds-8f430",
     "prod": "REPLACE_WITH_YOUR_FUNDS_PROD_PROJECT_ID"
   }
 }

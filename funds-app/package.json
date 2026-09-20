@@ -7,8 +7,7 @@
     "seed": "node scripts/seed.mjs",
     "dev": "npm --prefix web run dev",
     "build:web": "npm --prefix web run build",
-    "deploy:dev": "firebase use dev && npm run build:web && firebase deploy --only firestore,hosting",
-    "deploy:prod": "firebase use prod && npm run build:web && firebase deploy --only firestore,hosting"
+    "deploy:rules": "firebase deploy --only firestore"
   },
   "devDependencies": {
     "firebase-tools": "^13.20.0"
