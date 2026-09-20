@@ -4,6 +4,7 @@ import { collection, onSnapshot, orderBy, query, where } from "firebase/firestor
 import { db } from "../lib/firebase";
 import { useAuth } from "../context/AuthContext";
 import type { Transaction, TransactionType } from "../types";
+import { currentMonth, monthLabel } from "../lib/csv";
 
 type Filter = "all" | TransactionType;
 
@@ -11,6 +12,7 @@ export default function EmployeeHome() {
   const { user, profile } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
+  const [month, setMonth] = useState(currentMonth());
 
   useEffect(() => {
     if (!user) return;
@@ -24,13 +26,24 @@ export default function EmployeeHome() {
     });
   }, [user]);
 
-  const totals = useMemo(() => {
-    const received = transactions.filter((t) => t.type === "received").reduce((s, t) => s + t.amount, 0);
-    const spent = transactions.filter((t) => t.type === "spent").reduce((s, t) => s + t.amount, 0);
-    return { received, spent, balance: received - spent };
+  const monthOptions = useMemo(() => {
+    const set = new Set(transactions.map((t) => t.month));
+    set.add(currentMonth());
+    return Array.from(set).sort().reverse();
   }, [transactions]);
 
-  const visible = filter === "all" ? transactions : transactions.filter((t) => t.type === filter);
+  const monthTransactions = useMemo(
+    () => transactions.filter((t) => t.month === month),
+    [transactions, month]
+  );
+
+  const totals = useMemo(() => {
+    const received = monthTransactions.filter((t) => t.type === "received").reduce((s, t) => s + t.amount, 0);
+    const spent = monthTransactions.filter((t) => t.type === "spent").reduce((s, t) => s + t.amount, 0);
+    return { received, spent, balance: received - spent };
+  }, [monthTransactions]);
+
+  const visible = filter === "all" ? monthTransactions : monthTransactions.filter((t) => t.type === filter);
   const recent = visible.slice(0, 8);
 
   function openNewEntry() {
@@ -39,8 +52,23 @@ export default function EmployeeHome() {
 
   return (
     <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Home</h1>
+        <select
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+        >
+          {monthOptions.map((m) => (
+            <option key={m} value={m}>
+              {monthLabel(m)}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <section className="rounded-2xl bg-gradient-to-br from-brand-800 to-brand-900 p-5 text-white">
-        <p className="text-sm text-white/70">Available balance</p>
+        <p className="text-sm text-white/70">Available balance · {monthLabel(month)}</p>
         <p className={`text-3xl font-bold ${totals.balance < 0 ? "text-red-300" : "text-white"}`}>
           {totals.balance < 0 ? "-" : ""}₹{Math.abs(totals.balance).toFixed(2)}
         </p>
@@ -76,7 +104,7 @@ export default function EmployeeHome() {
         </div>
         <div className="rounded-xl bg-white p-4 dark:bg-slate-800">
           <p className="text-xs text-slate-400">Entries</p>
-          <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{transactions.length}</p>
+          <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{monthTransactions.length}</p>
         </div>
       </section>
 

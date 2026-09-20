@@ -37,14 +37,10 @@ export default function ManagerEmployeeDetail() {
       .sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [transactions, month, from, to]);
 
-  const totalBalance = useMemo(() => {
-    const received = transactions.filter((t) => t.type === "received").reduce((s, t) => s + t.amount, 0);
-    const spent = transactions.filter((t) => t.type === "spent").reduce((s, t) => s + t.amount, 0);
-    return received - spent;
-  }, [transactions]);
-
   const received = filtered.filter((t) => t.type === "received").reduce((s, t) => s + t.amount, 0);
   const spent = filtered.filter((t) => t.type === "spent").reduce((s, t) => s + t.amount, 0);
+  const balance = received - spent;
+  const rangeLabel = from || to ? `${from || "start"} to ${to || "now"}` : monthLabel(month);
 
   function handleExport() {
     downloadCsv(`${employee?.name ?? uid}-${from || to ? `${from || "start"}_to_${to || "now"}` : month}.csv`, transactionsToCsv(filtered));
@@ -59,9 +55,9 @@ export default function ManagerEmployeeDetail() {
       <div className="rounded-xl bg-white p-4 dark:bg-slate-800">
         <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{employee?.name ?? "…"}</p>
         <p className="text-sm text-slate-400">{employee?.email}</p>
-        <p className="mt-2 text-xs text-slate-400">Overall available balance</p>
-        <p className={`text-2xl font-bold ${totalBalance < 0 ? "text-red-500" : "text-green-600"}`}>
-          {totalBalance < 0 ? "-" : ""}₹{Math.abs(totalBalance).toFixed(2)}
+        <p className="mt-2 text-xs text-slate-400">Available balance · {rangeLabel}</p>
+        <p className={`text-2xl font-bold ${balance < 0 ? "text-red-500" : "text-green-600"}`}>
+          {balance < 0 ? "-" : ""}₹{Math.abs(balance).toFixed(2)}
         </p>
       </div>
 

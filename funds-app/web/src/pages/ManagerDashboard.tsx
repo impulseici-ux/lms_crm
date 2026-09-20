@@ -33,19 +33,18 @@ export default function ManagerDashboard() {
 
   const perEmployee = useMemo(() => {
     return employees.map((emp) => {
-      const all = transactions.filter((t) => t.employeeId === emp.uid);
       const monthly = monthTx.filter((t) => t.employeeId === emp.uid);
-      const received = all.filter((t) => t.type === "received").reduce((s, t) => s + t.amount, 0);
-      const spent = all.filter((t) => t.type === "spent").reduce((s, t) => s + t.amount, 0);
+      const monthReceived = monthly.filter((t) => t.type === "received").reduce((s, t) => s + t.amount, 0);
+      const monthSpent = monthly.filter((t) => t.type === "spent").reduce((s, t) => s + t.amount, 0);
       return {
         emp,
-        balance: received - spent,
-        monthReceived: monthly.filter((t) => t.type === "received").reduce((s, t) => s + t.amount, 0),
-        monthSpent: monthly.filter((t) => t.type === "spent").reduce((s, t) => s + t.amount, 0),
+        balance: monthReceived - monthSpent,
+        monthReceived,
+        monthSpent,
         entries: monthly.length,
       };
     });
-  }, [employees, transactions, monthTx]);
+  }, [employees, monthTx]);
 
   const totals = useMemo(
     () => ({
