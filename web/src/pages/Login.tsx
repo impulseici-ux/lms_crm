@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { loginIdToEmail } from "@/lib/data/onboarding";
 import { Button, Field, Input } from "@/components/ui";
 import { Users, CalendarClock, TrendingUp } from "lucide-react";
 import logo from "@/assets/brand/lm-singanallur-logo.webp";
@@ -13,7 +14,7 @@ const highlights = [
 
 export function Login() {
   const { user, signIn, loading } = useAuth();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -25,7 +26,7 @@ export function Login() {
     setError(null);
     setBusy(true);
     try {
-      await signIn(email, password);
+      await signIn(loginIdToEmail(username), password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in.");
     } finally {
@@ -71,8 +72,8 @@ export function Login() {
           <p className="text-sm text-ink-soft mt-1.5 mb-8">Enter your staff credentials to continue.</p>
 
           <form onSubmit={onSubmit}>
-            <Field label="Email">
-              <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoFocus autoComplete="username" />
+            <Field label="Username">
+              <Input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} autoFocus autoComplete="username" />
             </Field>
             <Field label="Password">
               <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />

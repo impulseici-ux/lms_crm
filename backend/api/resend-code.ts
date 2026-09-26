@@ -33,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const result = await issueActivationCode(uid, user.mobile, user.displayName);
-    return res.status(200).json({ ok: true, uid, mobile: user.mobile, displayName: user.displayName, ...result });
+    return res.status(200).json({ ok: true, uid, mobile: user.mobile, displayName: user.displayName, loginId: user.loginId, ...result });
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     console.error("resend-code error:", err);

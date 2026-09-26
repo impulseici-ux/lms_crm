@@ -17,6 +17,8 @@ export interface UserDoc {
   id: string;
   displayName: string;
   email: string;
+  /** Admin-set at invite time (Part 2/14); what the user actually types on the Login screen. Absent on legacy accounts created before this field existed — falls back to the email's local part for display. */
+  loginId?: string;
   mobile?: string | null;
   role: Role;
   branchId: string | null;
