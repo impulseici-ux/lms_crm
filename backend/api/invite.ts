@@ -42,7 +42,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       // pending_activation: this is effectively a resend for the SAME existing user, not a new one.
       const result = await issueActivationCode(existing.id, normalizedMobile, existing.data().displayName ?? fullName);
-      return res.status(200).json({ ok: true, uid: existing.id, email: existing.data().email, resumedExisting: true, ...result });
+      return res.status(200).json({
+        ok: true,
+        uid: existing.id,
+        email: existing.data().email,
+        mobile: normalizedMobile,
+        displayName: existing.data().displayName ?? fullName.trim(),
+        resumedExisting: true,
+        ...result,
+      });
     }
 
     // No existing account for this number — create a brand-new one. No password is ever
@@ -79,7 +87,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const result = await issueActivationCode(userRecord.uid, normalizedMobile, fullName.trim());
-    return res.status(200).json({ ok: true, uid: userRecord.uid, email, resumedExisting: false, ...result });
+    return res.status(200).json({
+      ok: true,
+      uid: userRecord.uid,
+      email,
+      mobile: normalizedMobile,
+      displayName: fullName.trim(),
+      resumedExisting: false,
+      ...result,
+    });
   } catch (err) {
     if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
     console.error("invite error:", err);
