@@ -8,10 +8,17 @@ import type { Role } from "@/types";
  */
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL as string | undefined;
 
+/** Must match backend/lib/activation.ts's LOGIN_ID_DOMAIN — Firebase Auth has no native username concept, so a Login ID maps 1:1 to `<id>@LOGIN_ID_DOMAIN` internally. */
+export const LOGIN_ID_DOMAIN = "littlemillennium.local";
+
+export function loginIdToEmail(loginId: string): string {
+  return `${loginId.trim().toLowerCase()}@${LOGIN_ID_DOMAIN}`;
+}
+
 export interface IssueCodeResult {
   ok: true;
   uid: string;
-  email?: string;
+  loginId?: string;
   mobile?: string;
   displayName?: string;
   resumedExisting?: boolean;
@@ -40,7 +47,7 @@ async function callBackend<T>(path: string, body: unknown, requireAuth: boolean)
 }
 
 /** Admin-only. Creates the new user (or resumes an existing pending one for the same mobile number) and attempts to send the activation code. */
-export function inviteUser(input: { fullName: string; mobile: string; role: Role; branchId?: string | null }) {
+export function inviteUser(input: { fullName: string; mobile: string; loginId: string; role: Role; branchId?: string | null }) {
   return callBackend<IssueCodeResult>("/api/invite", input, true);
 }
 

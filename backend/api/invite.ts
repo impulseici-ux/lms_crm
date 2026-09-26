@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { applyCors } from "../lib/cors";
 import { requireAdmin, HttpError } from "../lib/requireAdmin";
 import { auth, db } from "../lib/firebaseAdmin";
-import { normalizeMobile, isValidMobile, slugifyForEmail } from "../lib/activation";
+import { normalizeMobile, isValidMobile, isValidLoginId, loginIdToEmail } from "../lib/activation";
 import { issueActivationCode } from "../lib/issueCode";
 
 const VALID_ROLES = ["admin", "counsellor", "management"];
@@ -15,14 +15,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { uid: callerUid } = await requireAdmin(req);
 
-    const { fullName, mobile, role, branchId } = req.body ?? {};
-    if (!fullName?.trim() || !mobile?.trim() || !VALID_ROLES.includes(role)) {
-      throw new HttpError(400, "Full name, mobile number, and a valid role are required.");
+    const { fullName, mobile, role, branchId, loginId } = req.body ?? {};
+    if (!fullName?.trim() || !mobile?.trim() || !loginId?.trim() || !VALID_ROLES.includes(role)) {
+      throw new HttpError(400, "Full name, mobile number, a Login ID, and a valid role are required.");
     }
 
     const normalizedMobile = normalizeMobile(mobile);
     if (!isValidMobile(normalizedMobile)) {
       throw new HttpError(400, "The WhatsApp number appears to be invalid. Please verify the number and try again.");
+    }
+
+    const trimmedLoginId = loginId.trim();
+    if (!isValidLoginId(trimmedLoginId)) {
+      throw new HttpError(400, "Login ID must be 3-32 characters and can only contain letters, numbers, dots, underscores and hyphens.");
     }
 
     // Duplicate-mobile handling (Part 23): never create a second user for a number that
@@ -45,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         ok: true,
         uid: existing.id,
-        email: existing.data().email,
+        loginId: existing.data().loginId,
         mobile: normalizedMobile,
         displayName: existing.data().displayName ?? fullName.trim(),
         resumedExisting: true,
@@ -53,26 +58,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // No existing account for this number — create a brand-new one. No password is ever
-    // set here (Part 1/2): the Auth user has an email identity but no password credential
-    // until the user completes their own password setup, so it cannot sign in until then.
-    const baseSlug = slugifyForEmail(fullName);
-    let email = `${baseSlug}@littlemillennium.local`;
-    let suffix = 0;
-    while (true) {
-      const taken = await auth()
-        .getUserByEmail(email)
-        .then(() => true)
-        .catch(() => false);
-      if (!taken) break;
-      suffix += 1;
-      email = `${baseSlug}${suffix}@littlemillennium.local`;
+    // Admin sets the Login ID explicitly (Part 2/14, matching the existing internal-app
+    // pattern) rather than it being silently derived from the name. Firebase Auth has no
+    // native username concept, so this maps 1:1 to a synthetic, never-shown email address.
+    const email = loginIdToEmail(trimmedLoginId);
+    const loginIdTaken = await auth()
+      .getUserByEmail(email)
+      .then(() => true)
+      .catch(() => false);
+    if (loginIdTaken) {
+      throw new HttpError(409, "This Login ID is already taken. Please choose another.");
     }
 
+    // No password is ever set here (Part 1/2): the Auth user has an email identity but no
+    // password credential until the user completes their own password setup, so it cannot
+    // sign in until then.
     const userRecord = await auth().createUser({ email, displayName: fullName.trim() });
 
     await db().collection("users").doc(userRecord.uid).set({
       displayName: fullName.trim(),
+      loginId: trimmedLoginId,
       email,
       mobile: normalizedMobile,
       role,
@@ -90,7 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       uid: userRecord.uid,
-      email,
+      loginId: trimmedLoginId,
       mobile: normalizedMobile,
       displayName: fullName.trim(),
       resumedExisting: false,

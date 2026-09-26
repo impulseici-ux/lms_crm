@@ -210,6 +210,8 @@ function buildActivationMessage(result: IssueCodeResult): string {
     "",
     "This code is valid for a limited time and can only be used once.",
     "",
+    `Once activated, sign in with Login ID: ${result.loginId ?? ""}`,
+    "",
     "Thank you.",
   ].join("\n");
 }
@@ -219,6 +221,7 @@ function InviteUserCard() {
   const { showToast } = useToast();
   const [fullName, setFullName] = useState("");
   const [mobile, setMobile] = useState("");
+  const [loginId, setLoginId] = useState("");
   const [role, setRole] = useState<Role>("counsellor");
   const [branchId, setBranchId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -229,6 +232,7 @@ function InviteUserCard() {
   const reset = () => {
     setFullName("");
     setMobile("");
+    setLoginId("");
     setRole("counsellor");
     setBranchId("");
   };
@@ -236,10 +240,10 @@ function InviteUserCard() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!fullName.trim() || !mobile.trim()) return;
+    if (!fullName.trim() || !mobile.trim() || !loginId.trim()) return;
     setBusy(true);
     try {
-      const created = await inviteUser({ fullName: fullName.trim(), mobile: mobile.trim(), role, branchId: branchId || null });
+      const created = await inviteUser({ fullName: fullName.trim(), mobile: mobile.trim(), loginId: loginId.trim(), role, branchId: branchId || null });
       setResult(created);
       reset();
       showToast(created.whatsappStatus === "sent" ? "Activation code sent" : "User created — activation code could not be sent via WhatsApp");
@@ -280,7 +284,7 @@ function InviteUserCard() {
             <div className="flex gap-2.5 rounded-xl border border-good/25 bg-good-soft px-4 py-3 mb-3">
               <CheckCircle2 className="w-4 h-4 text-good shrink-0 mt-0.5" />
               <p className="text-sm text-ink">
-                <span className="font-semibold">{result.email}</span> was created and their activation code was sent via WhatsApp.
+                <span className="font-semibold">{result.loginId}</span> was created and their activation code was sent via WhatsApp.
               </p>
             </div>
           ) : (
@@ -303,7 +307,7 @@ function InviteUserCard() {
                 </div>
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">Login ID</div>
-                  <div className="text-sm font-semibold text-ink mt-0.5">{result.email}</div>
+                  <div className="text-sm font-semibold text-ink mt-0.5">{result.loginId}</div>
                 </div>
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">Mobile</div>
@@ -335,6 +339,9 @@ function InviteUserCard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
             <Field label="Full name">
               <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required autoComplete="off" />
+            </Field>
+            <Field label="Login ID" hint="Letters, numbers, dots, underscores or hyphens — no spaces.">
+              <Input value={loginId} onChange={(e) => setLoginId(e.target.value)} required autoComplete="off" />
             </Field>
             <Field label="WhatsApp / mobile number" hint="10-digit Indian number, or include a country code.">
               <Input value={mobile} onChange={(e) => setMobile(e.target.value)} required inputMode="tel" autoComplete="off" />
@@ -491,6 +498,7 @@ function StaffRow({ user, onChanged }: { user: UserDoc; onChanged: (message: str
         {user.displayName}
         {rowError && <div className="text-xs text-bad font-normal mt-0.5">{rowError}</div>}
       </td>
+      <td className="py-2.5 text-ink-soft">{user.loginId ?? user.email.split("@")[0]}</td>
       <td className="py-2.5 text-ink-soft">{user.mobile ?? "—"}</td>
       <td className="py-2.5 capitalize">{user.role}</td>
       <td className="py-2.5">
@@ -562,6 +570,7 @@ function StaffEditor() {
             <thead>
               <tr className="text-left text-ink-faint text-[11px] uppercase tracking-wide">
                 <th className="pb-2 pl-5">Name</th>
+                <th className="pb-2">Login ID</th>
                 <th className="pb-2">Mobile</th>
                 <th className="pb-2">Role</th>
                 <th className="pb-2">Status</th>

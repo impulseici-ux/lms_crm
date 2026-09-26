@@ -33,14 +33,13 @@ export function isValidMobile(normalized: string): boolean {
   return /^\+\d{10,15}$/.test(normalized);
 }
 
-/** username@littlemillennium.local from a full name, deduped with a numeric suffix if needed. */
-export function slugifyForEmail(fullName: string): string {
-  const base = fullName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s.]/g, "")
-    .replace(/\s+/g, ".")
-    .replace(/\.+/g, ".")
-    .replace(/^\.|\.$/g, "");
-  return base || "staff";
+/** Firebase Auth has no native username concept, so a Login ID becomes `<id>@LOGIN_ID_DOMAIN` internally — never shown to the user. */
+export const LOGIN_ID_DOMAIN = "littlemillennium.local";
+
+export function isValidLoginId(loginId: string): boolean {
+  return /^[a-zA-Z0-9._-]{3,32}$/.test(loginId);
+}
+
+export function loginIdToEmail(loginId: string): string {
+  return `${loginId.toLowerCase()}@${LOGIN_ID_DOMAIN}`;
 }
