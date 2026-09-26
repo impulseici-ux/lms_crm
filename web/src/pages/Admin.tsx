@@ -195,6 +195,25 @@ const ROLES: Role[] = ["admin", "counsellor", "management"];
  * attempts to send a one-time WhatsApp code; the user sets their own
  * password later, in the separate /activate flow.
  */
+/** Builds the same message text whether it's copied or sent via WhatsApp, so both actions always match. */
+function buildActivationMessage(result: IssueCodeResult): string {
+  const link = `${window.location.origin}/activate`;
+  return [
+    "Welcome to LM Singanallur CRM.",
+    "",
+    "Your account has been created. Please activate it using the details below:",
+    "",
+    `Application Link: ${link}`,
+    `Name: ${result.displayName ?? ""}`,
+    `Mobile Number: ${result.mobile ?? ""}`,
+    `Setup Code: ${result.fallbackCode ?? ""}`,
+    "",
+    "This code is valid for a limited time and can only be used once.",
+    "",
+    "Thank you.",
+  ].join("\n");
+}
+
 function InviteUserCard() {
   const { branches } = useLookups();
   const { showToast } = useToast();
@@ -231,11 +250,18 @@ function InviteUserCard() {
     }
   };
 
-  const copyCode = async () => {
-    if (!result?.fallbackCode) return;
-    await navigator.clipboard.writeText(result.fallbackCode);
+  const copyLoginDetails = async () => {
+    if (!result) return;
+    await navigator.clipboard.writeText(buildActivationMessage(result));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const sendViaWhatsApp = () => {
+    if (!result?.mobile) return;
+    const digitsOnly = result.mobile.replace(/[^\d]/g, "");
+    const text = encodeURIComponent(buildActivationMessage(result));
+    window.open(`https://wa.me/${digitsOnly}?text=${text}`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -259,26 +285,47 @@ function InviteUserCard() {
             </div>
           ) : (
             <>
+              <div className="flex gap-2.5 rounded-xl border border-good/25 bg-good-soft px-4 py-3 mb-3">
+                <CheckCircle2 className="w-4 h-4 text-good shrink-0 mt-0.5" />
+                <p className="text-sm text-ink font-semibold">User created successfully</p>
+              </div>
               <div className="flex gap-2.5 rounded-xl border border-warn/25 bg-warn-soft px-4 py-3 mb-3">
                 <AlertTriangle className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-                <p className="text-sm text-ink">
-                  <span className="font-semibold">{result.email}</span> was created, but the activation code could not be sent via
-                  WhatsApp{result.whatsappError ? `: ${result.whatsappError}` : "."} They remain <em>Pending Activation</em>.
+                <p className="text-xs text-ink-soft">
+                  Their activation code could not be sent automatically via WhatsApp{result.whatsappError ? `: ${result.whatsappError}` : "."}{" "}
+                  Use the buttons below to send it yourself for now. They remain <em>Pending Activation</em> until they use it.
                 </p>
               </div>
-              {result.fallbackCode && (
-                <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3.5 py-3 mb-3">
-                  <span className="text-xs text-ink-faint shrink-0">Share this code with them for now:</span>
-                  <code className="flex-1 font-mono text-sm font-bold text-ink tracking-widest">{result.fallbackCode}</code>
-                  <button
-                    type="button"
-                    onClick={copyCode}
-                    className="shrink-0 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:text-accent-strong"
-                  >
-                    {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
-                  </button>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-border bg-surface-2 px-4 py-3.5 mb-3">
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">Name</div>
+                  <div className="text-sm font-semibold text-ink mt-0.5">{result.displayName}</div>
                 </div>
-              )}
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">Login ID</div>
+                  <div className="text-sm font-semibold text-ink mt-0.5">{result.email}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">Mobile</div>
+                  <div className="text-sm font-semibold text-ink mt-0.5">{result.mobile}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">Setup Code</div>
+                  <div className="text-sm font-bold text-ink tracking-widest mt-0.5">{result.fallbackCode}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">Application Link</div>
+                  <div className="text-sm font-semibold text-accent mt-0.5 break-all">{window.location.origin}/activate</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <Button type="button" size="sm" variant="secondary" onClick={copyLoginDetails}>
+                  {copied ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy Login Details</>}
+                </Button>
+                <Button type="button" size="sm" onClick={sendViaWhatsApp} className="!bg-good hover:!bg-good">
+                  <MessageCircle className="w-3.5 h-3.5" /> Send via WhatsApp
+                </Button>
+              </div>
             </>
           )}
           <Button size="sm" variant="secondary" onClick={() => setResult(null)}>Invite another</Button>

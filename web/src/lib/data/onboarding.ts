@@ -12,6 +12,8 @@ export interface IssueCodeResult {
   ok: true;
   uid: string;
   email?: string;
+  mobile?: string;
+  displayName?: string;
   resumedExisting?: boolean;
   whatsappStatus: "not_sent" | "sending" | "sent" | "failed" | "delivered" | "read";
   whatsappError?: string;
