@@ -13,7 +13,7 @@ import { breakdownBySource, breakdownByStaff } from "@/utils/metrics";
 import { bulkChangeStatus, bulkReassign, deleteLead } from "@/lib/data/leads";
 import { ImportLeadsModal } from "@/components/ImportLeadsModal";
 import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar } from "@/components/ui";
-import { OPEN_STATUSES, CLOSED_STATUSES, type LeadDoc, type LeadStatus } from "@/types";
+import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, type LeadDoc, type LeadStatus } from "@/types";
 import {
   UserPlus,
   Download,
@@ -296,7 +296,7 @@ export function Leads() {
                 </Select>
                 <Button size="sm" variant="secondary" disabled={bulkBusy} onClick={runBulkStatus}>Update Status</Button>
               </div>
-              {role === "admin" && (
+              {isAdminRole(role) && (
                 <div className="flex items-center gap-1.5">
                   <Select value={bulkStaffId} onChange={(e) => setBulkStaffId(e.target.value)} className="py-1.5 text-[13px] w-44">
                     <option value="">Reassign to…</option>
@@ -384,7 +384,7 @@ export function Leads() {
                           <Link to={`/leads/${lead.id}`} aria-label="Edit" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
                             <Pencil className="w-4 h-4" />
                           </Link>
-                          {role === "admin" && (
+                          {isAdminRole(role) && (
                             <button onClick={() => onDeleteRow(lead)} aria-label="Delete" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-bad-soft hover:text-bad">
                               <Trash2 className="w-4 h-4" />
                             </button>
