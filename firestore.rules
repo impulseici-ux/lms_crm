@@ -1,7 +1,8 @@
 rules_version = '2';
 
 // Security model — see Section 18 of the CRM blueprint.
-// Role is carried as a custom claim on the ID token (admin / counsellor / management),
+// Role is carried as a custom claim on the ID token (admin / counsellor / management,
+// plus superadmin — a tier above admin, reserved for permanent user deletion),
 // set only via the admin-only `setUserRole` Cloud Function — never client-writable.
 // The `users/{uid}` Firestore document mirrors profile fields (name, branch, active)
 // for display/reporting; role there is a read-only copy of the claim, kept in sync
@@ -19,7 +20,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && role() == 'admin';
+      return isSignedIn() && role() in ['admin', 'superadmin'];
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && role() == 'superadmin';
     }
 
     function isManagement() {
@@ -31,7 +36,7 @@ service cloud.firestore {
     }
 
     function isStaff() {
-      return isSignedIn() && role() in ['admin', 'counsellor', 'management'];
+      return isSignedIn() && role() in ['admin', 'superadmin', 'counsellor', 'management'];
     }
 
     // ---- Reference / lookup collections ----
@@ -75,7 +80,11 @@ service cloud.firestore {
         request.resource.data.get('status', null) == resource.data.get('status', null) &&
         request.resource.data.get('passwordSetupCompleted', null) == resource.data.get('passwordSetupCompleted', null) &&
         request.resource.data.get('activatedAt', null) == resource.data.get('activatedAt', null);
-      allow delete: if isAdmin();
+      // Permanent deletion is superadmin-only (stricter than every other admin write here) —
+      // the real deletion path is the backend's /api/delete-user (Admin SDK, also removes the
+      // Auth credential and userActivations doc), this is defense-in-depth against a direct
+      // client write.
+      allow delete: if isSuperAdmin();
     }
 
     // ---- Leads (the hub) ----
