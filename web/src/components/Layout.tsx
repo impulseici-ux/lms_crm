@@ -6,11 +6,11 @@ import type { ComponentType } from "react";
 import logo from "@/assets/brand/lm-singanallur-logo.webp";
 
 const navItems: { to: string; label: string; roles: string[]; icon: ComponentType<{ className?: string }> }[] = [
-  { to: "/", label: "Dashboard", roles: ["admin", "counsellor", "management"], icon: LayoutDashboard },
-  { to: "/leads", label: "Enquiries", roles: ["admin", "counsellor", "management"], icon: Users },
-  { to: "/leads/new", label: "New Lead", roles: ["admin", "counsellor"], icon: UserPlus },
-  { to: "/reports", label: "Reports", roles: ["admin", "counsellor", "management"], icon: BarChart3 },
-  { to: "/admin", label: "Admin", roles: ["admin"], icon: Settings },
+  { to: "/", label: "Dashboard", roles: ["admin", "superadmin", "counsellor", "management"], icon: LayoutDashboard },
+  { to: "/leads", label: "Enquiries", roles: ["admin", "superadmin", "counsellor", "management"], icon: Users },
+  { to: "/leads/new", label: "New Lead", roles: ["admin", "superadmin", "counsellor"], icon: UserPlus },
+  { to: "/reports", label: "Reports", roles: ["admin", "superadmin", "counsellor", "management"], icon: BarChart3 },
+  { to: "/admin", label: "Admin", roles: ["admin", "superadmin"], icon: Settings },
 ];
 
 function initials(name: string): string {

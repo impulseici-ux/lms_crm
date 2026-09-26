@@ -24,6 +24,7 @@ import { buildWhatsAppLink } from "@/utils/whatsapp";
 import {
   OPEN_STATUSES,
   CLOSED_STATUSES,
+  isAdminRole,
   type LeadDoc,
   type ActivityDoc,
   type ActivityType,
@@ -153,7 +154,7 @@ export function LeadProfile() {
   }
   if (lead === null) return <div className="text-bad">Lead not found.</div>;
 
-  const canEdit = role === "admin" || (role === "counsellor" && lead.assignedStaffId === user?.uid);
+  const canEdit = isAdminRole(role) || (role === "counsellor" && lead.assignedStaffId === user?.uid);
   const doAction = async (fn: () => Promise<unknown>) => {
     setError(null);
     try {
@@ -445,7 +446,7 @@ export function LeadProfile() {
       )}
 
       {/* Reassignment */}
-      {role === "admin" && (
+      {isAdminRole(role) && (
         <Card className="mb-4">
           <div className="flex items-center gap-2 mb-4">
             <IconTile tone="neutral" size="sm"><RefreshCcw /></IconTile>

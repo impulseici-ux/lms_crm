@@ -2,6 +2,11 @@ import type { Timestamp } from "firebase/firestore";
 
 export type Role = "admin" | "counsellor" | "management" | "superadmin";
 
+/** superadmin is a superset of admin (Part 15: preserve the existing role architecture — it just adds one destructive capability on top). Use this everywhere "is this an admin-level account" is being checked, instead of comparing to the literal "admin" string. */
+export function isAdminRole(role: Role | null | undefined): boolean {
+  return role === "admin" || role === "superadmin";
+}
+
 /**
  * Onboarding pipeline for a newly-invited user (Admin > Staff > Invite User).
  * Missing on any pre-existing account created before this flow existed —

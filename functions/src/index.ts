@@ -19,7 +19,7 @@ type Role = (typeof VALID_ROLES)[number];
  */
 export const setUserRole = onCall(async (request) => {
   const callerRole = request.auth?.token?.role;
-  if (!request.auth || callerRole !== "admin") {
+  if (!request.auth || (callerRole !== "admin" && callerRole !== "superadmin")) {
     throw new HttpsError(
       "permission-denied",
       "Only an admin can change a staff member's role."

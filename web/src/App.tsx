@@ -32,7 +32,7 @@ export default function App() {
               <Route
                 path="/leads/new"
                 element={
-                  <ProtectedRoute roles={["admin", "counsellor"]}>
+                  <ProtectedRoute roles={["admin", "superadmin", "counsellor"]}>
                     <NewLead />
                   </ProtectedRoute>
                 }
@@ -42,7 +42,7 @@ export default function App() {
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute roles={["admin"]}>
+                  <ProtectedRoute roles={["admin", "superadmin"]}>
                     <Admin />
                   </ProtectedRoute>
                 }
