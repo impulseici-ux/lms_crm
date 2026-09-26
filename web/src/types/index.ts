@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type Role = "admin" | "counsellor" | "management";
+export type Role = "admin" | "counsellor" | "management" | "superadmin";
 
 /**
  * Onboarding pipeline for a newly-invited user (Admin > Staff > Invite User).

@@ -70,3 +70,8 @@ export function setNewPassword(uid: string, password: string, confirmPassword: s
 export function setUserActive(uid: string, active: boolean) {
   return callBackend<{ ok: true }>("/api/set-active", { uid, active }, true);
 }
+
+/** Superadmin-only. Permanently removes the Firebase Auth credential and every Firestore trace of the account — cannot be undone. */
+export function deleteUser(uid: string) {
+  return callBackend<{ ok: true }>("/api/delete-user", { uid }, true);
+}

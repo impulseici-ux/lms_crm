@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 import { useLookups } from "@/hooks/useLookups";
 import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/lib/data/lookups";
 import { setUserRole } from "@/lib/data/users";
 import { subscribeSyncConfig, subscribeSyncRuns } from "@/lib/data/sync";
-import { inviteUser, resendActivationCode, setUserActive, type IssueCodeResult } from "@/lib/data/onboarding";
+import { inviteUser, resendActivationCode, setUserActive, deleteUser, type IssueCodeResult } from "@/lib/data/onboarding";
 import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile, Badge } from "@/components/ui";
 import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc } from "@/types";
 import { resolveUserStatus } from "@/types";
@@ -30,6 +31,7 @@ import {
   MessageCircle,
   Ban,
   Power,
+  Trash2,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -456,7 +458,7 @@ const STATUS_BADGE: Record<UserStatus, { label: string; tone: "good" | "warn" | 
   inactive: { label: "Inactive", tone: "neutral" },
 };
 
-function StaffRow({ user, onChanged }: { user: UserDoc; onChanged: (message: string) => void }) {
+function StaffRow({ user, canDelete, onChanged }: { user: UserDoc; canDelete: boolean; onChanged: (message: string) => void }) {
   const status = resolveUserStatus(user.status);
   const badge = STATUS_BADGE[status];
   const [busy, setBusy] = useState(false);
@@ -488,6 +490,19 @@ function StaffRow({ user, onChanged }: { user: UserDoc; onChanged: (message: str
     } catch (err) {
       setRowError(err instanceof Error ? err.message : "Could not update this account.");
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDelete = async () => {
+    if (!window.confirm(`Permanently delete ${user.displayName}'s account? This cannot be undone.`)) return;
+    setBusy(true);
+    setRowError(null);
+    try {
+      await deleteUser(user.id);
+      onChanged(`${user.displayName}'s account was permanently deleted.`);
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Could not delete this account.");
       setBusy(false);
     }
   };
@@ -533,6 +548,16 @@ function StaffRow({ user, onChanged }: { user: UserDoc; onChanged: (message: str
               {status === "active" ? <><Ban className="w-3 h-3" /> Deactivate</> : <><Power className="w-3 h-3" /> Activate</>}
             </button>
           )}
+          {canDelete && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={doDelete}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-bad hover:text-bad disabled:opacity-50"
+            >
+              <Trash2 className="w-3 h-3" /> Delete
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -542,6 +567,7 @@ function StaffRow({ user, onChanged }: { user: UserDoc; onChanged: (message: str
 function StaffEditor() {
   const { users } = useLookups();
   const { showToast } = useToast();
+  const { user: viewer, role: viewerRole } = useAuth();
   const [staffQuery, setStaffQuery] = useState("");
 
   return (
@@ -581,7 +607,12 @@ function StaffEditor() {
               {users
                 .filter((u) => u.displayName.toLowerCase().includes(staffQuery.trim().toLowerCase()))
                 .map((u) => (
-                  <StaffRow key={u.id} user={u} onChanged={showToast} />
+                  <StaffRow
+                    key={u.id}
+                    user={u}
+                    canDelete={viewerRole === "superadmin" && u.id !== viewer?.uid}
+                    onChanged={showToast}
+                  />
                 ))}
             </tbody>
           </table>

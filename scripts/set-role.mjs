@@ -20,7 +20,10 @@ import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
-const VALID_ROLES = ["admin", "counsellor", "management"];
+// superadmin is a tier above admin, reserved for permanent user deletion (backend's
+// /api/delete-user) — deliberately not offered anywhere in the Admin UI, only grantable
+// by someone with direct service-account access via this script.
+const VALID_ROLES = ["admin", "counsellor", "management", "superadmin"];
 const [, , uid, email, role, displayName] = process.argv;
 
 if (!uid || !email || !role || !VALID_ROLES.includes(role)) {
