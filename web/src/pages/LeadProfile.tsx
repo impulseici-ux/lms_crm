@@ -21,6 +21,7 @@ import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
 import { buildWhatsAppLink } from "@/utils/whatsapp";
+import { isValidLeadPhone } from "@/utils/phone";
 import {
   OPEN_STATUSES,
   CLOSED_STATUSES,
@@ -197,9 +198,15 @@ export function LeadProfile() {
             <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
               <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
             </a>
-            <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
-              <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
-            </a>
+            {waLink ? (
+              <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
+                <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
+              </a>
+            ) : (
+              <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — WhatsApp disabled.">
+                <MessageCircle className="w-4 h-4" /> WhatsApp
+              </Button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-ink-faint mt-4 pt-3 border-t border-border-soft">
@@ -290,7 +297,7 @@ export function LeadProfile() {
           )}
         </div>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm">
-          <FactRow icon={Phone} label="Phone" value={lead.parentPhone} />
+          <FactRow icon={Phone} label="Phone" value={isValidLeadPhone(lead.parentPhone) ? lead.parentPhone : `${lead.parentPhone} (unverified)`} />
           <FactRow icon={Mail} label="Email" value={lead.parentEmail ?? "—"} />
           <FactRow icon={Cake} label="Child age" value={lead.childAge ?? "—"} />
           <FactRow icon={BookOpen} label="Program" value={programName(lead.interestedProgramId)} />

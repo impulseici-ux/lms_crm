@@ -107,17 +107,22 @@ export function Dashboard() {
             </div>
             <span className="text-xs font-semibold text-ink-faint">{funnelMax} total</span>
           </div>
-          <div className="px-5 pb-5 space-y-3">
+          <div className="px-5 pb-5 space-y-1">
             {funnel.map((stage, i) => {
               const pct = funnelMax ? (stage.count / funnelMax) * 100 : 0;
               return (
-                <div key={stage.stage}>
+                <Link
+                  key={stage.stage}
+                  to={`/leads?status=${encodeURIComponent(stage.stage)}`}
+                  className="group block rounded-lg px-2 py-2 -mx-2 cursor-pointer hover:bg-surface-2 transition-colors"
+                  title={`View ${stage.stage} leads`}
+                >
                   <div className="flex items-baseline justify-between text-[13px] mb-1">
-                    <span className="font-medium text-ink">{i + 1}. {stage.stage}</span>
-                    <span className="text-ink-faint font-semibold">{stage.count}</span>
+                    <span className="font-medium text-ink group-hover:text-accent transition-colors">{i + 1}. {stage.stage}</span>
+                    <span className="text-ink-faint font-semibold group-hover:text-accent transition-colors">{stage.count}</span>
                   </div>
                   <ProgressBar value={pct} tone={stage.stage === "Admission Confirmed" ? "good" : "accent"} />
-                </div>
+                </Link>
               );
             })}
           </div>

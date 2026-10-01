@@ -1,5 +1,12 @@
-/** Deep link to WhatsApp with a pre-filled first-contact message, so staff never start from a blank chat. */
-export function buildWhatsAppLink(phone: string, parentName: string, sourceChannel: string): string {
+import { isValidLeadPhone } from "@/utils/phone";
+
+/**
+ * Deep link to WhatsApp with a pre-filled first-contact message, so staff never start from
+ * a blank chat. Returns null for a phone number that doesn't validate, rather than building
+ * a broken wa.me link that silently fails or messages the wrong person.
+ */
+export function buildWhatsAppLink(phone: string, parentName: string, sourceChannel: string): string | null {
+  if (!isValidLeadPhone(phone)) return null;
   const digits = phone.replace(/[^0-9]/g, "");
   const message =
     `Hi ${parentName}, greetings from Little Millennium Singanallur! ` +

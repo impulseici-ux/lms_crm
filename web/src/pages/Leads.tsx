@@ -9,11 +9,12 @@ import { computeAttentionFlags } from "@/utils/attention";
 import { deriveFollowUpState } from "@/utils/followUp";
 import { downloadCsv } from "@/utils/csv";
 import { buildWhatsAppLink } from "@/utils/whatsapp";
+import { isValidLeadPhone } from "@/utils/phone";
 import { breakdownBySource, breakdownByStaff } from "@/utils/metrics";
 import { bulkChangeStatus, bulkReassign, deleteLead } from "@/lib/data/leads";
 import { ImportLeadsModal } from "@/components/ImportLeadsModal";
 import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar } from "@/components/ui";
-import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, type LeadDoc, type LeadStatus } from "@/types";
+import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, isOpenStatus, isClosedStatus, type LeadDoc, type LeadStatus } from "@/types";
 import {
   UserPlus,
   Download,
@@ -30,7 +31,7 @@ import {
   PieChart,
   CalendarClock,
   X,
-  ChevronDown,
+  ShieldAlert,
 } from "lucide-react";
 
 const QUICK_VIEWS = ["All", "My Leads", "Follow-up Today", "Overdue", "Visits", "Converted", "Needs Attention"] as const;
@@ -74,7 +75,10 @@ export function Leads() {
   const { leads, loading } = useLeads();
   const { programName, staffName, branches, programs, leadSources, campaigns, users } = useLookups();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const statusParam = searchParams.get("status");
+  const [filters, setFilters] = useState(() =>
+    statusParam && (isOpenStatus(statusParam) || isClosedStatus(statusParam)) ? { ...EMPTY_FILTERS, status: statusParam } : EMPTY_FILTERS
+  );
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [tab, setTab] = useState<TabKey>("Data table");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -214,30 +218,44 @@ export function Leads() {
   }));
 
   return (
-    <div className="max-w-7xl mx-auto pb-8">
+    <div className="max-w-7xl mx-auto pb-8 overflow-x-hidden">
       <SectionHeading eyebrow="Admissions pipeline" title="Enquiries" description="Manage and track all your student enquiries in one place." />
 
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-5 border-b border-border-soft">
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
             <button
               key={t.key}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setTab(t.key)}
-              className={`inline-flex items-center gap-2 text-[13px] font-semibold px-3.5 py-2 rounded-xl border transition-colors ${
-                active ? "bg-accent text-white border-accent" : "bg-surface text-ink-soft border-border hover:border-ink-faint/40 hover:text-ink"
+              className={`relative inline-flex items-center gap-2 text-[13px] font-semibold px-4 py-2.5 -mb-px border-b-2 transition-colors ${
+                active ? "border-accent text-accent" : "border-transparent text-ink-soft hover:text-ink hover:border-ink-faint/30"
               }`}
             >
               <t.icon className="w-4 h-4" />
               {t.key}
-              <ChevronDown className="w-3.5 h-3.5 opacity-60" />
             </button>
           );
         })}
       </div>
 
       <FilterBar filters={filters} onApply={setFilters} />
+
+      {filters.status && (
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft border border-accent/20 px-4 py-2.5 mb-4 text-sm">
+          <span className="text-accent-strong font-semibold">Showing: {filters.status} leads</span>
+          <button
+            type="button"
+            onClick={() => { setFilters(EMPTY_FILTERS); setSearchParams({}); }}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline shrink-0"
+          >
+            <X className="w-3.5 h-3.5" /> Clear stage filter
+          </button>
+        </div>
+      )}
 
       {tab === "Data table" && (
         <>
@@ -250,19 +268,27 @@ export function Leads() {
                 </Button>
                 {showWhatsApp && selected.size > 0 && (
                   <div className="absolute right-0 mt-1 z-20 w-64 bg-surface border border-border rounded-xl shadow-elevated p-2 max-h-64 overflow-y-auto">
-                    {selectedLeads.map((l) => (
-                      <a
-                        key={l.id}
-                        href={buildWhatsAppLink(l.parentPhone, l.parentName, l.sourceChannel)}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => setShowWhatsApp(false)}
-                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm hover:bg-surface-2"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-good shrink-0" />
-                        <span className="truncate">{l.parentName} · {l.childName}</span>
-                      </a>
-                    ))}
+                    {selectedLeads.map((l) => {
+                      const link = buildWhatsAppLink(l.parentPhone, l.parentName, l.sourceChannel);
+                      return link ? (
+                        <a
+                          key={l.id}
+                          href={link}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setShowWhatsApp(false)}
+                          className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm hover:bg-surface-2"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-good shrink-0" />
+                          <span className="truncate">{l.parentName} · {l.childName}</span>
+                        </a>
+                      ) : (
+                        <div key={l.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-ink-faint opacity-60" title="Invalid/unverified mobile number">
+                          <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{l.parentName} · {l.childName}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -371,21 +397,29 @@ export function Leads() {
                       <td className="px-2 py-3"><StatusPill status={lead.status} /></td>
                       <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.sourceChannel}</td>
                       <td className="px-2 py-3"><PriorityPill priority={lead.priority} /></td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap"><span className="inline-flex items-center gap-1"><Phone className="w-3 h-3" />{lead.parentPhone}</span></td>
+                      <td className="px-2 py-3 whitespace-nowrap">
+                        {isValidLeadPhone(lead.parentPhone) ? (
+                          <span className="inline-flex items-center gap-1 text-ink-soft"><Phone className="w-3 h-3" />{lead.parentPhone}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-warn" title="Couldn't be verified as a valid mobile number">
+                            <ShieldAlert className="w-3 h-3" />{lead.parentPhone || "—"}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-2 py-3"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
                       <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.location ?? "—"}</td>
                       <td className="px-2 py-3 text-ink-faint max-w-[140px] truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>
                       <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{staffName(lead.assignedStaffId)}</td>
                       <td className="px-2 py-3">
                         <div className="flex items-center gap-1">
-                          <Link to={`/leads/${lead.id}`} aria-label="View" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
+                          <Link to={`/leads/${lead.id}`} aria-label="View" title="View Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
                             <Eye className="w-4 h-4" />
                           </Link>
-                          <Link to={`/leads/${lead.id}`} aria-label="Edit" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
+                          <Link to={`/leads/${lead.id}`} aria-label="Edit" title="Edit Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
                             <Pencil className="w-4 h-4" />
                           </Link>
                           {isAdminRole(role) && (
-                            <button onClick={() => onDeleteRow(lead)} aria-label="Delete" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-bad-soft hover:text-bad">
+                            <button onClick={() => onDeleteRow(lead)} aria-label="Delete" title="Delete Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-bad-soft hover:text-bad">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}

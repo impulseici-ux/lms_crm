@@ -38,9 +38,9 @@ async function addLookup(col, name, sortOrder) {
 
 async function main() {
   console.log("Seeding staff…");
-  const adminUid = await upsertStaff("admin@school.test", "password123", "Admin User", "admin");
-  const counsellorUid = await upsertStaff("counsellor@school.test", "password123", "Priya Counsellor", "counsellor");
-  const managementUid = await upsertStaff("management@school.test", "password123", "Management Viewer", "management");
+  const adminUid = await upsertStaff("admin@littlemillennium.local", "password123", "Admin User", "admin");
+  const counsellorUid = await upsertStaff("counsellor@littlemillennium.local", "password123", "Priya Counsellor", "counsellor");
+  const managementUid = await upsertStaff("management@littlemillennium.local", "password123", "Management Viewer", "management");
 
   console.log("Seeding lead sources…");
   const sourceNames = [
@@ -83,7 +83,7 @@ async function main() {
     const nextFollowUpAt = s.followUpInHours == null ? null : Timestamp.fromMillis(now + s.followUpInHours * 3600 * 1000);
     const leadRef = await db.collection("leads").add({
       parentName: s.parentName,
-      parentPhone: "+91 90000 00000",
+      parentPhone: "+919000000000",
       parentEmail: null,
       childName: s.childName,
       childAge: "4 years",
@@ -122,7 +122,7 @@ async function main() {
   }
 
   console.log("Seed complete.");
-  console.log("Log in as admin@school.test / counsellor@school.test / management@school.test, password: password123");
+  console.log("Log in as admin@littlemillennium.local / counsellor@littlemillennium.local / management@littlemillennium.local, password: password123");
   console.log(`Admin UID: ${adminUid}`);
   console.log(`Counsellor UID: ${counsellorUid}`);
   console.log(`Management UID: ${managementUid}`);
