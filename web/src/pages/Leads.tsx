@@ -23,7 +23,6 @@ import {
   Phone,
   Search,
   Eye,
-  Pencil,
   Trash2,
   MessageCircle,
   Table2,
@@ -76,9 +75,12 @@ export function Leads() {
   const { programName, staffName, branches, programs, leadSources, campaigns, users } = useLookups();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusParam = searchParams.get("status");
-  const [filters, setFilters] = useState(() =>
-    statusParam && (isOpenStatus(statusParam) || isClosedStatus(statusParam)) ? { ...EMPTY_FILTERS, status: statusParam } : EMPTY_FILTERS
-  );
+  const staffIdParam = searchParams.get("staffId");
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_FILTERS,
+    status: statusParam && (isOpenStatus(statusParam) || isClosedStatus(statusParam)) ? statusParam : "",
+    staffId: staffIdParam ?? "",
+  }));
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [tab, setTab] = useState<TabKey>("Data table");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -93,12 +95,18 @@ export function Leads() {
   const initialView = viewParam === "attention" ? "Needs Attention" : QUICK_VIEWS.includes(viewParam as QuickView) ? (viewParam as QuickView) : "All";
   const [quickView, setQuickView] = useState<QuickView>(initialView);
 
+  // A link-only filter (e.g. from Dashboard's Needs Attention breakdown) that isn't one of
+  // the 7 quick-view pills — doesn't touch the sticky bar, just narrows the table further.
+  const showInvalidOnly = searchParams.get("special") === "invalid-numbers";
+
   const filtered = useMemo(() => applyFilters(leads, filters), [leads, filters]);
   const attentionLeadIds = useMemo(() => new Set(computeAttentionFlags(filtered).map((f) => f.lead.id)), [filtered]);
   const quickViewFiltered = useMemo(() => {
-    const base = filtered.filter((lead) => matchesQuickView(quickView, lead, user?.uid));
-    return quickView === "Needs Attention" ? base.filter((l) => attentionLeadIds.has(l.id)) : base;
-  }, [filtered, quickView, user?.uid, attentionLeadIds]);
+    let base = filtered.filter((lead) => matchesQuickView(quickView, lead, user?.uid));
+    if (quickView === "Needs Attention") base = base.filter((l) => attentionLeadIds.has(l.id));
+    if (showInvalidOnly) base = base.filter((l) => !isValidLeadPhone(l.parentPhone));
+    return base;
+  }, [filtered, quickView, user?.uid, attentionLeadIds, showInvalidOnly]);
 
   const visible = useMemo(() => {
     const cf = columnFilters;
@@ -244,15 +252,22 @@ export function Leads() {
 
       <FilterBar filters={filters} onApply={setFilters} />
 
-      {filters.status && (
+      {(filters.status || filters.staffId === "__unassigned__" || showInvalidOnly) && (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft border border-accent/20 px-4 py-2.5 mb-4 text-sm">
-          <span className="text-accent-strong font-semibold">Showing: {filters.status} leads</span>
+          <span className="text-accent-strong font-semibold">
+            Showing:{" "}
+            {showInvalidOnly
+              ? "leads with invalid mobile numbers"
+              : filters.staffId === "__unassigned__"
+              ? "unassigned leads"
+              : `${filters.status} leads`}
+          </span>
           <button
             type="button"
             onClick={() => { setFilters(EMPTY_FILTERS); setSearchParams({}); }}
             className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline shrink-0"
           >
-            <X className="w-3.5 h-3.5" /> Clear stage filter
+            <X className="w-3.5 h-3.5" /> Clear filter
           </button>
         </div>
       )}
@@ -347,13 +362,13 @@ export function Leads() {
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
                     </th>
                     <th className="text-left px-2 py-3">Name</th>
-                    <th className="text-left px-2 py-3">Course</th>
-                    <th className="text-left px-2 py-3">Fees</th>
                     <th className="text-left px-2 py-3">Status</th>
-                    <th className="text-left px-2 py-3">Source</th>
                     <th className="text-left px-2 py-3">Priority</th>
                     <th className="text-left px-2 py-3">Mobile</th>
                     <th className="text-left px-2 py-3">Follow-up</th>
+                    <th className="text-left px-2 py-3">Course</th>
+                    <th className="text-left px-2 py-3">Fees</th>
+                    <th className="text-left px-2 py-3">Source</th>
                     <th className="text-left px-2 py-3">Location</th>
                     <th className="text-left px-2 py-3">Remarks</th>
                     <th className="text-left px-2 py-3">Admin</th>
@@ -362,13 +377,13 @@ export function Leads() {
                   <tr className="bg-surface">
                     <td className="px-4 py-1.5" />
                     <ColumnSearchCell value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
-                    <ColumnSearchCell value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
                     <td className="px-2 py-1.5" />
-                    <td className="px-2 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />
                     <td className="px-2 py-1.5" />
                     <ColumnSearchCell value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
                     <td className="px-2 py-1.5" />
+                    <ColumnSearchCell value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
+                    <td className="px-2 py-1.5" />
+                    <ColumnSearchCell value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />
                     <ColumnSearchCell value={columnFilters.location} onChange={(v) => setColumnFilters((c) => ({ ...c, location: v }))} />
                     <ColumnSearchCell value={columnFilters.remarks} onChange={(v) => setColumnFilters((c) => ({ ...c, remarks: v }))} />
                     <ColumnSearchCell value={columnFilters.admin} onChange={(v) => setColumnFilters((c) => ({ ...c, admin: v }))} />
@@ -384,40 +399,58 @@ export function Leads() {
                       <td className="px-2 py-3">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-8 h-8 rounded-full bg-accent-soft text-accent-strong flex items-center justify-center text-[11px] font-bold shrink-0">
-                            {initials(lead.parentName)}
+                            {initials(lead.childName)}
                           </div>
                           <div className="min-w-0">
-                            <Link to={`/leads/${lead.id}`} className="font-semibold text-ink hover:text-accent">{lead.parentName}</Link>
-                            <div className="text-ink-faint text-xs mt-0.5 truncate">{lead.childName}</div>
+                            <Link to={`/leads/${lead.id}`} className="font-semibold text-[14.5px] text-ink hover:text-accent">{lead.childName}</Link>
+                            <div className="text-ink-faint text-xs mt-0.5 truncate">{lead.parentName}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{programName(lead.interestedProgramId)}</td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>
                       <td className="px-2 py-3"><StatusPill status={lead.status} /></td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.sourceChannel}</td>
                       <td className="px-2 py-3"><PriorityPill priority={lead.priority} /></td>
                       <td className="px-2 py-3 whitespace-nowrap">
                         {isValidLeadPhone(lead.parentPhone) ? (
                           <span className="inline-flex items-center gap-1 text-ink-soft"><Phone className="w-3 h-3" />{lead.parentPhone}</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-warn" title="Couldn't be verified as a valid mobile number">
-                            <ShieldAlert className="w-3 h-3" />{lead.parentPhone || "—"}
+                          <span className="inline-flex items-center gap-1 text-warn" title={lead.parentPhone ? `Stored value couldn't be verified: ${lead.parentPhone}` : "No number on file"}>
+                            <ShieldAlert className="w-3 h-3" /> Invalid Number
                           </span>
                         )}
                       </td>
                       <td className="px-2 py-3"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
+                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{programName(lead.interestedProgramId)}</td>
+                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>
+                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.sourceChannel}</td>
                       <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.location ?? "—"}</td>
                       <td className="px-2 py-3 text-ink-faint max-w-[140px] truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>
                       <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{staffName(lead.assignedStaffId)}</td>
                       <td className="px-2 py-3">
                         <div className="flex items-center gap-1">
-                          <Link to={`/leads/${lead.id}`} aria-label="View" title="View Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
+                          <Link to={`/leads/${lead.id}`} aria-label="Open lead" title="Open Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
                             <Eye className="w-4 h-4" />
                           </Link>
-                          <Link to={`/leads/${lead.id}`} aria-label="Edit" title="Edit Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
-                            <Pencil className="w-4 h-4" />
-                          </Link>
+                          {isValidLeadPhone(lead.parentPhone) ? (
+                            <a href={`tel:${lead.parentPhone}`} aria-label="Call" title="Call" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
+                              <Phone className="w-4 h-4" />
+                            </a>
+                          ) : (
+                            <span aria-hidden className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint/30" title="No valid number to call">
+                              <Phone className="w-4 h-4" />
+                            </span>
+                          )}
+                          {(() => {
+                            const link = buildWhatsAppLink(lead.parentPhone, lead.parentName, lead.sourceChannel);
+                            return link ? (
+                              <a href={link} target="_blank" rel="noreferrer" aria-label="WhatsApp" title="WhatsApp" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-good-soft hover:text-good">
+                                <MessageCircle className="w-4 h-4" />
+                              </a>
+                            ) : (
+                              <span aria-hidden className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint/30" title="No valid number for WhatsApp">
+                                <MessageCircle className="w-4 h-4" />
+                              </span>
+                            );
+                          })()}
                           {isAdminRole(role) && (
                             <button onClick={() => onDeleteRow(lead)} aria-label="Delete" title="Delete Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-bad-soft hover:text-bad">
                               <Trash2 className="w-4 h-4" />
@@ -435,12 +468,19 @@ export function Leads() {
               {visible.map((lead) => (
                 <div key={lead.id} className="p-4">
                   <div className="flex items-start gap-3">
-                    <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="mt-1 rounded border-border shrink-0" aria-label={`Select ${lead.parentName}`} />
+                    <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="mt-1 rounded border-border shrink-0" aria-label={`Select ${lead.childName}`} />
                     <Link to={`/leads/${lead.id}`} className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="font-semibold text-ink truncate">{lead.parentName}</div>
-                          <div className="text-xs text-ink-soft mt-0.5 truncate">{lead.childName} · {lead.parentPhone}</div>
+                          <div className="font-semibold text-ink truncate">{lead.childName}</div>
+                          <div className="text-xs text-ink-soft mt-0.5 truncate">
+                            {lead.parentName} ·{" "}
+                            {isValidLeadPhone(lead.parentPhone) ? (
+                              lead.parentPhone
+                            ) : (
+                              <span className="text-bad" title={lead.parentPhone || undefined}>Invalid Number</span>
+                            )}
+                          </div>
                         </div>
                         <StatusPill status={lead.status} />
                       </div>

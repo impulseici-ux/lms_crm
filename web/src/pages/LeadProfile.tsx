@@ -57,7 +57,7 @@ import {
   IndianRupee,
   Layers,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 const FOLLOW_UP_TYPES: FollowUpType[] = ["Call", "WhatsApp", "Visit Reminder", "Email", "In-Person", "Other"];
 const OUTCOMES: FollowUpOutcome[] = ["Reached", "Interested", "No Answer", "Rescheduled", "Not Interested", "Converted to Visit"];
@@ -195,9 +195,15 @@ export function LeadProfile() {
             </div>
           </div>
           <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto shrink-0">
-            <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
-              <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
-            </a>
+            {isValidLeadPhone(lead.parentPhone) ? (
+              <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
+                <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
+              </a>
+            ) : (
+              <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — calling disabled.">
+                <Phone className="w-4 h-4" /> Call
+              </Button>
+            )}
             {waLink ? (
               <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
                 <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
@@ -297,7 +303,17 @@ export function LeadProfile() {
           )}
         </div>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm">
-          <FactRow icon={Phone} label="Phone" value={isValidLeadPhone(lead.parentPhone) ? lead.parentPhone : `${lead.parentPhone} (unverified)`} />
+          <FactRow
+            icon={Phone}
+            label="Phone"
+            value={
+              isValidLeadPhone(lead.parentPhone) ? (
+                lead.parentPhone
+              ) : (
+                <span className="text-bad" title={lead.parentPhone || undefined}>Invalid Number</span>
+              )
+            }
+          />
           <FactRow icon={Mail} label="Email" value={lead.parentEmail ?? "—"} />
           <FactRow icon={Cake} label="Child age" value={lead.childAge ?? "—"} />
           <FactRow icon={BookOpen} label="Program" value={programName(lead.interestedProgramId)} />
@@ -519,7 +535,7 @@ export function LeadProfile() {
   );
 }
 
-function FactRow({ icon: Icon, label, value }: { icon: ComponentType<{ className?: string }>; label: string; value: string }) {
+function FactRow({ icon: Icon, label, value }: { icon: ComponentType<{ className?: string }>; label: string; value: ReactNode }) {
   return (
     <div className="flex items-start gap-2.5">
       <Icon className="w-4 h-4 text-ink-faint mt-0.5 shrink-0" />
