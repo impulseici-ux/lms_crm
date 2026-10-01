@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Select, Input, Button } from "@/components/ui";
+import { Select, Input, Button, Badge } from "@/components/ui";
 import { useLookups } from "@/hooks/useLookups";
 import { OPEN_STATUSES, CLOSED_STATUSES } from "@/types";
-import { Search, SlidersHorizontal, X, CalendarDays, ArrowUpNarrowWide, ArrowDownNarrowWide } from "lucide-react";
+import { Search, SlidersHorizontal, X, CalendarDays, ArrowUpNarrowWide, ArrowDownNarrowWide, ChevronDown } from "lucide-react";
 
 export type SortField = "createdAt" | "nextFollowUpAt" | "parentName" | "priority" | "fees";
 export type SortDirection = "asc" | "desc";
@@ -59,14 +59,43 @@ function countActive(f: Filters): number {
 export function FilterBar({ filters, onApply }: { filters: Filters; onApply: (f: Filters) => void }) {
   const { leadSources, programs, branches, campaigns, users } = useLookups();
   const [draft, setDraft] = useState<Filters>(filters);
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => setDraft(filters), [filters]);
 
   const set = (patch: Partial<Filters>) => setDraft((d) => ({ ...d, ...patch }));
   const active = countActive(filters);
   const dirty = JSON.stringify(draft) !== JSON.stringify(filters);
 
+  const apply = () => {
+    onApply(draft);
+    setExpanded(false);
+  };
+  const clearAll = () => {
+    setDraft(EMPTY_FILTERS);
+    onApply(EMPTY_FILTERS);
+    setExpanded(false);
+  };
+
   return (
-    <div className="bg-surface border border-border rounded-2xl p-3.5 sm:p-4 mb-5">
+    <div className="bg-surface border border-border rounded-2xl mb-5 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-surface-2/50 transition-colors"
+      >
+        <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
+          <SlidersHorizontal className="w-4 h-4 text-ink-faint" />
+          Filters
+          {active > 0 && <Badge tone="accent">{active}</Badge>}
+        </span>
+        <span className="inline-flex items-center gap-2 text-xs text-ink-faint">
+          {active > 0 ? `${active} filter${active === 1 ? "" : "s"} active` : "Showing all matching leads"}
+          <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="p-3.5 sm:p-4 border-t border-border-soft">
       <div className="flex flex-col lg:flex-row gap-3 lg:items-end mb-3">
         <div className="lg:w-[240px] shrink-0">
           <label className="block text-[11px] uppercase tracking-wide text-ink-faint font-semibold mb-1.5">Search</label>
@@ -87,7 +116,7 @@ export function FilterBar({ filters, onApply }: { filters: Filters; onApply: (f:
           <DateField label="Follow-up from" value={draft.followUpFrom} onChange={(v) => set({ followUpFrom: v })} />
           <DateField label="Follow-up to" value={draft.followUpTo} onChange={(v) => set({ followUpTo: v })} />
         </div>
-        <Button onClick={() => onApply(draft)} className="lg:mb-0 shrink-0">
+        <Button onClick={apply} className="lg:mb-0 shrink-0">
           <SlidersHorizontal className="w-4 h-4" /> Apply Filters
         </Button>
       </div>
@@ -170,13 +199,15 @@ export function FilterBar({ filters, onApply }: { filters: Filters; onApply: (f:
         {(active > 0 || filters.search) && (
           <button
             type="button"
-            onClick={() => { setDraft(EMPTY_FILTERS); onApply(EMPTY_FILTERS); }}
+            onClick={clearAll}
             className="inline-flex items-center gap-1 text-xs font-semibold text-ink-faint hover:text-bad transition-colors"
           >
             <X className="w-3.5 h-3.5" /> Clear all
           </button>
         )}
       </div>
+        </div>
+      )}
     </div>
   );
 }

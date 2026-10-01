@@ -339,9 +339,9 @@ export function Leads() {
           {bulkMessage && <div className="text-xs text-ink-soft mb-3 px-1">{bulkMessage}</div>}
 
           <div className="bg-surface border border-border rounded-2xl overflow-hidden">
-            <div className="hidden lg:block overflow-x-auto">
+            <div className="hidden lg:block overflow-auto max-h-[65vh]">
               <table className="w-full text-sm">
-                <thead className="bg-surface-2/60 text-ink-faint text-[11px] uppercase tracking-wide">
+                <thead className="sticky top-0 z-10 bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
                   <tr>
                     <th className="px-4 py-3 w-10">
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
@@ -431,7 +431,7 @@ export function Leads() {
               </table>
             </div>
 
-            <div className="lg:hidden divide-y divide-border-soft">
+            <div className="lg:hidden divide-y divide-border-soft overflow-y-auto max-h-[65vh]">
               {visible.map((lead) => (
                 <div key={lead.id} className="p-4">
                   <div className="flex items-start gap-3">
