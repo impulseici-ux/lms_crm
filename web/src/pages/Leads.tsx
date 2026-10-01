@@ -218,7 +218,7 @@ export function Leads() {
   }));
 
   return (
-    <div className="max-w-7xl mx-auto pb-8 overflow-x-hidden">
+    <div className="max-w-7xl mx-auto pb-8">
       <SectionHeading eyebrow="Admissions pipeline" title="Enquiries" description="Manage and track all your student enquiries in one place." />
 
       <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-5 border-b border-border-soft">

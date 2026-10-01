@@ -79,9 +79,13 @@ export function Layout() {
     </div>
   );
 
+  // Two independent scroll contexts, deliberately — see Leads.tsx for the second one
+  // (its own table container). This <main> is the ONLY thing that scrolls at the page
+  // level; the sidebar, header and this outer shell never scroll themselves, so there
+  // is exactly one page-level scrollbar (both axes) plus whatever a page nests inside.
   return (
-    <div className="min-h-screen bg-bg text-ink">
-      <header className="lg:hidden sticky top-0 z-40 flex items-center justify-between bg-sidebar-bg border-b border-sidebar-border px-4 py-3">
+    <div className="h-screen overflow-hidden bg-bg text-ink flex flex-col">
+      <header className="lg:hidden shrink-0 flex items-center justify-between bg-sidebar-bg border-b border-sidebar-border px-4 py-3">
         <Link to="/" onClick={() => setMobileOpen(false)} className="bg-white rounded-lg p-1.5 inline-block">
           <img src={logo} alt="Little Millennium Singanallur" className="h-8 w-auto object-contain" />
         </Link>
@@ -108,13 +112,13 @@ export function Layout() {
         </div>
       )}
 
-      <div className="min-h-screen lg:flex">
-        <aside className="hidden lg:flex w-[248px] shrink-0 bg-sidebar-bg min-h-screen flex-col">
+      <div className="flex-1 min-h-0 lg:flex">
+        <aside className="hidden lg:flex w-[248px] shrink-0 bg-sidebar-bg h-full flex-col">
           {brand}
-          <div className="flex-1">{navigation}</div>
+          <div className="flex-1 overflow-y-auto">{navigation}</div>
           {account}
         </aside>
-        <main className="flex-1 min-w-0 overflow-x-hidden p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 min-w-0 h-full overflow-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
