@@ -474,10 +474,21 @@ export function Leads() {
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 mt-3">
-            <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
-            <div className="text-xs text-ink-faint shrink-0">
-              Showing <span className="font-semibold text-ink-soft">{visible.length}</span> of {leads.length}
+          {/*
+            Sticky to the bottom of <main> — the CRM page's own scroll container (see
+            Layout.tsx) — not to the browser viewport, so it stays within the content
+            area rather than floating over the sidebar. The negative margins + matching
+            padding extend its background into <main>'s own bottom padding so it reaches
+            the true edge with no gap, while keeping comfortable internal spacing.
+          */}
+          <div className="sticky bottom-0 z-10 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 lg:-mx-8 lg:-mb-8 mt-3 bg-bg/95 backdrop-blur-sm border-t border-border-soft px-4 pt-3 pb-4 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
+              </div>
+              <div className="text-xs text-ink-faint shrink-0">
+                Showing <span className="font-semibold text-ink-soft">{visible.length}</span> of {leads.length}
+              </div>
             </div>
           </div>
         </>
