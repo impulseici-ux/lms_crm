@@ -171,6 +171,9 @@ export function LeadProfile() {
 
   const followUpValue = followUpAt ? Timestamp.fromDate(new Date(followUpAt)) : undefined;
 
+  const FOLLOW_UP_ACTIVITY_TYPES: ActivityType[] = ["follow_up_planned", "follow_up_outcome", "call_logged", "whatsapp_logged"];
+  const recentFollowUps = activities.filter((a) => FOLLOW_UP_ACTIVITY_TYPES.includes(a.type)).slice(0, 3);
+
   return (
     <div className="max-w-5xl mx-auto pb-8">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-accent mb-4 transition-colors">
@@ -179,40 +182,18 @@ export function LeadProfile() {
 
       {/* Header */}
       <Card className="mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex items-start gap-4 min-w-0">
-            <div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent-strong flex items-center justify-center text-lg font-bold shrink-0">
-              {initials(lead.childName)}
-            </div>
-            <div className="min-w-0">
-              <h1 className="font-display text-2xl font-semibold truncate">{lead.childName}</h1>
-              <div className="text-ink-soft text-sm mt-0.5">Parent / guardian: {lead.parentName}</div>
-              <div className="flex flex-wrap gap-2 mt-2.5">
-                <StatusPill status={lead.status} />
-                <PriorityPill priority={lead.priority} />
-                <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
-              </div>
-            </div>
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent-strong flex items-center justify-center text-lg font-bold shrink-0">
+            {initials(lead.childName)}
           </div>
-          <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto shrink-0">
-            {isValidLeadPhone(lead.parentPhone) ? (
-              <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
-                <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
-              </a>
-            ) : (
-              <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — calling disabled.">
-                <Phone className="w-4 h-4" /> Call
-              </Button>
-            )}
-            {waLink ? (
-              <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
-                <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
-              </a>
-            ) : (
-              <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — WhatsApp disabled.">
-                <MessageCircle className="w-4 h-4" /> WhatsApp
-              </Button>
-            )}
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-semibold truncate">{lead.childName}</h1>
+            <div className="text-ink-soft text-sm mt-0.5">Parent / guardian: {lead.parentName}</div>
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              <StatusPill status={lead.status} />
+              <PriorityPill priority={lead.priority} />
+              <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-ink-faint mt-4 pt-3 border-t border-border-soft">
@@ -222,69 +203,72 @@ export function LeadProfile() {
 
       {error && <div role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-3 text-sm text-bad mb-4">{error}</div>}
 
-      {/* Next action — impossible to miss */}
-      <Card id="next-action" className="mb-4 border-accent/25 bg-accent-soft/40" padded={false}>
-        <div className="p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <IconTile tone="accent" size="sm"><CalendarClock /></IconTile>
-            <div>
-              <h2 className="font-semibold text-ink">Next action</h2>
-              <p className="text-xs text-ink-soft">{canEdit ? "What happens next, and when." : "Read-only — you don't own this lead."}</p>
-            </div>
-          </div>
-          {canEdit ? (
-            <>
-              <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end mb-1">
-                <Field label="Next follow-up">
-                  <DateTimePicker value={followUpAt} onChange={setFollowUpAt} />
-                </Field>
-                <Field label="Type">
-                  <Select value={followUpType} onChange={(e) => setFollowUpType(e.target.value as FollowUpType)}>
-                    {FOLLOW_UP_TYPES.map((t) => <option key={t}>{t}</option>)}
-                  </Select>
-                </Field>
-                <Button
-                  onClick={() => user && followUpValue && doAction(() => scheduleFollowUp(lead, followUpValue, followUpType, null, user.uid))}
-                  className="mb-4 sm:mb-0"
-                >
-                  Save
-                </Button>
-              </div>
-
-              <div className="border-t border-border-soft/70 mt-4 pt-4">
-                <div className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Check className="w-4 h-4 text-ink-faint" /> Log follow-up outcome</div>
-                <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end">
-                  <Field label="Outcome">
-                    <Select value={outcome} onChange={(e) => setOutcome(e.target.value as FollowUpOutcome)}>
-                      {OUTCOMES.map((o) => <option key={o}>{o}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label="Notes">
-                    <Input placeholder="Optional" value={outcomeNotes} onChange={(e) => setOutcomeNotes(e.target.value)} />
-                  </Field>
-                  <Button
-                    variant="secondary"
-                    className="mb-4 sm:mb-0"
-                    onClick={() =>
-                      user &&
-                      doAction(async () => {
-                        await logFollowUpOutcome(lead, outcome, outcomeNotes || null, user.uid);
-                        setOutcomeNotes("");
-                      })
-                    }
-                  >
-                    Log outcome
-                  </Button>
-                </div>
-              </div>
-            </>
+      {/* Quick actions */}
+      <GroupLabel>Quick actions</GroupLabel>
+      <Card className="mb-4">
+        <div className="grid grid-cols-2 sm:flex gap-2">
+          {isValidLeadPhone(lead.parentPhone) ? (
+            <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
+              <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
+            </a>
           ) : (
-            <p className="text-sm text-ink-soft">Only the assigned staff member or an admin can edit this lead.</p>
+            <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — calling disabled.">
+              <Phone className="w-4 h-4" /> Call
+            </Button>
+          )}
+          {waLink ? (
+            <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
+              <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
+            </a>
+          ) : (
+            <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — WhatsApp disabled.">
+              <MessageCircle className="w-4 h-4" /> WhatsApp
+            </Button>
+          )}
+          {canEdit && (
+            <a href="#follow-up" className="w-full sm:w-auto">
+              <Button variant="secondary" className="w-full"><CalendarClock className="w-4 h-4" /> Follow-up</Button>
+            </a>
           )}
         </div>
       </Card>
 
-      {/* Key facts */}
+      {isAdminRole(role) && (
+        <Card className="mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <IconTile tone="neutral" size="sm"><RefreshCcw /></IconTile>
+            <h2 className="font-semibold text-ink">Reassign lead</h2>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Reassign to">
+              <Select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
+                <option value="">Select staff…</option>
+                {users.filter((u) => u.id !== lead.assignedStaffId).map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
+              </Select>
+            </Field>
+            <Field label="Reason (optional)">
+              <Input value={reassignReason} onChange={(e) => setReassignReason(e.target.value)} />
+            </Field>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              user &&
+              reassignTo &&
+              doAction(async () => {
+                await reassignLead(lead, reassignTo, reassignReason || null, user.uid);
+                setReassignTo("");
+                setReassignReason("");
+              })
+            }
+          >
+            Reassign
+          </Button>
+        </Card>
+      )}
+
+      {/* Child & admission details */}
+      <GroupLabel>Child &amp; admission details</GroupLabel>
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold">Key facts</h2>
@@ -468,62 +452,111 @@ export function LeadProfile() {
         </Card>
       )}
 
-      {/* Reassignment */}
-      {isAdminRole(role) && (
-        <Card className="mb-4">
+      {/* Follow-up */}
+      <GroupLabel>Follow-up</GroupLabel>
+      <Card id="follow-up" className="mb-4 border-accent/25 bg-accent-soft/40" padded={false}>
+        <div className="p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <IconTile tone="neutral" size="sm"><RefreshCcw /></IconTile>
-            <h2 className="font-semibold text-ink">Reassign lead</h2>
+            <IconTile tone="accent" size="sm"><CalendarClock /></IconTile>
+            <div>
+              <h2 className="font-semibold text-ink">Follow-up</h2>
+              <p className="text-xs text-ink-soft">{canEdit ? "What happens next, and when." : "Read-only — you don't own this lead."}</p>
+            </div>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Reassign to">
-              <Select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
-                <option value="">Select staff…</option>
-                {users.filter((u) => u.id !== lead.assignedStaffId).map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
-              </Select>
-            </Field>
-            <Field label="Reason (optional)">
-              <Input value={reassignReason} onChange={(e) => setReassignReason(e.target.value)} />
-            </Field>
-          </div>
-          <Button
-            variant="secondary"
-            onClick={() =>
-              user &&
-              reassignTo &&
-              doAction(async () => {
-                await reassignLead(lead, reassignTo, reassignReason || null, user.uid);
-                setReassignTo("");
-                setReassignReason("");
-              })
-            }
-          >
-            Reassign
-          </Button>
-        </Card>
-      )}
+          {canEdit ? (
+            <>
+              <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end mb-1">
+                <Field label="Next follow-up">
+                  <DateTimePicker value={followUpAt} onChange={setFollowUpAt} />
+                </Field>
+                <Field label="Type">
+                  <Select value={followUpType} onChange={(e) => setFollowUpType(e.target.value as FollowUpType)}>
+                    {FOLLOW_UP_TYPES.map((t) => <option key={t}>{t}</option>)}
+                  </Select>
+                </Field>
+                <Button
+                  onClick={() => user && followUpValue && doAction(() => scheduleFollowUp(lead, followUpValue, followUpType, null, user.uid))}
+                  className="mb-4 sm:mb-0"
+                >
+                  Save
+                </Button>
+              </div>
 
-      {/* Notes */}
+              <div className="border-t border-border-soft/70 mt-4 pt-4">
+                <div className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Check className="w-4 h-4 text-ink-faint" /> Log follow-up outcome</div>
+                <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end">
+                  <Field label="Outcome">
+                    <Select value={outcome} onChange={(e) => setOutcome(e.target.value as FollowUpOutcome)}>
+                      {OUTCOMES.map((o) => <option key={o}>{o}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Notes">
+                    <Input placeholder="Optional" value={outcomeNotes} onChange={(e) => setOutcomeNotes(e.target.value)} />
+                  </Field>
+                  <Button
+                    variant="secondary"
+                    className="mb-4 sm:mb-0"
+                    onClick={() =>
+                      user &&
+                      doAction(async () => {
+                        await logFollowUpOutcome(lead, outcome, outcomeNotes || null, user.uid);
+                        setOutcomeNotes("");
+                      })
+                    }
+                  >
+                    Log outcome
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-ink-soft">Only the assigned staff member or an admin can edit this lead.</p>
+          )}
+
+          {recentFollowUps.length > 0 && (
+            <div className="border-t border-border-soft/70 mt-4 pt-4">
+              <div className="text-sm font-semibold text-ink mb-2.5">Recent follow-ups</div>
+              <div className="space-y-2">
+                {recentFollowUps.map((a) => (
+                  <div key={a.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-ink-soft truncate">{followUpSummary(a)}</span>
+                    <span className="text-xs text-ink-faint shrink-0">{a.at?.toDate().toLocaleDateString() ?? ""}</span>
+                  </div>
+                ))}
+              </div>
+              <a href="#activity-history" className="inline-block text-xs font-semibold text-accent hover:text-accent-strong mt-3">
+                View full activity history ↓
+              </a>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Remarks */}
       {canEdit && (
-        <Card className="mb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <IconTile tone="neutral" size="sm"><StickyNote /></IconTile>
-            <h2 className="font-semibold text-ink">Internal note</h2>
-          </div>
-          <Textarea rows={2} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Staff-only — never shown to the parent." />
-          <Button
-            className="mt-3"
-            variant="secondary"
-            onClick={() => user && noteText && doAction(async () => { await addNote(lead, noteText, user.uid); setNoteText(""); })}
-          >
-            Add note
-          </Button>
-        </Card>
+        <>
+          <GroupLabel>Remarks</GroupLabel>
+          <Card className="mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <IconTile tone="neutral" size="sm"><StickyNote /></IconTile>
+              <h2 className="font-semibold text-ink">Remarks</h2>
+            </div>
+            <Textarea rows={2} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Staff-only — never shown to the parent." />
+            <Button
+              className="mt-3"
+              variant="secondary"
+              onClick={() => user && noteText && doAction(async () => { await addNote(lead, noteText, user.uid); setNoteText(""); })}
+            >
+              Add note
+            </Button>
+          </Card>
+        </>
       )}
 
-      {/* Timeline */}
-      <Card>
-        <h2 className="font-semibold mb-4">Activity timeline</h2>
+      {/* Activity history */}
+      <GroupLabel>Activity history</GroupLabel>
+      <Card id="activity-history">
+        <h2 className="font-semibold mb-4">Activity history</h2>
         <div className="relative">
           {activities.map((a, i) => (
             <TimelineEntry key={a.id} activity={a} staffName={staffName} isLast={i === activities.length - 1} />
@@ -533,6 +566,25 @@ export function LeadProfile() {
       </Card>
     </div>
   );
+}
+
+function GroupLabel({ children }: { children: ReactNode }) {
+  return <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-faint mb-2 mt-7 first:mt-0">{children}</div>;
+}
+
+function followUpSummary(activity: ActivityDoc): string {
+  switch (activity.type) {
+    case "follow_up_planned":
+      return `${activity.followUpType ?? "Follow-up"} scheduled for ${activity.dueAt?.toDate().toLocaleString() ?? "—"}`;
+    case "follow_up_outcome":
+      return `${activity.outcome ?? "Outcome logged"}${activity.outcomeNotes ? ` — ${activity.outcomeNotes}` : ""}`;
+    case "call_logged":
+      return activity.text || "Call logged";
+    case "whatsapp_logged":
+      return activity.text || "WhatsApp message sent";
+    default:
+      return ACTIVITY_LABEL[activity.type];
+  }
 }
 
 function FactRow({ icon: Icon, label, value }: { icon: ComponentType<{ className?: string }>; label: string; value: ReactNode }) {
