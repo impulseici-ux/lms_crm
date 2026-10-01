@@ -16,6 +16,7 @@ import { db } from "@/lib/firebase";
 import { leadsCol, leadDoc, activitiesCol } from "@/lib/data/collections";
 import { addActivity } from "@/lib/data/activities";
 import { assertFollowUpGuardrail } from "@/lib/guardrail";
+import { normalizeLeadPhone } from "@/utils/phone";
 import { isOpenStatus, type LeadDoc, type LeadStatus, type Priority, type FollowUpType, type FollowUpOutcome } from "@/types";
 
 export function subscribeLeads(onChange: (leads: LeadDoc[]) => void) {
@@ -64,7 +65,7 @@ export async function createLead(input: NewLeadInput, createdByStaffId: string) 
   const now = serverTimestamp();
   const docRef = await addDoc(leadsCol(), {
     parentName: input.parentName,
-    parentPhone: input.parentPhone,
+    parentPhone: normalizeLeadPhone(input.parentPhone).value,
     parentEmail: input.parentEmail ?? null,
     childName: input.childName,
     childAge: input.childAge ?? null,
@@ -379,7 +380,7 @@ export async function createLeadsBatch(rows: ImportRow[], importedByStaffId: str
       const assignedStaffId = row.assignedStaffId ?? importedByStaffId;
       batch.set(leadRefNew, {
         parentName: row.parentName,
-        parentPhone: row.parentPhone,
+        parentPhone: normalizeLeadPhone(row.parentPhone).value,
         parentEmail: row.parentEmail ?? null,
         childName: row.childName,
         childAge: row.childAge ?? null,

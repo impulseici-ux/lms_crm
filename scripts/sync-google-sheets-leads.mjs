@@ -35,6 +35,7 @@ import { JWT } from "google-auth-library";
 import { initializeApp, cert, applicationDefault } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { resolveHeader } from "./lib/sheetFieldMapping.mjs";
+import { normalizeLeadPhone } from "./lib/phone.mjs";
 
 const SHEETS_READONLY_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
 const FOLLOW_UP_DEFAULT_HOURS = 24;
@@ -205,7 +206,7 @@ export async function processDataRows(db, { headerFields, dataRows, columnOverri
 
         tx.set(leadRef, {
           parentName: fields.parentName,
-          parentPhone: fields.parentPhone,
+          parentPhone: normalizeLeadPhone(fields.parentPhone).value,
           parentEmail: fields.parentEmail ?? null,
           childName: fields.childName ?? fields.parentName,
           childAge: fields.childAge ?? null,

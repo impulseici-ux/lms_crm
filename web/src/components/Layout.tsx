@@ -114,7 +114,7 @@ export function Layout() {
           <div className="flex-1">{navigation}</div>
           {account}
         </aside>
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 min-w-0 overflow-x-hidden p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
