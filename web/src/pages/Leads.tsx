@@ -226,7 +226,8 @@ export function Leads() {
   }));
 
   return (
-    <div className="max-w-7xl mx-auto pb-8">
+    <div className="max-w-7xl mx-auto h-full flex flex-col">
+      <div className="shrink-0">
       <SectionHeading eyebrow="Admissions pipeline" title="Enquiries" description="Manage and track all your student enquiries in one place." />
 
       <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-5 border-b border-border-soft">
@@ -271,10 +272,12 @@ export function Leads() {
           </button>
         </div>
       )}
+      </div>
 
+      <div className="flex-1 min-h-0 flex flex-col">
       {tab === "Data table" && (
-        <>
-          <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="flex items-center justify-between gap-3 mb-3 shrink-0">
             <h2 className="font-semibold text-lg text-ink">All Enquiries</h2>
             <div className="flex flex-wrap items-center gap-2 justify-end">
               <div className="relative">
@@ -328,7 +331,7 @@ export function Leads() {
           </div>
 
           {selected.size > 0 && (
-            <div className="flex flex-wrap items-center gap-3 bg-accent-soft border border-accent/20 rounded-xl px-4 py-3 mb-3">
+            <div className="flex flex-wrap items-center gap-3 bg-accent-soft border border-accent/20 rounded-xl px-4 py-3 mb-3 shrink-0">
               <span className="text-sm font-semibold text-accent-strong shrink-0">{selected.size} selected</span>
               <div className="flex items-center gap-1.5">
                 <Select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value as LeadStatus)} className="py-1.5 text-[13px] w-44">
@@ -351,10 +354,10 @@ export function Leads() {
               </button>
             </div>
           )}
-          {bulkMessage && <div className="text-xs text-ink-soft mb-3 px-1">{bulkMessage}</div>}
+          {bulkMessage && <div className="text-xs text-ink-soft mb-3 px-1 shrink-0">{bulkMessage}</div>}
 
-          <div className="bg-surface border border-border rounded-2xl overflow-hidden">
-            <div className="hidden lg:block overflow-auto max-h-[65vh]">
+          <div className="flex-1 min-h-0 bg-surface border border-border rounded-2xl overflow-hidden flex flex-col">
+            <div className="hidden lg:block flex-1 min-h-0 overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
                   <tr>
@@ -464,7 +467,7 @@ export function Leads() {
               </table>
             </div>
 
-            <div className="lg:hidden divide-y divide-border-soft overflow-y-auto max-h-[65vh]">
+            <div className="lg:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-border-soft">
               {visible.map((lead) => (
                 <div key={lead.id} className="p-4">
                   <div className="flex items-start gap-3">
@@ -515,13 +518,15 @@ export function Leads() {
           </div>
 
           {/*
-            Sticky to the bottom of <main> — the CRM page's own scroll container (see
-            Layout.tsx) — not to the browser viewport, so it stays within the content
-            area rather than floating over the sidebar. The negative margins + matching
-            padding extend its background into <main>'s own bottom padding so it reaches
-            the true edge with no gap, while keeping comfortable internal spacing.
+            A normal (non-sticky) flex child, shrink-0, placed after the table's own
+            flex-1 scroll area — see Layout.tsx for <main>'s shell. This guarantees the
+            bar is the true bottom boundary: the table area flexes to fill whatever
+            space is left above it and can never grow past it. The negative margins +
+            matching padding bleed its background into <main>'s own padding so it
+            reaches the true edge with no gap, while keeping comfortable internal
+            spacing.
           */}
-          <div className="sticky bottom-0 z-10 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 lg:-mx-8 lg:-mb-8 mt-3 bg-bg/95 backdrop-blur-sm border-t border-border-soft px-4 pt-3 pb-4 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8">
+          <div className="shrink-0 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 lg:-mx-8 lg:-mb-8 mt-3 bg-bg/95 backdrop-blur-sm border-t border-border-soft px-4 pt-3 pb-4 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
@@ -531,12 +536,13 @@ export function Leads() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {tab === "Stats" && <StatsTab leads={visible} />}
-      {tab === "Analytics" && <AnalyticsTab leads={visible} staffName={staffName} />}
-      {tab === "Followups" && <FollowupsTab leads={visible} programName={programName} />}
+      {tab === "Stats" && <div className="flex-1 min-h-0 overflow-auto pb-8"><StatsTab leads={visible} /></div>}
+      {tab === "Analytics" && <div className="flex-1 min-h-0 overflow-auto pb-8"><AnalyticsTab leads={visible} staffName={staffName} /></div>}
+      {tab === "Followups" && <div className="flex-1 min-h-0 overflow-auto pb-8"><FollowupsTab leads={visible} programName={programName} /></div>}
+      </div>
 
       {showImport && (
         <ImportLeadsModal
