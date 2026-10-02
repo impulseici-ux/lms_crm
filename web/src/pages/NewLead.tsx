@@ -120,7 +120,10 @@ export function NewLead() {
         user.uid
       );
       showToast("Lead saved");
-      navigate(`/leads/${leadId}`);
+      // The creator already knows about this lead — being redirected here
+      // shouldn't count as "someone viewed it" (see LeadProfile.tsx), so it
+      // still blinks in the Leads table for everyone else until it's genuinely opened.
+      navigate(`/leads/${leadId}`, { state: { justCreated: true } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save this lead.");
     } finally {

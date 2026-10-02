@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -103,6 +103,7 @@ function initials(name: string): string {
 export function LeadProfile() {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, role } = useAuth();
   const { showToast } = useToast();
   const { programName, branchName, campaignName, staffName, users } = useLookups();
@@ -131,11 +132,15 @@ export function LeadProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id]);
 
-  // Clears the "lead blink" the moment someone opens it.
+  // Clears the "lead blink" the moment someone opens it — except for the
+  // creator's own redirect straight here after submitting the New Lead form
+  // (see NewLead.tsx), which isn't a real "someone looked at this" event and
+  // would otherwise clear the blink before anyone else ever saw it.
+  const justCreated = Boolean((location.state as { justCreated?: boolean } | null)?.justCreated);
   useEffect(() => {
-    if (lead && user) markLeadViewed(lead, user.uid);
+    if (lead && user && !justCreated) markLeadViewed(lead, user.uid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead?.id, user?.uid]);
+  }, [lead?.id, user?.uid, justCreated]);
 
   const [outcome, setOutcome] = useState<FollowUpOutcome>("Reached");
   const [outcomeNotes, setOutcomeNotes] = useState("");
