@@ -10,10 +10,11 @@ import { deriveFollowUpState } from "@/utils/followUp";
 import { downloadCsv } from "@/utils/csv";
 import { buildWhatsAppLink } from "@/utils/whatsapp";
 import { isValidLeadPhone } from "@/utils/phone";
+import { isLeadUnseen } from "@/utils/leadViewed";
 import { breakdownBySource, breakdownByStaff } from "@/utils/metrics";
 import { bulkChangeStatus, bulkReassign, deleteLead } from "@/lib/data/leads";
 import { ImportLeadsModal } from "@/components/ImportLeadsModal";
-import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar } from "@/components/ui";
+import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar, Badge } from "@/components/ui";
 import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, isOpenStatus, isClosedStatus, type LeadDoc, type LeadStatus } from "@/types";
 import {
   UserPlus,
@@ -394,8 +395,10 @@ export function Leads() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((lead) => (
-                    <tr key={lead.id} className={`border-t border-border-soft transition-colors ${selected.has(lead.id) ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}>
+                  {visible.map((lead) => {
+                    const unseen = isLeadUnseen(lead);
+                    return (
+                    <tr key={lead.id} className={`border-t border-border-soft transition-colors ${unseen ? "lead-unseen-row" : selected.has(lead.id) ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}>
                       <td className="px-4 py-3">
                         <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="rounded border-border" aria-label={`Select ${lead.parentName}`} />
                       </td>
@@ -405,7 +408,10 @@ export function Leads() {
                             {initials(lead.childName)}
                           </div>
                           <div className="min-w-0">
-                            <Link to={`/leads/${lead.id}`} className="font-semibold text-[14.5px] text-ink hover:text-accent">{lead.childName}</Link>
+                            <div className="flex items-center gap-1.5">
+                              <Link to={`/leads/${lead.id}`} className="font-semibold text-[14.5px] text-ink hover:text-accent">{lead.childName}</Link>
+                              {unseen && <Badge tone="warn">NEW</Badge>}
+                            </div>
                             <div className="text-ink-faint text-xs mt-0.5 truncate">{lead.parentName}</div>
                           </div>
                         </div>
@@ -462,20 +468,26 @@ export function Leads() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             <div className="lg:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-border-soft">
-              {visible.map((lead) => (
-                <div key={lead.id} className="p-4">
+              {visible.map((lead) => {
+                const unseen = isLeadUnseen(lead);
+                return (
+                <div key={lead.id} className={`p-4 ${unseen ? "lead-unseen-card" : ""}`}>
                   <div className="flex items-start gap-3">
                     <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="mt-1 rounded border-border shrink-0" aria-label={`Select ${lead.childName}`} />
                     <Link to={`/leads/${lead.id}`} className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="font-semibold text-ink truncate">{lead.childName}</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="font-semibold text-ink truncate">{lead.childName}</div>
+                            {unseen && <Badge tone="warn">NEW</Badge>}
+                          </div>
                           <div className="text-xs text-ink-soft mt-0.5 truncate">
                             {lead.parentName} ·{" "}
                             {isValidLeadPhone(lead.parentPhone) ? (
@@ -496,7 +508,8 @@ export function Leads() {
                     </Link>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {visible.length === 0 && (

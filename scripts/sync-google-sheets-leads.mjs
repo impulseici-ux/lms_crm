@@ -246,6 +246,9 @@ export async function processDataRows(db, { headerFields, dataRows, columnOverri
           admissionConfirmedAt: null,
           householdId: null,
           notes: fields.notes ?? null,
+          viewed: false,
+          viewedAt: null,
+          viewedBy: null,
           createdAt: now,
           updatedAt: now,
         });

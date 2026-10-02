@@ -196,6 +196,13 @@ export interface LeadDoc {
 
   notes: string | null; // pinned internal note, staff-only
 
+  // "Lead blink" — flashes the row until someone opens it. Optional because
+  // leads created before this field existed simply don't have it; treat a
+  // missing value the same as `true` (viewed) so old leads never blink.
+  viewed?: boolean;
+  viewedAt?: Timestamp | null;
+  viewedBy?: string | null; // staff uid, resolved for display via staffName()
+
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }

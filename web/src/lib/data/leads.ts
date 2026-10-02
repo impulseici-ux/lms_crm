@@ -94,6 +94,9 @@ export async function createLead(input: NewLeadInput, createdByStaffId: string) 
     admissionConfirmedAt: null,
     householdId: null,
     notes: input.notes ?? null,
+    viewed: false,
+    viewedAt: null,
+    viewedBy: null,
     createdAt: now,
     updatedAt: now,
   });
@@ -271,6 +274,21 @@ export async function updateLeadFields(leadId: string, patch: Partial<LeadDoc>) 
   await updateDoc(leadDoc(leadId), { ...patch, updatedAt: serverTimestamp() });
 }
 
+// Clears the "lead blink" the first time someone opens an unseen lead. Deliberately
+// doesn't touch updatedAt/lastActivityAt or the activity timeline — opening a lead
+// isn't an auditable action, just a read. Swallows permission-denied: a management
+// user can open a lead but (by design, same as everywhere else in the rules) can't
+// write it, so the blink simply won't clear for them — it still clears for admins
+// and the assigned counsellor, which covers the real triage workflow.
+export async function markLeadViewed(lead: LeadDoc, byStaffId: string) {
+  if (lead.viewed !== false) return;
+  try {
+    await updateDoc(leadDoc(lead.id), { viewed: true, viewedAt: serverTimestamp(), viewedBy: byStaffId });
+  } catch {
+    // ignore — see comment above
+  }
+}
+
 export async function deleteLead(leadId: string) {
   await deleteDoc(leadDoc(leadId));
 }
@@ -409,6 +427,9 @@ export async function createLeadsBatch(rows: ImportRow[], importedByStaffId: str
         admissionConfirmedAt: null,
         householdId: null,
         notes: row.notes ?? null,
+        viewed: false,
+        viewedAt: null,
+        viewedBy: null,
         createdAt: now,
         updatedAt: now,
       });

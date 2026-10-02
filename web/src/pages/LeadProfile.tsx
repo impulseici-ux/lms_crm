@@ -15,6 +15,7 @@ import {
   confirmAdmission,
   reassignLead,
   updateLeadFields,
+  markLeadViewed,
 } from "@/lib/data/leads";
 import { subscribeActivities } from "@/lib/data/activities";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
@@ -129,6 +130,12 @@ export function LeadProfile() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id]);
+
+  // Clears the "lead blink" the moment someone opens it.
+  useEffect(() => {
+    if (lead && user) markLeadViewed(lead, user.uid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id, user?.uid]);
 
   const [outcome, setOutcome] = useState<FollowUpOutcome>("Reached");
   const [outcomeNotes, setOutcomeNotes] = useState("");

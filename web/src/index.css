@@ -80,3 +80,29 @@ input[type="date"], input[type="datetime-local"] { color-scheme: light; }
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-up { animation: fade-in-up 0.25s ease-out; }
+
+/* Lead blink — rows for leads nobody has opened yet flash until viewed.
+   Uses the existing --color-warn/-soft tokens (same "needs attention" tone
+   as Medium priority / Due Today), not a new color. */
+@keyframes lead-blink {
+  0%, 49% { background-color: var(--color-warn-soft); }
+  50%, 100% { background-color: transparent; }
+}
+.lead-unseen-row > td {
+  animation: lead-blink 1s steps(1, end) infinite;
+}
+.lead-unseen-row > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-warn);
+}
+.lead-unseen-card {
+  animation: lead-blink 1s steps(1, end) infinite;
+  box-shadow: inset 3px 0 0 var(--color-warn);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lead-unseen-row > td,
+  .lead-unseen-card {
+    animation: none;
+    background-color: var(--color-warn-soft);
+  }
+}
