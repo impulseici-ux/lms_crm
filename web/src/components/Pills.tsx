@@ -4,6 +4,7 @@ import { deriveFollowUpState } from "@/utils/followUp";
 import type { Timestamp } from "firebase/firestore";
 import { Badge } from "@/components/ui";
 import { AlertTriangle, Clock, GraduationCap } from "lucide-react";
+import type { WhatsAppMessageStatus } from "@/types/whatsapp";
 
 export function StatusPill({ status }: { status: LeadStatus }) {
   const open = isOpenStatus(status);
@@ -35,4 +36,36 @@ export function FollowUpPill({ nextFollowUpAt }: { nextFollowUpAt: Timestamp | n
       {state}
     </Badge>
   );
+}
+
+const WHATSAPP_STATUS_TONE: Record<WhatsAppMessageStatus, "accent" | "good" | "warn" | "bad" | "neutral"> = {
+  DRAFT: "neutral",
+  QUEUED: "neutral",
+  PROCESSING: "accent",
+  SIMULATED: "warn", // never "good" — a simulated message was NOT actually delivered
+  PENDING_PROVIDER: "neutral",
+  SENT: "good",
+  DELIVERED: "good",
+  READ: "good",
+  FAILED: "bad",
+  CANCELLED: "bad",
+  MANUAL_OPENED: "accent",
+};
+
+const WHATSAPP_STATUS_LABEL: Record<WhatsAppMessageStatus, string> = {
+  DRAFT: "Draft",
+  QUEUED: "Queued",
+  PROCESSING: "Processing",
+  SIMULATED: "Simulated",
+  PENDING_PROVIDER: "Pending Integration",
+  SENT: "Sent",
+  DELIVERED: "Delivered",
+  READ: "Read",
+  FAILED: "Failed",
+  CANCELLED: "Cancelled",
+  MANUAL_OPENED: "Manual / Opened",
+};
+
+export function WhatsAppStatusPill({ status }: { status: WhatsAppMessageStatus }) {
+  return <Badge tone={WHATSAPP_STATUS_TONE[status]}>{WHATSAPP_STATUS_LABEL[status]}</Badge>;
 }

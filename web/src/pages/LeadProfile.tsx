@@ -18,11 +18,14 @@ import {
   markLeadViewed,
 } from "@/lib/data/leads";
 import { subscribeActivities } from "@/lib/data/activities";
+import { subscribeWhatsAppMessagesForLead } from "@/lib/data/whatsapp";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
 import { DateTimePicker } from "@/components/DateTimePicker";
-import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
+import { StatusPill, PriorityPill, FollowUpPill, WhatsAppStatusPill } from "@/components/Pills";
+import { SendWhatsAppModal } from "@/components/SendWhatsAppModal";
 import { buildWhatsAppLink } from "@/utils/whatsapp";
 import { isValidLeadPhone } from "@/utils/phone";
+import { AUTOMATION_TRIGGER_LABELS, type WhatsAppMessageDoc } from "@/types/whatsapp";
 import {
   OPEN_STATUSES,
   CLOSED_STATUSES,
@@ -57,6 +60,8 @@ import {
   Landmark,
   IndianRupee,
   Layers,
+  ShieldCheck,
+  History,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
@@ -278,6 +283,10 @@ export function LeadProfile() {
           </Button>
         </Card>
       )}
+
+      {/* WhatsApp */}
+      <GroupLabel>WhatsApp</GroupLabel>
+      <WhatsAppLeadPanel lead={lead} canEdit={canEdit} staffId={user?.uid ?? null} />
 
       {/* Child & admission details */}
       <GroupLabel>Child &amp; admission details</GroupLabel>
@@ -582,6 +591,99 @@ export function LeadProfile() {
 
 function GroupLabel({ children }: { children: ReactNode }) {
   return <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-faint mb-2 mt-7 first:mt-0">{children}</div>;
+}
+
+function WhatsAppLeadPanel({ lead, canEdit, staffId }: { lead: LeadDoc; canEdit: boolean; staffId: string | null }) {
+  const [messages, setMessages] = useState<WhatsAppMessageDoc[]>([]);
+  const [showSend, setShowSend] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    return subscribeWhatsAppMessagesForLead(lead.id, setMessages);
+  }, [lead.id]);
+
+  const lastMessage = messages[0] ?? null;
+  const valid = isValidLeadPhone(lead.parentPhone);
+  const optStatus = lead.whatsappOptStatus ?? "Unknown";
+
+  return (
+    <Card className="mb-4">
+      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm mb-4">
+        <FactRow
+          icon={Phone}
+          label="Mobile number"
+          value={valid ? lead.parentPhone : <span className="text-bad">Invalid Number</span>}
+        />
+        <div className="flex items-start gap-2.5">
+          <ShieldCheck className="w-4 h-4 text-ink-faint mt-0.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint">WhatsApp eligibility</div>
+            {canEdit ? (
+              <Select
+                value={optStatus}
+                onChange={(e) => updateLeadFields(lead.id, { whatsappOptStatus: e.target.value as LeadDoc["whatsappOptStatus"] })}
+                className="mt-1 text-sm py-1.5"
+              >
+                <option value="Unknown">Unknown</option>
+                <option value="Allowed">Allowed</option>
+                <option value="Opted Out">Opted Out</option>
+              </Select>
+            ) : (
+              <div className="font-medium text-ink">{optStatus}</div>
+            )}
+          </div>
+        </div>
+        <FactRow icon={MessageCircle} label="Last message" value={lastMessage ? `${lastMessage.templateName ?? "Manual"}` : "—"} />
+        <div className="flex items-start gap-2.5">
+          <CircleCheck className="w-4 h-4 text-ink-faint mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint">Last message status</div>
+            <div className="mt-0.5">{lastMessage ? <WhatsAppStatusPill status={lastMessage.status} /> : <span className="text-ink-faint">—</span>}</div>
+          </div>
+        </div>
+      </div>
+
+      {optStatus === "Opted Out" && (
+        <p className="text-xs text-bad mb-3">WhatsApp messaging is disabled for this lead — automated messages won't be sent; manual sending is still possible with discretion.</p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {canEdit && (
+          <Button variant="secondary" size="sm" onClick={() => setShowSend(true)}>
+            <MessageCircle className="w-3.5 h-3.5" /> Send WhatsApp
+          </Button>
+        )}
+        <Button variant="subtle" size="sm" onClick={() => setShowHistory((v) => !v)}>
+          <History className="w-3.5 h-3.5" /> Message History {messages.length > 0 ? `(${messages.length})` : ""}
+        </Button>
+      </div>
+
+      {showHistory && (
+        <div className="mt-4 pt-4 border-t border-border-soft space-y-3">
+          {messages.length === 0 ? (
+            <p className="text-sm text-ink-faint">No WhatsApp messages for this lead yet.</p>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className="text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-ink">{m.templateName ?? "Manual message"}</span>
+                  <WhatsAppStatusPill status={m.status} />
+                </div>
+                <div className="text-xs text-ink-faint mt-0.5">
+                  {m.createdAt?.toDate().toLocaleString() ?? "—"} · {m.trigger === "manual" ? "Manual" : AUTOMATION_TRIGGER_LABELS[m.trigger]} ·{" "}
+                  {m.origin === "automated" ? "Automated" : "Manual"}
+                </div>
+                {m.renderedMessage && <p className="text-xs text-ink-soft mt-1 whitespace-pre-wrap line-clamp-3">{m.renderedMessage}</p>}
+                {m.error && <p className="text-xs text-bad mt-1">{m.error}</p>}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {showSend && staffId && <SendWhatsAppModal lead={lead} staffId={staffId} onClose={() => setShowSend(false)} />}
+    </Card>
+  );
 }
 
 function followUpSummary(activity: ActivityDoc): string {

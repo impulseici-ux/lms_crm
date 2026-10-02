@@ -154,6 +154,56 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---- WhatsApp Automation ----
+    // Development Mode only — see web/src/lib/whatsapp/provider.ts. These rules still
+    // enforce the real invariant for when a provider IS eventually connected: no client
+    // write, admin included, may ever claim SENT/DELIVERED/READ directly. Those statuses
+    // are reserved for a server-side path (Admin SDK or a provider webhook), which
+    // bypasses these rules entirely, exactly like the activation backend does today.
+    match /whatsappTemplates/{templateId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /whatsappAutomations/{automationId} {
+      allow read: if isStaff();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /whatsappSettings/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /whatsappMessages/{messageId} {
+      allow read: if isAdmin() || isManagement() ||
+        (isCounsellor() && resource.data.assignedStaffId == request.auth.uid);
+
+      allow create: if isStaff() &&
+        request.resource.data.createdByStaffId == request.auth.uid &&
+        request.resource.data.status in ['DRAFT', 'MANUAL_OPENED'];
+
+      // Only the lifecycle fields may ever change on an update, and only into a status
+      // Development Mode (or a human manually opening WhatsApp) can legitimately reach.
+      // 'DRAFT' stays in this list (not just the create rule) because the engine writes
+      // the rendered message text in its own update, before status leaves DRAFT.
+      allow update: if isStaff() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'error', 'providerMessageId', 'renderedMessage', 'processedAt', 'updatedAt']) &&
+        request.resource.data.status in
+          ['DRAFT', 'QUEUED', 'PROCESSING', 'SIMULATED', 'CANCELLED', 'FAILED', 'MANUAL_OPENED'];
+
+      allow delete: if false;
+
+      // Append-only status history, same pattern as leads/{id}/activities.
+      match /events/{eventId} {
+        allow read: if isAdmin() || isManagement() ||
+          (isCounsellor() && get(/databases/$(database)/documents/whatsappMessages/$(messageId)).data.assignedStaffId == request.auth.uid);
+        allow create: if isStaff();
+        allow update, delete: if false;
+      }
+    }
+
     // ---- New-user activation (mandatory WhatsApp code + self-set password) ----
     // Written exclusively by the activation backend (backend/api/*, a separate
     // Vercel deployment using the Admin SDK, which bypasses these rules) —

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut, MessageCircle } from "lucide-react";
 import type { ComponentType } from "react";
 import logo from "@/assets/brand/lm-singanallur-logo.webp";
 
@@ -10,6 +10,7 @@ const navItems: { to: string; label: string; roles: string[]; icon: ComponentTyp
   { to: "/leads", label: "Enquiries", roles: ["admin", "superadmin", "counsellor", "management"], icon: Users },
   { to: "/leads/new", label: "New Lead", roles: ["admin", "superadmin", "counsellor"], icon: UserPlus },
   { to: "/reports", label: "Reports", roles: ["admin", "superadmin", "counsellor", "management"], icon: BarChart3 },
+  { to: "/whatsapp", label: "WhatsApp", roles: ["admin", "superadmin", "counsellor", "management"], icon: MessageCircle },
   { to: "/admin", label: "Admin", roles: ["admin", "superadmin"], icon: Settings },
 ];
 

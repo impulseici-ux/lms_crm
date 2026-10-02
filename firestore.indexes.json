@@ -48,6 +48,38 @@
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "dueAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "whatsappMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "leadId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "whatsappMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assignedStaffId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "whatsappAutomations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "trigger", "order": "ASCENDING" },
+        { "fieldPath": "active", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "whatsappMessages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "scheduledFor", "order": "ASCENDING" }
+      ]
     }
   ]
 }

@@ -203,6 +203,10 @@ export interface LeadDoc {
   viewedAt?: Timestamp | null;
   viewedBy?: string | null; // staff uid, resolved for display via staffName()
 
+  // WhatsApp Automation (Section 23). Optional/missing == "Unknown" — never
+  // treated as "Allowed", so automation never assumes consent it doesn't have.
+  whatsappOptStatus?: "Allowed" | "Opted Out" | "Unknown";
+
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }

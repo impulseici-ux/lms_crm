@@ -11,6 +11,7 @@ import { NewLead } from "@/pages/NewLead";
 import { LeadProfile } from "@/pages/LeadProfile";
 import { Reports } from "@/pages/Reports";
 import { Admin } from "@/pages/Admin";
+import { WhatsAppAutomation } from "@/pages/WhatsAppAutomation";
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
               />
               <Route path="/leads/:leadId" element={<LeadProfile />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/whatsapp" element={<WhatsAppAutomation />} />
               <Route
                 path="/admin"
                 element={

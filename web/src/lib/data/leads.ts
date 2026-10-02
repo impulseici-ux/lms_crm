@@ -18,6 +18,7 @@ import { addActivity } from "@/lib/data/activities";
 import { assertFollowUpGuardrail } from "@/lib/guardrail";
 import { normalizeLeadPhone } from "@/utils/phone";
 import { isOpenStatus, type LeadDoc, type LeadStatus, type Priority, type FollowUpType, type FollowUpOutcome } from "@/types";
+import { runAutomationsForEvent } from "@/lib/whatsapp/triggers";
 
 export function subscribeLeads(onChange: (leads: LeadDoc[]) => void) {
   const q = query(leadsCol(), orderBy("createdAt", "desc"));
@@ -114,6 +115,23 @@ export async function createLead(input: NewLeadInput, createdByStaffId: string) 
     });
   }
 
+  runAutomationsForEvent(
+    "new_lead_created",
+    {
+      id: docRef.id,
+      parentName: input.parentName,
+      childName: input.childName,
+      parentPhone: normalizeLeadPhone(input.parentPhone).value,
+      interestedProgramId: input.interestedProgramId ?? null,
+      status,
+      sourceChannel: input.sourceChannel,
+      visitDate: null,
+      assignedStaffId: createdByStaffId,
+      nextFollowUpAt: input.nextFollowUpAt,
+    },
+    { eventKey: "created", actingStaffId: createdByStaffId }
+  );
+
   return docRef.id;
 }
 
@@ -140,6 +158,22 @@ export async function changeLeadStatus(
     fromStatus: lead.status,
     toStatus,
   });
+
+  const updatedLead = { ...lead, status: toStatus, nextFollowUpAt };
+  runAutomationsForEvent("lead_stage_changed", updatedLead, {
+    eventKey: `stage:${toStatus}`,
+    actingStaffId: byStaffId,
+    fromStatus: lead.status,
+    toStatus,
+  });
+  // Visit Completed and Admission Discussion have no dedicated data-entry function of
+  // their own (unlike Visit Scheduled → recordVisit, Admission Confirmed →
+  // confirmAdmission below) — the status change IS the event.
+  if (toStatus === "Visit Completed") {
+    runAutomationsForEvent("visit_completed", updatedLead, { eventKey: "visit_completed", actingStaffId: byStaffId });
+  } else if (toStatus === "Admission Discussion") {
+    runAutomationsForEvent("admission_discussion", updatedLead, { eventKey: "admission_discussion", actingStaffId: byStaffId });
+  }
 }
 
 /** Set/edit the next follow-up in place (Section 9 "Next action"). */
@@ -224,6 +258,15 @@ export async function recordVisit(
     updatedAt: serverTimestamp(),
   });
   await addActivity(lead.id, byStaffId, { type: "visit", visitDate, visitNotes });
+
+  // Keyed on the visit date itself (not just "visit_scheduled") so rescheduling a visit
+  // to a new date is treated as a fresh event and sends an updated confirmation, while
+  // saving the same date again is correctly treated as a duplicate.
+  runAutomationsForEvent(
+    "visit_scheduled",
+    { ...lead, visitDate },
+    { eventKey: `visit:${visitDate.toMillis()}`, actingStaffId: byStaffId }
+  );
 }
 
 export async function confirmAdmission(
@@ -245,6 +288,12 @@ export async function confirmAdmission(
     fromStatus: lead.status,
     toStatus: "Admission Confirmed",
   });
+
+  runAutomationsForEvent(
+    "admission_confirmed",
+    { ...lead, status: "Admission Confirmed" },
+    { eventKey: "admission_confirmed", actingStaffId: byStaffId }
+  );
 }
 
 /** Section 7 — admin-only reassignment, written as an immutable activity entry. */
@@ -268,6 +317,12 @@ export async function reassignLead(
     toStaffId,
     reason,
   });
+
+  runAutomationsForEvent(
+    "lead_assigned",
+    { ...lead, assignedStaffId: toStaffId },
+    { eventKey: `assigned:${toStaffId}`, actingStaffId: byStaffId }
+  );
 }
 
 export async function updateLeadFields(leadId: string, patch: Partial<LeadDoc>) {
@@ -390,6 +445,7 @@ export async function createLeadsBatch(rows: ImportRow[], importedByStaffId: str
   const leadIds: string[] = [];
   for (const group of chunk(rows, 100)) {
     const batch = writeBatch(db);
+    const newLeadEvents: Parameters<typeof runAutomationsForEvent>[1][] = [];
     for (const row of group) {
       const status: LeadStatus = "New Lead";
       assertFollowUpGuardrail(status, row.nextFollowUpAt);
@@ -449,8 +505,23 @@ export async function createLeadsBatch(rows: ImportRow[], importedByStaffId: str
         });
       }
       leadIds.push(leadRefNew.id);
+      newLeadEvents.push({
+        id: leadRefNew.id,
+        parentName: row.parentName,
+        childName: row.childName,
+        parentPhone: normalizeLeadPhone(row.parentPhone).value,
+        interestedProgramId: row.interestedProgramId ?? null,
+        status,
+        sourceChannel: row.sourceChannel,
+        visitDate: null,
+        assignedStaffId,
+        nextFollowUpAt: row.nextFollowUpAt,
+      });
     }
     await batch.commit();
+    for (const lead of newLeadEvents) {
+      runAutomationsForEvent("new_lead_created", lead, { eventKey: "created", actingStaffId: importedByStaffId });
+    }
   }
   return { createdCount: leadIds.length, leadIds };
 }
