@@ -18,6 +18,7 @@ export function StatusPill({ status }: { status: LeadStatus }) {
 }
 
 const PRIORITY_TONE: Record<Priority, "bad" | "warn" | "neutral"> = {
+  Urgent: "bad",
   High: "bad",
   Medium: "warn",
   Low: "neutral",

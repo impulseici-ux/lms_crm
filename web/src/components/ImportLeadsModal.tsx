@@ -151,7 +151,7 @@ export function ImportLeadsModal({
       const branch = findByName(branches, raw.branch);
       const campaign = findByName(campaigns, raw.campaign);
       const assignee = raw.assignedStaff ? users.find((u) => u.displayName.trim().toLowerCase() === raw.assignedStaff.trim().toLowerCase()) : undefined;
-      const priority: Priority = (["High", "Medium", "Low"] as const).includes(raw.priority as Priority) ? (raw.priority as Priority) : "Medium";
+      const priority: Priority = (["Urgent", "High", "Medium", "Low"] as const).includes(raw.priority as Priority) ? (raw.priority as Priority) : "Medium";
       const followUpType: FollowUpType = (["Call", "WhatsApp", "Visit Reminder", "Email", "In-Person", "Other"] as const).includes(
         raw.nextFollowUpType as FollowUpType
       )

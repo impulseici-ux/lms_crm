@@ -89,7 +89,7 @@ export const REOPENABLE_CLOSED_STATUSES: ClosedStatus[] = [
   "Future Requirement",
 ];
 
-export type Priority = "High" | "Medium" | "Low";
+export type Priority = "Urgent" | "High" | "Medium" | "Low";
 
 /** Section 4 — recommended channel list. Seeded into `leadSources`, editable by admin. */
 export const DEFAULT_SOURCE_CHANNELS = [

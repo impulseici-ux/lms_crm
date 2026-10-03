@@ -268,7 +268,7 @@ export function applyFilters<T extends {
   });
 
   const dir = f.sortDirection === "asc" ? 1 : -1;
-  const priorityRank: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+  const priorityRank: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
   return [...filtered].sort((a, b) => {
     switch (f.sortBy) {
       case "parentName":

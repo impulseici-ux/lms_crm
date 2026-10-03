@@ -208,7 +208,27 @@ export function LeadProfile() {
             <div className="text-ink-soft text-sm mt-0.5">Parent / guardian: {lead.parentName}</div>
             <div className="flex flex-wrap gap-2 mt-2.5">
               <StatusPill status={lead.status} />
-              <PriorityPill priority={lead.priority} />
+              {canEdit ? (
+                <select
+                  value={lead.priority}
+                  onChange={(e) => doAction(() => updateLeadFields(lead.id, { priority: e.target.value as LeadDoc["priority"] }))}
+                  aria-label="Priority"
+                  className={`rounded-full pl-2.5 pr-7 py-1 text-[12px] font-semibold border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/25 appearance-none bg-no-repeat bg-[right_0.6rem_center] bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%238D97A8%22><path d=%22M5.5 7.5l4.5 4.5 4.5-4.5%22 stroke=%22%238D97A8%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>')] ${
+                    lead.priority === "Urgent" || lead.priority === "High"
+                      ? "bg-bad-soft text-bad"
+                      : lead.priority === "Medium"
+                      ? "bg-warn-soft text-warn"
+                      : "bg-surface-2 text-ink-soft"
+                  }`}
+                >
+                  <option value="Urgent">Urgent</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              ) : (
+                <PriorityPill priority={lead.priority} />
+              )}
               <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
             </div>
           </div>

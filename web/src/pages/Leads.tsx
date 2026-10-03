@@ -278,6 +278,20 @@ export function Leads() {
       <div className="flex-1 min-h-0 flex flex-col">
       {tab === "Data table" && (
         <div className="flex-1 min-h-0 flex flex-col">
+          {/*
+            shrink-0, placed before the table's own flex-1 scroll area — so this bar
+            stays pinned above the table (no new scrollbar) while the table area
+            below flexes to fill whatever space remains, scrolling independently.
+          */}
+          <div className="shrink-0 mb-3 flex items-center justify-between gap-3 bg-surface border border-border-soft rounded-2xl shadow-[var(--shadow-card)] px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
+            </div>
+            <div className="text-xs text-ink-faint shrink-0">
+              Showing <span className="font-semibold text-ink-soft">{visible.length}</span> of {leads.length}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between gap-3 mb-3 shrink-0">
             <h2 className="font-semibold text-lg text-ink">All Enquiries</h2>
             <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -532,25 +546,6 @@ export function Leads() {
             )}
           </div>
 
-          {/*
-            A normal (non-sticky) flex child, shrink-0, placed after the table's own
-            flex-1 scroll area — see Layout.tsx for <main>'s shell. This guarantees the
-            bar is the true bottom boundary: the table area flexes to fill whatever
-            space is left above it and can never grow past it. The negative margins +
-            matching padding bleed its background into <main>'s own padding so it
-            reaches the true edge with no gap, while keeping comfortable internal
-            spacing.
-          */}
-          <div className="shrink-0 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 lg:-mx-8 lg:-mb-8 mt-3 bg-bg/95 backdrop-blur-sm border-t border-border-soft px-4 pt-3 pb-4 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
-              </div>
-              <div className="text-xs text-ink-faint shrink-0">
-                Showing <span className="font-semibold text-ink-soft">{visible.length}</span> of {leads.length}
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

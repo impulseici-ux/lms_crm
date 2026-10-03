@@ -149,6 +149,7 @@ export function NewLead() {
             </Field>
             <Field label="Priority">
               <Select value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+                <option>Urgent</option>
                 <option>High</option>
                 <option>Medium</option>
                 <option>Low</option>
