@@ -360,38 +360,38 @@ export function Leads() {
           <div className="flex-1 min-h-0 bg-surface border border-border rounded-2xl overflow-hidden flex flex-col">
             <div className="hidden lg:block flex-1 min-h-0 overflow-auto">
               <table className="w-full text-sm table-fixed">
-                <thead className="sticky top-0 z-30 bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
-                  <tr>
-                    <th className="sticky left-0 z-20 bg-surface-2 px-4 py-3 w-11">
+                <thead className="text-ink-faint text-[11px] uppercase tracking-wide">
+                  <tr className="h-11">
+                    <th className="sticky top-0 left-0 z-40 bg-surface-2 px-4 py-3 w-11">
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
                     </th>
-                    <th className="sticky left-11 z-20 bg-surface-2 text-left px-2 py-3 w-[230px]">Name</th>
-                    <th className="sticky left-[274px] z-20 bg-surface-2 text-left px-2 py-3 w-[130px]">Status</th>
-                    <th className="sticky left-[404px] z-20 bg-surface-2 text-left px-2 py-3 w-[150px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]">Mobile</th>
-                    <th className="text-left px-2 py-3 w-[90px]">Priority</th>
-                    <th className="text-left px-2 py-3 w-[130px]">Follow-up</th>
-                    <th className="text-left px-2 py-3 w-[130px]">Course</th>
-                    <th className="text-left px-2 py-3 w-[90px]">Fees</th>
-                    <th className="text-left px-2 py-3 w-[120px]">Source</th>
-                    <th className="text-left px-2 py-3 w-[110px]">Location</th>
-                    <th className="text-left px-2 py-3 w-[200px]">Remarks</th>
-                    <th className="text-left px-2 py-3 w-[110px]">Admin</th>
-                    <th className="text-left px-2 py-3 w-[140px]">Actions</th>
+                    <th className="sticky top-0 left-11 z-40 bg-surface-2 text-left px-2 py-3 w-[230px]">Name</th>
+                    <th className="sticky top-0 left-[274px] z-40 bg-surface-2 text-left px-2 py-3 w-[130px]">Status</th>
+                    <th className="sticky top-0 left-[404px] z-40 bg-surface-2 text-left px-2 py-3 w-[150px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]">Mobile</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[90px]">Priority</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[130px]">Follow-up</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[130px]">Course</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[90px]">Fees</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[120px]">Source</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[110px]">Location</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[200px]">Remarks</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[110px]">Admin</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[140px]">Actions</th>
                   </tr>
-                  <tr className="bg-surface">
-                    <td className="sticky left-0 z-20 bg-surface px-4 py-1.5" />
-                    <ColumnSearchCell className="sticky left-11 z-20 bg-surface" value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
-                    <td className="sticky left-[274px] z-20 bg-surface px-2 py-1.5" />
-                    <ColumnSearchCell className="sticky left-[404px] z-20 bg-surface shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]" value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
-                    <td className="px-2 py-1.5" />
-                    <td className="px-2 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
-                    <td className="px-2 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />
-                    <ColumnSearchCell value={columnFilters.location} onChange={(v) => setColumnFilters((c) => ({ ...c, location: v }))} />
-                    <ColumnSearchCell value={columnFilters.remarks} onChange={(v) => setColumnFilters((c) => ({ ...c, remarks: v }))} />
-                    <ColumnSearchCell value={columnFilters.admin} onChange={(v) => setColumnFilters((c) => ({ ...c, admin: v }))} />
-                    <td className="px-2 py-1.5" />
+                  <tr className="h-10">
+                    <td className="sticky top-11 left-0 z-40 bg-surface px-4 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 left-11 z-40 bg-surface" value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
+                    <td className="sticky top-11 left-[274px] z-40 bg-surface px-2 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 left-[404px] z-40 bg-surface shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]" value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.location} onChange={(v) => setColumnFilters((c) => ({ ...c, location: v }))} />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.remarks} onChange={(v) => setColumnFilters((c) => ({ ...c, remarks: v }))} />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.admin} onChange={(v) => setColumnFilters((c) => ({ ...c, admin: v }))} />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
                   </tr>
                 </thead>
                 <tbody>
