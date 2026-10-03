@@ -1,5 +1,6 @@
 import type { LeadDoc } from "@/types";
-import { deriveFollowUpState } from "@/utils/followUp";
+import { isClosedStatus } from "@/types";
+import { isFollowUpDueToday, isFollowUpOverdue } from "@/utils/followUp";
 
 function isSameMonth(d: Date, now: Date) {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
@@ -30,9 +31,8 @@ export function computeHeadlineMetrics(leads: LeadDoc[], now: Date = new Date())
     if (created && isSameMonth(created, now)) totalLeadsThisMonth++;
     if (created && isSameDay(created, now)) newLeadsToday++;
     if (lead.status === "Visit Scheduled") visitsScheduled++;
-    const fu = deriveFollowUpState(lead.nextFollowUpAt, now);
-    if (fu === "Overdue") overdueFollowUps++;
-    if (fu === "Due Today") todayFollowUps++;
+    if (isFollowUpOverdue(lead, now)) overdueFollowUps++;
+    if (isFollowUpDueToday(lead, now)) todayFollowUps++;
     if (
       lead.status === "Admission Confirmed" &&
       lead.admissionConfirmedAt &&
@@ -71,7 +71,7 @@ function groupBy(leads: LeadDoc[], keyFn: (l: LeadDoc) => string | null): GroupB
         ["Visit Scheduled", "Visit Completed", "Admission Discussion", "Admission Confirmed"].includes(l.status)
       ).length;
       const admissions = group.filter((l) => l.status === "Admission Confirmed").length;
-      const overdue = group.filter((l) => deriveFollowUpState(l.nextFollowUpAt) === "Overdue").length;
+      const overdue = group.filter((l) => isFollowUpOverdue(l)).length;
       return {
         key,
         total,
@@ -117,10 +117,6 @@ export function stageFunnel(leads: LeadDoc[]): StageCounts[] {
 }
 
 export function lostLeadBreakdown(leads: LeadDoc[]): GroupBreakdown[] {
-  const closed = leads.filter((l) =>
-    ["Not Interested", "Not Reachable", "Wrong/Invalid Number", "Future Requirement", "Lost to Competitor", "Duplicate"].includes(
-      l.status
-    )
-  );
+  const closed = leads.filter((l) => isClosedStatus(l.status));
   return groupBy(closed, (l) => l.status);
 }

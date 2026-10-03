@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { LeadDoc } from "@/types";
+import { isClosedStatus } from "@/types";
 import { useLeads } from "@/hooks/useLeads";
 import { useLookups } from "@/hooks/useLookups";
 import { FilterBar, EMPTY_FILTERS, applyFilters } from "@/components/FilterBar";
@@ -175,7 +176,10 @@ function CampaignReport({ rows, campaignName }: { rows: LeadDoc[]; campaignName:
 
 function FollowUpReport({ rows }: { rows: LeadDoc[] }) {
   const states = { Overdue: 0, "Due Today": 0, Upcoming: 0, "None Set": 0 };
-  for (const l of rows) states[deriveFollowUpState(l.nextFollowUpAt)]++;
+  for (const l of rows) {
+    if (isClosedStatus(l.status)) continue;
+    states[deriveFollowUpState(l.nextFollowUpAt)]++;
+  }
   const dueOrPast = rows.filter((l) => l.nextFollowUpAt && l.nextFollowUpAt.toDate() <= new Date());
   const completed = dueOrPast.filter((l) => l.lastContactedAt && (!l.nextFollowUpAt || l.lastContactedAt.toDate() >= l.createdAt!.toDate()));
   const completionRate = dueOrPast.length ? (completed.length / dueOrPast.length) * 100 : 0;

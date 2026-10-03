@@ -6,7 +6,7 @@ import { useLookups } from "@/hooks/useLookups";
 import { FilterBar, EMPTY_FILTERS, applyFilters } from "@/components/FilterBar";
 import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
 import { computeAttentionFlags } from "@/utils/attention";
-import { deriveFollowUpState } from "@/utils/followUp";
+import { deriveFollowUpState, isFollowUpDueToday, isFollowUpOverdue } from "@/utils/followUp";
 import { downloadCsv } from "@/utils/csv";
 import { buildWhatsAppLink } from "@/utils/whatsapp";
 import { isValidLeadPhone } from "@/utils/phone";
@@ -34,7 +34,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
-const QUICK_VIEWS = ["All", "My Leads", "Follow-up Today", "Overdue", "Visits", "Converted", "Needs Attention"] as const;
+const QUICK_VIEWS = ["All", "My Leads", "Follow-up Today", "Overdue", "Visits", "Converted", "Closed", "Needs Attention"] as const;
 type QuickView = (typeof QUICK_VIEWS)[number];
 
 const TABS = [
@@ -47,10 +47,11 @@ type TabKey = (typeof TABS)[number]["key"];
 
 function matchesQuickView(view: QuickView, lead: LeadDoc, uid: string | undefined): boolean {
   if (view === "My Leads") return !!uid && lead.assignedStaffId === uid;
-  if (view === "Follow-up Today") return deriveFollowUpState(lead.nextFollowUpAt) === "Due Today";
-  if (view === "Overdue") return deriveFollowUpState(lead.nextFollowUpAt) === "Overdue";
+  if (view === "Follow-up Today") return isFollowUpDueToday(lead);
+  if (view === "Overdue") return isFollowUpOverdue(lead);
   if (view === "Visits") return ["Visit Scheduled", "Visit Completed"].includes(lead.status);
   if (view === "Converted") return lead.status === "Admission Confirmed";
+  if (view === "Closed") return isClosedStatus(lead.status);
   return true;
 }
 
@@ -590,7 +591,7 @@ function StatsTab({ leads }: { leads: LeadDoc[] }) {
   const total = leads.length;
   const open = leads.filter((l) => !CLOSED_STATUSES.includes(l.status as (typeof CLOSED_STATUSES)[number])).length;
   const closed = total - open;
-  const overdue = leads.filter((l) => deriveFollowUpState(l.nextFollowUpAt) === "Overdue").length;
+  const overdue = leads.filter((l) => isFollowUpOverdue(l)).length;
   const admitted = leads.filter((l) => l.status === "Admission Confirmed").length;
   const totalFees = leads.reduce((sum, l) => sum + (l.fees ?? 0), 0);
   const stats = [
@@ -649,6 +650,7 @@ function AnalyticsTab({ leads, staffName }: { leads: LeadDoc[]; staffName: (id: 
 function FollowupsTab({ leads, programName }: { leads: LeadDoc[]; programName: (id: string | null) => string }) {
   const groups = { Overdue: [] as LeadDoc[], "Due Today": [] as LeadDoc[], Upcoming: [] as LeadDoc[] };
   for (const l of leads) {
+    if (isClosedStatus(l.status)) continue;
     const state = deriveFollowUpState(l.nextFollowUpAt);
     if (state === "Overdue" || state === "Due Today" || state === "Upcoming") groups[state].push(l);
   }
