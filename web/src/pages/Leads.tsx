@@ -357,7 +357,7 @@ export function Leads() {
           )}
           {bulkMessage && <div className="text-xs text-ink-soft mb-3 px-1 shrink-0">{bulkMessage}</div>}
 
-          <div className="flex-1 min-h-0 bg-surface border border-border rounded-2xl overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 bg-surface border border-border-soft rounded-2xl shadow-elevated overflow-hidden flex flex-col">
             <div className="hidden lg:block flex-1 min-h-0 overflow-auto">
               <table className="w-full text-sm table-fixed">
                 <thead className="text-ink-faint text-[11px] uppercase tracking-wide">
