@@ -214,6 +214,10 @@ export async function logFollowUpOutcome(
     lastContactedAt: serverTimestamp(),
     lastActivityAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    // The Leads table's Remarks column reads this field directly, so it needs to track
+    // whatever the most recent note actually was — not just whatever was typed at
+    // creation — the moment staff log one here.
+    ...(outcomeNotes ? { notes: outcomeNotes } : {}),
   });
 
   await addActivity(lead.id, byStaffId, {
@@ -239,6 +243,7 @@ export async function logContact(
 
 export async function addNote(lead: LeadDoc, text: string, byStaffId: string) {
   await updateDoc(leadDoc(lead.id), {
+    notes: text,
     lastActivityAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

@@ -114,7 +114,7 @@ export function Layout() {
       )}
 
       <div className="flex-1 min-h-0 lg:flex">
-        <aside className="hidden lg:flex w-[248px] shrink-0 bg-sidebar-bg h-full flex-col">
+        <aside className="hidden lg:flex w-[204px] shrink-0 bg-sidebar-bg h-full flex-col">
           {brand}
           <div className="flex-1 overflow-y-auto">{navigation}</div>
           {account}

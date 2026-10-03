@@ -359,31 +359,31 @@ export function Leads() {
 
           <div className="flex-1 min-h-0 bg-surface border border-border rounded-2xl overflow-hidden flex flex-col">
             <div className="hidden lg:block flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
                 <thead className="sticky top-0 z-10 bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
                   <tr>
-                    <th className="px-4 py-3 w-10">
+                    <th className="sticky left-0 z-20 bg-surface-2 px-4 py-3 w-11">
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
                     </th>
-                    <th className="text-left px-2 py-3">Name</th>
-                    <th className="text-left px-2 py-3">Status</th>
-                    <th className="text-left px-2 py-3">Priority</th>
-                    <th className="text-left px-2 py-3">Mobile</th>
-                    <th className="text-left px-2 py-3">Follow-up</th>
-                    <th className="text-left px-2 py-3">Course</th>
-                    <th className="text-left px-2 py-3">Fees</th>
-                    <th className="text-left px-2 py-3">Source</th>
-                    <th className="text-left px-2 py-3">Location</th>
-                    <th className="text-left px-2 py-3">Remarks</th>
-                    <th className="text-left px-2 py-3">Admin</th>
-                    <th className="text-left px-2 py-3">Actions</th>
+                    <th className="sticky left-11 z-20 bg-surface-2 text-left px-2 py-3 w-[230px]">Name</th>
+                    <th className="sticky left-[274px] z-20 bg-surface-2 text-left px-2 py-3 w-[130px]">Status</th>
+                    <th className="sticky left-[404px] z-20 bg-surface-2 text-left px-2 py-3 w-[150px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]">Mobile</th>
+                    <th className="text-left px-2 py-3 w-[90px]">Priority</th>
+                    <th className="text-left px-2 py-3 w-[130px]">Follow-up</th>
+                    <th className="text-left px-2 py-3 w-[130px]">Course</th>
+                    <th className="text-left px-2 py-3 w-[90px]">Fees</th>
+                    <th className="text-left px-2 py-3 w-[120px]">Source</th>
+                    <th className="text-left px-2 py-3 w-[110px]">Location</th>
+                    <th className="text-left px-2 py-3 w-[200px]">Remarks</th>
+                    <th className="text-left px-2 py-3 w-[110px]">Admin</th>
+                    <th className="text-left px-2 py-3 w-[140px]">Actions</th>
                   </tr>
                   <tr className="bg-surface">
-                    <td className="px-4 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
+                    <td className="sticky left-0 z-20 bg-surface px-4 py-1.5" />
+                    <ColumnSearchCell className="sticky left-11 z-20 bg-surface" value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
+                    <td className="sticky left-[274px] z-20 bg-surface px-2 py-1.5" />
+                    <ColumnSearchCell className="sticky left-[404px] z-20 bg-surface shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]" value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
                     <td className="px-2 py-1.5" />
-                    <td className="px-2 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
                     <td className="px-2 py-1.5" />
                     <ColumnSearchCell value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
                     <td className="px-2 py-1.5" />
@@ -397,28 +397,29 @@ export function Leads() {
                 <tbody>
                   {visible.map((lead) => {
                     const unseen = isLeadUnseen(lead);
+                    const isSelected = selected.has(lead.id);
+                    const stickyBg = unseen ? "" : isSelected ? "bg-accent-soft" : "bg-surface group-hover:bg-surface-2";
                     return (
-                    <tr key={lead.id} className={`border-t border-border-soft transition-colors ${unseen ? "lead-unseen-row" : selected.has(lead.id) ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}>
-                      <td className="px-4 py-3">
-                        <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="rounded border-border" aria-label={`Select ${lead.parentName}`} />
+                    <tr key={lead.id} className={`group border-t border-border-soft transition-colors ${unseen ? "lead-unseen-row" : isSelected ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}>
+                      <td className={`sticky left-0 z-20 px-4 py-3 overflow-hidden ${stickyBg}`}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleOne(lead.id)} className="rounded border-border" aria-label={`Select ${lead.parentName}`} />
                       </td>
-                      <td className="px-2 py-3">
+                      <td className={`sticky left-11 z-20 px-2 py-3 overflow-hidden ${stickyBg}`}>
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-8 h-8 rounded-full bg-accent-soft text-accent-strong flex items-center justify-center text-[11px] font-bold shrink-0">
                             {initials(lead.childName)}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <Link to={`/leads/${lead.id}`} className="font-semibold text-[14.5px] text-ink hover:text-accent">{lead.childName}</Link>
+                              <Link to={`/leads/${lead.id}`} className="font-semibold text-[14.5px] text-ink hover:text-accent truncate">{lead.childName}</Link>
                               {unseen && <Badge tone="warn">NEW</Badge>}
                             </div>
                             <div className="text-ink-faint text-xs mt-0.5 truncate">{lead.parentName}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 py-3"><StatusPill status={lead.status} /></td>
-                      <td className="px-2 py-3"><PriorityPill priority={lead.priority} /></td>
-                      <td className="px-2 py-3 whitespace-nowrap">
+                      <td className={`sticky left-[274px] z-20 px-2 py-3 overflow-hidden ${stickyBg}`}><StatusPill status={lead.status} /></td>
+                      <td className={`sticky left-[404px] z-20 px-2 py-3 truncate shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] ${stickyBg}`}>
                         {isValidLeadPhone(lead.parentPhone) ? (
                           <span className="inline-flex items-center gap-1 text-ink-soft"><Phone className="w-3 h-3" />{lead.parentPhone}</span>
                         ) : (
@@ -427,14 +428,15 @@ export function Leads() {
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-3"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{programName(lead.interestedProgramId)}</td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.sourceChannel}</td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.location ?? "—"}</td>
-                      <td className="px-2 py-3 text-ink-faint max-w-[140px] truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{staffName(lead.assignedStaffId)}</td>
-                      <td className="px-2 py-3">
+                      <td className="px-2 py-3 overflow-hidden"><PriorityPill priority={lead.priority} /></td>
+                      <td className="px-2 py-3 overflow-hidden"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{programName(lead.interestedProgramId)}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{lead.sourceChannel}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{lead.location ?? "—"}</td>
+                      <td className="px-2 py-3 text-ink-faint truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{staffName(lead.assignedStaffId)}</td>
+                      <td className="px-2 py-3 overflow-hidden">
                         <div className="flex items-center gap-1">
                           <Link to={`/leads/${lead.id}`} aria-label="Open lead" title="Open Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
                             <Eye className="w-4 h-4" />
@@ -573,9 +575,9 @@ export function Leads() {
   );
 }
 
-function ColumnSearchCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ColumnSearchCell({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
   return (
-    <td className="px-2 py-1.5">
+    <td className={`px-2 py-1.5 ${className ?? ""}`}>
       <div className="relative">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-faint pointer-events-none" />
         <input
