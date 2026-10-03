@@ -360,7 +360,7 @@ export function Leads() {
           <div className="flex-1 min-h-0 bg-surface border border-border rounded-2xl overflow-hidden flex flex-col">
             <div className="hidden lg:block flex-1 min-h-0 overflow-auto">
               <table className="w-full text-sm table-fixed">
-                <thead className="sticky top-0 z-10 bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
+                <thead className="sticky top-0 z-30 bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
                   <tr>
                     <th className="sticky left-0 z-20 bg-surface-2 px-4 py-3 w-11">
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
