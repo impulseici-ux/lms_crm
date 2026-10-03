@@ -193,3 +193,60 @@ export interface WhatsAppSettingsDoc {
   // wired up; the real token always lives in a server-side secret.
   updatedAt: Timestamp | null;
 }
+
+// ---------------------------------------------------------------------------
+// WhatsApp Batch Messaging — today's mode is Click-to-Chat (no API, so a human
+// must press Send themselves); the data model is deliberately provider-agnostic
+// so a future Meta Cloud API mode reuses the same batch/item records and just
+// fills statuses in automatically instead of waiting on a manual confirmation.
+// ---------------------------------------------------------------------------
+
+export type WhatsAppBatchMode = "click_to_chat"; // future: "meta_api"
+export type WhatsAppBatchStatus = "running" | "paused" | "completed" | "cancelled";
+
+/** QUEUED -> OPENED -> (MANUALLY_SENT | FAILED). SKIPPED is assigned at creation
+ * (bad number) and CANCELLED only reaches items still QUEUED when the batch is stopped —
+ * neither one is ever "retried" to the finish line through OPENED. */
+export type WhatsAppBatchItemStatus = "QUEUED" | "OPENED" | "MANUALLY_SENT" | "FAILED" | "SKIPPED" | "CANCELLED";
+
+export interface WhatsAppBatchDoc {
+  id: string;
+  createdByStaffId: string;
+  status: WhatsAppBatchStatus;
+  mode: WhatsAppBatchMode;
+  messageTemplate: string;
+  linkLabel: string | null;
+  linkUrl: string | null;
+  attachmentName: string | null;
+  attachmentSize: number | null;
+  delaySeconds: number;
+  totalCount: number;
+  // Denormalized counters, kept in sync with items/* exclusively through
+  // transitionBatchItem's transaction — never written any other way, so they
+  // can't drift the way a hand-rolled increment scattered across call sites would.
+  queuedCount: number;
+  openedCount: number;
+  manuallySentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  cancelledCount: number;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+  completedAt: Timestamp | null;
+}
+
+export interface WhatsAppBatchItemDoc {
+  id: string; // == leadId
+  leadId: string;
+  leadParentName: string;
+  leadChildName: string;
+  mobile: string;
+  renderedMessage: string;
+  status: WhatsAppBatchItemStatus;
+  reason: string | null;
+  order: number;
+  startedAt: Timestamp | null; // when the WhatsApp chat was opened
+  completedAt: Timestamp | null; // when staff confirmed sent/failed, or it was skipped/cancelled
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+}

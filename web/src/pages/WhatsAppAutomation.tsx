@@ -14,6 +14,16 @@ import {
   getWhatsAppSettings,
   updateWhatsAppBusinessProfile,
 } from "@/lib/data/whatsapp";
+import {
+  subscribeAllWhatsAppBatches,
+  subscribeMyWhatsAppBatches,
+  subscribeBatchItems,
+  subscribeBatch,
+  updateBatchStatus,
+  resetFailedItemsToQueued,
+} from "@/lib/data/whatsappBatches";
+import { useClickToChatQueue } from "@/lib/whatsapp/clickToChatQueue";
+import { WhatsAppBatchItemsList } from "@/components/WhatsAppBatchItemsList";
 import { unsupportedTemplateTokens, extractTemplateTokens } from "@/lib/whatsapp/templates";
 import { getWhatsAppProviderName } from "@/lib/whatsapp/provider";
 import { WhatsAppDevBanner } from "@/components/WhatsAppDevBanner";
@@ -30,10 +40,13 @@ import {
   type WhatsAppTemplateDoc,
   type WhatsAppTemplateCategory,
   type WhatsAppSettingsDoc,
+  type WhatsAppBatchDoc,
+  type WhatsAppBatchStatus,
+  type WhatsAppBatchItemDoc,
 } from "@/types/whatsapp";
-import { Plus, Pencil, Inbox, MessageSquare, Settings as SettingsIcon, History, ListTodo, Zap, CircleCheck } from "lucide-react";
+import { Plus, Pencil, Inbox, MessageSquare, Settings as SettingsIcon, History, ListTodo, Zap, CircleCheck, X, Pause, Play, Square } from "lucide-react";
 
-const TABS = ["Automations", "Templates", "Message Queue", "Message History", "Settings"] as const;
+const TABS = ["Automations", "Templates", "Message Queue", "Message History", "Batches", "Settings"] as const;
 type Tab = (typeof TABS)[number];
 
 export function WhatsAppAutomation() {
@@ -42,7 +55,7 @@ export function WhatsAppAutomation() {
   const canViewOps = canManage || role === "management";
   const visibleTabs: Tab[] = canViewOps
     ? (canManage ? [...TABS] : TABS.filter((t) => t !== "Settings"))
-    : ["Message History"];
+    : ["Message History", "Batches"];
 
   const [tab, setTab] = useState<Tab>(visibleTabs[0]);
   const activeTab = visibleTabs.includes(tab) ? tab : visibleTabs[0];
@@ -79,6 +92,7 @@ export function WhatsAppAutomation() {
       {activeTab === "Templates" && <TemplatesTab canManage={canManage} />}
       {activeTab === "Message Queue" && <QueueTab />}
       {activeTab === "Message History" && <HistoryTab role={role} uid={user?.uid ?? null} />}
+      {activeTab === "Batches" && <BatchesTab role={role} uid={user?.uid ?? null} />}
       {activeTab === "Settings" && canManage && <SettingsTab />}
     </div>
   );
@@ -482,6 +496,169 @@ function HistoryTab({ role, uid }: { role: string | null; uid: string | null }) 
         onChange={setFilter}
       />
       {loading ? <Skeleton className="h-40 rounded-2xl" /> : <MessagesTable messages={filtered} staffName={staffName} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Batches (Click-to-Chat batch history, details, and retry — Sections 16-18)
+// ---------------------------------------------------------------------------
+
+const BATCH_STATUS_TONE: Record<WhatsAppBatchStatus, "accent" | "good" | "warn" | "bad" | "neutral"> = {
+  running: "warn",
+  paused: "warn",
+  completed: "good",
+  cancelled: "neutral",
+};
+
+function useBatches(scope: "all" | { uid: string }) {
+  const [batches, setBatches] = useState<WhatsAppBatchDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const scopeKey = scope === "all" ? "all" : scope.uid;
+  useEffect(() => {
+    const unsub =
+      scope === "all"
+        ? subscribeAllWhatsAppBatches((items) => { setBatches(items); setLoading(false); })
+        : subscribeMyWhatsAppBatches(scope.uid, (items) => { setBatches(items); setLoading(false); });
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey]);
+  return { batches, loading };
+}
+
+function BatchesTab({ role, uid }: { role: string | null; uid: string | null }) {
+  const { staffName } = useLookups();
+  const scope = role === "counsellor" && uid ? ({ uid } as const) : "all";
+  const { batches, loading } = useBatches(scope);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+
+  return (
+    <div>
+      <h2 className="font-semibold text-lg text-ink mb-4">WhatsApp Batch History</h2>
+      <p className="text-sm text-ink-faint mb-4">
+        Every Click-to-Chat batch sent from the Leads page, with per-lead results. "Opened" means the chat was prepared — it still
+        needs a manual "Mark as Sent" confirmation below once you've actually pressed Send in WhatsApp.
+      </p>
+      {loading ? (
+        <Skeleton className="h-40 rounded-2xl" />
+      ) : batches.length === 0 ? (
+        <EmptyState icon={<Inbox />} title="No batches yet" description="Send a WhatsApp batch from the Leads page to see it here." />
+      ) : (
+        <div className="bg-surface border border-border rounded-2xl overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
+              <tr>
+                <th className="text-left px-3 py-2.5">Date</th>
+                <th className="text-left px-3 py-2.5">Created By</th>
+                <th className="text-left px-3 py-2.5">Total</th>
+                <th className="text-left px-3 py-2.5">Opened</th>
+                <th className="text-left px-3 py-2.5">Manually Sent</th>
+                <th className="text-left px-3 py-2.5">Failed</th>
+                <th className="text-left px-3 py-2.5">Skipped</th>
+                <th className="text-left px-3 py-2.5">Attachment</th>
+                <th className="text-left px-3 py-2.5">Status</th>
+                <th className="text-left px-3 py-2.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {batches.map((b) => (
+                <tr key={b.id} className="border-t border-border-soft">
+                  <td className="px-3 py-2.5 whitespace-nowrap text-ink-soft">
+                    {b.createdAt?.toDate().toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) ?? "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-ink-soft whitespace-nowrap">{staffName(b.createdByStaffId)}</td>
+                  <td className="px-3 py-2.5">{b.totalCount}</td>
+                  <td className="px-3 py-2.5 text-warn">{b.openedCount}</td>
+                  <td className="px-3 py-2.5 text-good">{b.manuallySentCount}</td>
+                  <td className="px-3 py-2.5 text-bad">{b.failedCount}</td>
+                  <td className="px-3 py-2.5 text-ink-faint">{b.skippedCount}</td>
+                  <td className="px-3 py-2.5 text-ink-soft truncate max-w-[140px]">{b.attachmentName ?? "—"}</td>
+                  <td className="px-3 py-2.5">
+                    <Badge tone={BATCH_STATUS_TONE[b.status]}>{b.status}</Badge>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <button type="button" className="text-accent text-xs font-semibold hover:underline" onClick={() => setSelectedBatchId(b.id)}>
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {selectedBatchId && <BatchDetailsModal batchId={selectedBatchId} onClose={() => setSelectedBatchId(null)} />}
+    </div>
+  );
+}
+
+function BatchDetailsModal({ batchId, onClose }: { batchId: string; onClose: () => void }) {
+  const [batch, setBatch] = useState<WhatsAppBatchDoc | null>(null);
+  const [items, setItems] = useState<WhatsAppBatchItemDoc[]>([]);
+  const queue = useClickToChatQueue(batch?.delaySeconds ?? 15);
+
+  useEffect(() => subscribeBatchItems(batchId, setItems), [batchId]);
+  useEffect(() => subscribeBatch(batchId, setBatch), [batchId]);
+
+  const failedItems = items.filter((i) => i.status === "FAILED");
+
+  const handleRetryFailed = async () => {
+    const reset = await resetFailedItemsToQueued(batchId);
+    if (reset.length === 0) return;
+    const queueItems = reset.map((i) => ({ itemId: i.id, mobile: i.mobile, renderedMessage: i.renderedMessage }));
+    const { stopped } = await queue.start(batchId, queueItems);
+    if (!stopped) await updateBatchStatus(batchId, "completed", { completed: true });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={queue.running ? undefined : onClose}>
+      <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-soft">
+          <h2 className="font-semibold text-ink">Batch Details</h2>
+          {!queue.running && (
+            <button onClick={onClose} aria-label="Close" className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-ink">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <div className="p-5 overflow-y-auto flex-1 space-y-3">
+          {queue.running && (
+            <div className="rounded-xl border border-border-soft bg-surface-2 p-4 text-center space-y-2">
+              <div className="text-sm font-semibold text-ink">Retrying failed messages…</div>
+              {queue.currentItemId && (
+                <div className="text-xs text-ink-soft">
+                  {queue.paused ? "Paused" : queue.countdown > 0 ? `Next chat in ${queue.countdown}s…` : "Opening WhatsApp…"}
+                </div>
+              )}
+              <div className="flex items-center justify-center gap-2">
+                {!queue.paused ? (
+                  <Button size="sm" variant="secondary" onClick={queue.pause}>
+                    <Pause className="w-4 h-4" /> Pause
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="secondary" onClick={queue.resume}>
+                    <Play className="w-4 h-4" /> Resume
+                  </Button>
+                )}
+                <Button size="sm" variant="danger" onClick={queue.stop}>
+                  <Square className="w-4 h-4" /> Stop
+                </Button>
+              </div>
+            </div>
+          )}
+          {items.length === 0 ? <Skeleton className="h-32 rounded-xl" /> : <WhatsAppBatchItemsList batchId={batchId} items={items} currentItemId={queue.currentItemId} />}
+        </div>
+        <div className="flex items-center gap-2 px-5 py-4 border-t border-border-soft">
+          {failedItems.length > 0 && !queue.running && (
+            <Button variant="secondary" onClick={handleRetryFailed}>
+              Retry Failed ({failedItems.length})
+            </Button>
+          )}
+          <Button className="flex-1" disabled={queue.running} onClick={onClose}>
+            Close
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

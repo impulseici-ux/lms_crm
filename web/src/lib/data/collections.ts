@@ -30,3 +30,9 @@ export const whatsappMessagesCol = () => collection(db, "whatsappMessages");
 export const whatsappMessageDoc = (id: string) => doc(db, "whatsappMessages", id);
 export const whatsappMessageEventsCol = (messageId: string) => collection(db, "whatsappMessages", messageId, "events");
 export const whatsappSettingsDoc = () => doc(db, "whatsappSettings", "config");
+
+// WhatsApp Batch Messaging (Click-to-Chat today, same shape reused by a future provider)
+export const whatsappBatchesCol = () => collection(db, "whatsappBatches");
+export const whatsappBatchDoc = (id: string) => doc(db, "whatsappBatches", id);
+export const whatsappBatchItemsCol = (batchId: string) => collection(db, "whatsappBatches", batchId, "items");
+export const whatsappBatchItemDoc = (batchId: string, itemId: string) => doc(db, "whatsappBatches", batchId, "items", itemId);

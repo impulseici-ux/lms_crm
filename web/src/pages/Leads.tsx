@@ -502,6 +502,20 @@ export function Leads() {
               </table>
             </div>
 
+            {visible.length > 0 && (
+              <div className="lg:hidden flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border-soft shrink-0 bg-surface-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-ink-soft">
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
+                  Select all {visible.length}
+                </label>
+                {selected.size > 0 && (
+                  <button type="button" onClick={() => setSelected(new Set())} className="text-xs font-semibold text-accent hover:underline">
+                    Clear ({selected.size})
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="lg:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-border-soft">
               {visible.map((lead) => {
                 const unseen = isLeadUnseen(lead);

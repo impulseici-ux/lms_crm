@@ -1,21 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X, MessageCircle, Send, CircleAlert, ShieldAlert, CheckCircle2, Paperclip, FileText, Pause, Play, Square } from "lucide-react";
 import { Button, Select, Input, Textarea, SegmentedControl, Skeleton, ProgressBar } from "@/components/ui";
+import { WhatsAppBatchItemsList } from "@/components/WhatsAppBatchItemsList";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { useLookups } from "@/hooks/useLookups";
 import { buildVariableContext, renderTemplate } from "@/lib/whatsapp/templates";
-import { recordManualWhatsAppOpen } from "@/lib/whatsapp/engine";
 import { getWhatsAppSettings } from "@/lib/data/whatsapp";
+import { createWhatsAppBatch, subscribeBatchItems, updateBatchStatus, cancelRemainingQueuedItems } from "@/lib/data/whatsappBatches";
+import { useClickToChatQueue } from "@/lib/whatsapp/clickToChatQueue";
 import { isValidLeadPhone } from "@/utils/phone";
 import type { LeadDoc } from "@/types";
-import type { WhatsAppSettingsDoc, WhatsAppTemplateDoc } from "@/types/whatsapp";
+import type { WhatsAppBatchItemDoc, WhatsAppSettingsDoc } from "@/types/whatsapp";
 
 type Mode = "custom" | "template";
-type RowOutcome = { kind: "opened" } | { kind: "cancelled" };
-interface RowResult {
-  leadId: string;
-  outcome: RowOutcome | null; // null while still pending/not yet reached
-}
 
 // Default professional template (Section: DEFAULT MESSAGE TEMPLATE). WhatsApp renders
 // *text* as bold and • as a bullet glyph natively — nothing in this CRM needs to convert
@@ -77,10 +74,6 @@ function whatsAppPreviewHtml(text: string): string {
   return bolded.replace(/\n/g, "<br/>");
 }
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
-}
-
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
@@ -103,13 +96,10 @@ export function BulkSendWhatsAppModal({ leads, staffId, onClose }: { leads: Lead
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [settings, setSettings] = useState<WhatsAppSettingsDoc | null>(null);
 
-  const [running, setRunning] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [countdown, setCountdown] = useState(0);
-  const [results, setResults] = useState<RowResult[] | null>(null);
-  const pausedRef = useRef(false);
-  const stopRef = useRef(false);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [batchItems, setBatchItems] = useState<WhatsAppBatchItemDoc[]>([]);
+  const [starting, setStarting] = useState(false);
+  const queue = useClickToChatQueue(delaySeconds);
 
   useEffect(() => {
     getWhatsAppSettings().then(setSettings);
@@ -117,6 +107,10 @@ export function BulkSendWhatsAppModal({ leads, staffId, onClose }: { leads: Lead
   useEffect(() => {
     if (!templateId && activeTemplates.length > 0) setTemplateId(activeTemplates[0].id);
   }, [activeTemplates, templateId]);
+  useEffect(() => {
+    if (!batchId) return;
+    return subscribeBatchItems(batchId, setBatchItems);
+  }, [batchId]);
 
   const template = activeTemplates.find((t) => t.id === templateId) ?? null;
   const content = mode === "template" ? template?.content ?? "" : customText;
@@ -158,7 +152,7 @@ export function BulkSendWhatsAppModal({ leads, staffId, onClose }: { leads: Lead
   const previewRow = rows[0] ?? null;
   const previewHtml = previewRow?.render?.ok ? whatsAppPreviewHtml(previewRow.render.rendered!) : null;
 
-  const canStart = !!content && sendableRows.length > 0 && urlValid && !running;
+  const canStart = !!content && sendableRows.length > 0 && urlValid && !queue.running && !starting && !batchId;
 
   const handleAttachmentChange = (file: File | null) => {
     setAttachmentError(null);
@@ -177,119 +171,50 @@ export function BulkSendWhatsAppModal({ leads, staffId, onClose }: { leads: Lead
     setAttachment(file);
   };
 
-  const waitWhilePaused = async () => {
-    while (pausedRef.current && !stopRef.current) await sleep(200);
-  };
-
-  // Ticks in small steps (rather than one long setTimeout) so Pause/Stop take effect
-  // within a fraction of a second instead of waiting out the whole delay.
-  const delayWithControl = async (totalMs: number) => {
-    const step = 500;
-    let elapsed = 0;
-    while (elapsed < totalMs) {
-      if (stopRef.current) return;
-      await waitWhilePaused();
-      if (stopRef.current) return;
-      await sleep(step);
-      elapsed += step;
-      setCountdown(Math.max(0, Math.ceil((totalMs - elapsed) / 1000)));
-    }
-  };
-
   const handleStart = async () => {
     if (!canStart) return;
-    setRunning(true);
-    setPaused(false);
-    pausedRef.current = false;
-    stopRef.current = false;
-    setCurrentIndex(0);
-    const initial: RowResult[] = sendableRows.map((r) => ({ leadId: r.lead.id, outcome: null }));
-    setResults(initial);
+    setStarting(true);
+    try {
+      const id = await createWhatsAppBatch({
+        createdByStaffId: staffId,
+        messageTemplate: content,
+        linkLabel: urlProvided ? linkLabel.trim() || "Program / Admission Details" : null,
+        linkUrl: urlProvided && urlValid ? linkUrl.trim() : null,
+        attachmentName: attachment?.name ?? null,
+        attachmentSize: attachment?.size ?? null,
+        delaySeconds,
+        items: rows.map((r) => ({
+          leadId: r.lead.id,
+          leadParentName: r.lead.parentName,
+          leadChildName: r.lead.childName,
+          mobile: r.lead.parentPhone,
+          renderedMessage: r.render?.ok ? r.render.rendered! : "",
+          valid: r.numberValid && !!r.render?.ok,
+        })),
+      });
+      setBatchId(id);
+      setStarting(false);
 
-    const templateForLog: WhatsAppTemplateDoc =
-      mode === "template" && template
-        ? template
-        : {
-            id: "custom",
-            name: "Custom Message",
-            category: "General",
-            language: "English",
-            content: customText,
-            active: true,
-            createdByStaffId: staffId,
-            createdAt: null,
-            updatedAt: null,
-          };
-
-    for (let i = 0; i < sendableRows.length; i++) {
-      setCurrentIndex(i);
-      await waitWhilePaused();
-      if (stopRef.current) break;
-
-      const { lead, context, render } = sendableRows[i];
-      // Click-to-Chat (Section 5/26) — this only opens/prepares a chat with the text
-      // pre-filled; it has no way to confirm the message was actually sent, delivered,
-      // or read, and cannot attach a file. Never report anything stronger than "opened"
-      // from this path. When a real provider (Meta Cloud API) is connected later, this
-      // branch is the only thing that needs to change — everything upstream (lead
-      // selection, personalization, the queue/delay loop) stays the same.
-      const digits = lead.parentPhone.replace(/[^0-9]/g, "");
-      const url = `https://api.whatsapp.com/send/?phone=${digits}&text=${encodeURIComponent(render!.rendered!)}`;
-      window.open(url, "_blank", "noreferrer");
-
-      const leadContext = {
-        id: lead.id,
-        parentName: lead.parentName,
-        childName: lead.childName,
-        parentPhone: lead.parentPhone,
-        interestedProgramId: lead.interestedProgramId,
-        status: lead.status,
-        sourceChannel: lead.sourceChannel,
-        visitDate: lead.visitDate,
-        assignedStaffId: lead.assignedStaffId,
-        nextFollowUpAt: lead.nextFollowUpAt,
-        whatsappOptStatus: lead.whatsappOptStatus,
-      };
-      await recordManualWhatsAppOpen({ lead: leadContext, template: templateForLog, variableContext: context, staffId }).catch(() => null);
-
-      setResults((prev) => prev!.map((r, idx) => (idx === i ? { leadId: lead.id, outcome: { kind: "opened" } } : r)));
-
-      if (i < sendableRows.length - 1) {
-        await delayWithControl(delaySeconds * 1000);
-        if (stopRef.current) break;
+      const queueItems = sendableRows.map((r) => ({ itemId: r.lead.id, mobile: r.lead.parentPhone, renderedMessage: r.render!.rendered! }));
+      const { stopped } = await queue.start(id, queueItems);
+      if (stopped) {
+        await cancelRemainingQueuedItems(id);
+        await updateBatchStatus(id, "cancelled");
+      } else {
+        await updateBatchStatus(id, "completed", { completed: true });
       }
+    } finally {
+      setStarting(false);
     }
-
-    if (stopRef.current) {
-      setResults((prev) => prev!.map((r) => (r.outcome == null ? { ...r, outcome: { kind: "cancelled" } } : r)));
-    }
-    setRunning(false);
-    setCountdown(0);
   };
 
-  const handlePause = () => {
-    pausedRef.current = true;
-    setPaused(true);
-  };
-  const handleResume = () => {
-    pausedRef.current = false;
-    setPaused(false);
-  };
-  const handleStop = () => {
-    stopRef.current = true;
-    pausedRef.current = false;
-    setPaused(false);
-  };
-
-  const openedCount = results?.filter((r) => r.outcome?.kind === "opened").length ?? 0;
-  const cancelledCount = results?.filter((r) => r.outcome?.kind === "cancelled").length ?? 0;
-  const progressDone = results?.filter((r) => r.outcome != null).length ?? 0;
-  const progressPct = results && results.length > 0 ? (progressDone / results.length) * 100 : 0;
-  const currentLeadName =
-    running && sendableRows[currentIndex] ? `${sendableRows[currentIndex].lead.parentName} · ${sendableRows[currentIndex].lead.childName}` : null;
+  const progressDone = batchItems.filter((i) => i.status !== "QUEUED").length;
+  const progressPct = batchItems.length > 0 ? (progressDone / batchItems.length) * 100 : 0;
+  const currentItem = batchItems.find((i) => i.id === queue.currentItemId) ?? null;
+  const isDone = !!batchId && !queue.running && !starting;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={running ? undefined : onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={queue.running || starting ? undefined : onClose}>
       <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-soft">
           <div className="flex items-center gap-2.5">
@@ -298,7 +223,7 @@ export function BulkSendWhatsAppModal({ leads, staffId, onClose }: { leads: Lead
             </div>
             <h2 className="font-semibold text-ink">WhatsApp Batch Message — {leads.length} selected</h2>
           </div>
-          {!running && (
+          {!queue.running && !starting && (
             <button onClick={onClose} aria-label="Close" className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-ink">
               <X className="w-4 h-4" />
             </button>
@@ -315,7 +240,7 @@ export function BulkSendWhatsAppModal({ leads, staffId, onClose }: { leads: Lead
             </span>
           </div>
 
-          {!running && results === null && (
+          {!batchId && (
             <>
               <SegmentedControl
                 options={[
@@ -453,102 +378,92 @@ export function BulkSendWhatsAppModal({ leads, staffId, onClose }: { leads: Lead
             </>
           )}
 
-          {running && (
+          {batchId && queue.running && (
             <div className="space-y-4">
               <div className="text-center">
                 <div className="text-sm font-semibold text-ink mb-1">WhatsApp Batch Sending</div>
                 <div className="text-xs text-ink-faint">
-                  Progress: {progressDone} / {results!.length}
+                  Progress: {progressDone} / {batchItems.length}
                 </div>
               </div>
               <ProgressBar value={progressPct} tone="good" />
-              {currentLeadName && (
+              {currentItem && (
                 <div className="text-center">
                   <div className="text-xs uppercase tracking-wide text-ink-faint">Current Lead</div>
-                  <div className="font-semibold text-ink">{currentLeadName}</div>
+                  <div className="font-semibold text-ink">
+                    {currentItem.leadParentName} · {currentItem.leadChildName}
+                  </div>
                   <div className="text-xs text-ink-soft mt-1">
-                    {paused ? "Paused" : countdown > 0 ? `Opening next chat in ${countdown}s…` : "Opening WhatsApp…"}
+                    {queue.paused ? "Paused" : queue.countdown > 0 ? `Opening next chat in ${queue.countdown}s…` : "Opening WhatsApp…"}
                   </div>
                 </div>
               )}
               <div className="flex items-center justify-center gap-2">
-                {!paused ? (
-                  <Button variant="secondary" onClick={handlePause}>
+                {!queue.paused ? (
+                  <Button variant="secondary" onClick={queue.pause}>
                     <Pause className="w-4 h-4" /> Pause
                   </Button>
                 ) : (
-                  <Button variant="secondary" onClick={handleResume}>
+                  <Button variant="secondary" onClick={queue.resume}>
                     <Play className="w-4 h-4" /> Resume
                   </Button>
                 )}
-                <Button variant="danger" onClick={handleStop}>
+                <Button variant="danger" onClick={queue.stop}>
                   <Square className="w-4 h-4" /> Stop Batch
                 </Button>
               </div>
             </div>
           )}
 
-          {!running && results !== null && (
+          {batchId && (
             <div className="space-y-3">
-              <div className="rounded-xl border border-border-soft bg-surface-2 p-4 text-sm space-y-1.5">
-                <div className="font-semibold text-ink mb-1">WhatsApp Batch Summary</div>
-                <div className="flex justify-between">
-                  <span className="text-ink-soft">Total selected</span>
-                  <span className="font-semibold">{leads.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-soft">Opened</span>
-                  <span className="font-semibold text-good">{openedCount}</span>
-                </div>
-                {cancelledCount > 0 && (
+              {isDone && (
+                <div className="rounded-xl border border-border-soft bg-surface-2 p-4 text-sm space-y-1.5">
+                  <div className="font-semibold text-ink mb-1">WhatsApp Batch Summary</div>
                   <div className="flex justify-between">
-                    <span className="text-ink-soft">Cancelled (stopped)</span>
-                    <span className="font-semibold text-ink-faint">{cancelledCount}</span>
+                    <span className="text-ink-soft">Total selected</span>
+                    <span className="font-semibold">{batchItems.length}</span>
                   </div>
-                )}
-                {invalidCount > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-ink-soft">Skipped — invalid number</span>
-                    <span className="font-semibold text-bad">{invalidCount}</span>
+                    <span className="text-ink-soft">Opened (awaiting your confirmation below)</span>
+                    <span className="font-semibold text-warn">{batchItems.filter((i) => i.status === "OPENED").length}</span>
                   </div>
-                )}
-                {missingDataCount > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-ink-soft">Skipped — missing data</span>
-                    <span className="font-semibold text-bad">{missingDataCount}</span>
+                    <span className="text-ink-soft">Manually Sent</span>
+                    <span className="font-semibold text-good">{batchItems.filter((i) => i.status === "MANUALLY_SENT").length}</span>
                   </div>
-                )}
-                <div className="pt-1.5 mt-1.5 border-t border-border-soft text-xs text-ink-faint">
-                  "Opened" means the WhatsApp chat was prepared and opened — not that the message was actually sent or delivered.
-                  Confirm each send in WhatsApp itself.
-                </div>
-              </div>
-              <div className="rounded-xl border border-border-soft divide-y divide-border-soft max-h-56 overflow-y-auto">
-                {results.map((r) => {
-                  const lead = leads.find((l) => l.id === r.leadId)!;
-                  return (
-                    <div key={r.leadId} className="flex items-center justify-between gap-2 px-3.5 py-2.5 text-sm">
-                      <span className="truncate">
-                        {lead.parentName} · {lead.childName}
-                      </span>
-                      <span className={`text-xs font-semibold shrink-0 ${r.outcome?.kind === "opened" ? "text-good" : "text-ink-faint"}`}>
-                        {r.outcome?.kind === "opened" ? "Opened" : "Cancelled"}
-                      </span>
+                  <div className="flex justify-between">
+                    <span className="text-ink-soft">Failed</span>
+                    <span className="font-semibold text-bad">{batchItems.filter((i) => i.status === "FAILED").length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-ink-soft">Skipped</span>
+                    <span className="font-semibold text-ink-faint">{batchItems.filter((i) => i.status === "SKIPPED").length}</span>
+                  </div>
+                  {batchItems.some((i) => i.status === "CANCELLED") && (
+                    <div className="flex justify-between">
+                      <span className="text-ink-soft">Cancelled (stopped)</span>
+                      <span className="font-semibold text-ink-faint">{batchItems.filter((i) => i.status === "CANCELLED").length}</span>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                  <div className="pt-1.5 mt-1.5 border-t border-border-soft text-xs text-ink-faint">
+                    Confirm each "Opened" chat below once you've actually pressed Send in WhatsApp. This batch is also saved under
+                    WhatsApp → Batches if you need to come back to it.
+                  </div>
+                </div>
+              )}
+              <WhatsAppBatchItemsList batchId={batchId} items={batchItems} currentItemId={queue.currentItemId} />
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-2 px-5 py-4 border-t border-border-soft">
-          {!running && results === null && (
+          {!batchId && (
             <Button className="flex-1" disabled={!canStart} onClick={handleStart}>
-              <Send className="w-4 h-4" /> Start Batch — {sendableRows.length} lead{sendableRows.length === 1 ? "" : "s"}
+              <Send className="w-4 h-4" /> {starting ? "Starting…" : `Start Batch — ${sendableRows.length} lead${sendableRows.length === 1 ? "" : "s"}`}
             </Button>
           )}
-          {!running && results !== null && (
+          {isDone && (
             <Button className="flex-1" variant="secondary" onClick={onClose}>
               Close
             </Button>

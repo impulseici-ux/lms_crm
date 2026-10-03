@@ -204,6 +204,41 @@ service cloud.firestore {
       }
     }
 
+    // ---- WhatsApp Batch Messaging (Click-to-Chat today; see web/src/types/whatsapp.ts) ----
+    match /whatsappBatches/{batchId} {
+      allow read: if isAdmin() || isManagement() ||
+        (isCounsellor() && resource.data.createdByStaffId == request.auth.uid);
+
+      allow create: if isStaff() &&
+        request.resource.data.createdByStaffId == request.auth.uid &&
+        request.resource.data.status == 'running';
+
+      // Only lifecycle/counter fields may change — never the message, link, recipient
+      // list, or who created it. Counters are only ever written by transitionBatchItem's
+      // transaction, but that still goes through this same rule.
+      allow update: if isStaff() &&
+        (isAdmin() || isManagement() || resource.data.createdByStaffId == request.auth.uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['status', 'queuedCount', 'openedCount', 'manuallySentCount', 'failedCount', 'skippedCount', 'cancelledCount', 'updatedAt', 'completedAt']
+        );
+
+      allow delete: if false;
+
+      match /items/{itemId} {
+        allow read: if isAdmin() || isManagement() ||
+          (isCounsellor() && get(/databases/$(database)/documents/whatsappBatches/$(batchId)).data.createdByStaffId == request.auth.uid);
+
+        allow create: if isStaff();
+
+        // The rendered message/mobile/lead identity never change after creation —
+        // only its status lifecycle (including a Retry Failed reset back to QUEUED).
+        allow update: if isStaff() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reason', 'startedAt', 'completedAt', 'updatedAt']);
+
+        allow delete: if false;
+      }
+    }
+
     // ---- New-user activation (mandatory WhatsApp code + self-set password) ----
     // Written exclusively by the activation backend (backend/api/*, a separate
     // Vercel deployment using the Admin SDK, which bypasses these rules) —
