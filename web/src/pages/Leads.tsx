@@ -14,6 +14,7 @@ import { isLeadUnseen } from "@/utils/leadViewed";
 import { breakdownBySource, breakdownByStaff } from "@/utils/metrics";
 import { bulkChangeStatus, bulkReassign, deleteLead } from "@/lib/data/leads";
 import { ImportLeadsModal } from "@/components/ImportLeadsModal";
+import { BulkSendWhatsAppModal } from "@/components/BulkSendWhatsAppModal";
 import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar, Badge } from "@/components/ui";
 import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, isOpenStatus, isClosedStatus, type LeadDoc, type LeadStatus } from "@/types";
 import {
@@ -26,6 +27,7 @@ import {
   Eye,
   Trash2,
   MessageCircle,
+  Send,
   Table2,
   BarChart3,
   PieChart,
@@ -88,6 +90,7 @@ export function Leads() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showImport, setShowImport] = useState(false);
   const [showWhatsApp, setShowWhatsApp] = useState(false);
+  const [showBulkSend, setShowBulkSend] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<LeadStatus>("Contacted");
   const [bulkStaffId, setBulkStaffId] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -302,6 +305,14 @@ export function Leads() {
                 </Button>
                 {showWhatsApp && selected.size > 0 && (
                   <div className="absolute right-0 mt-1 z-20 w-64 bg-surface border border-border rounded-xl shadow-elevated p-2 max-h-64 overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={() => { setShowBulkSend(true); setShowWhatsApp(false); }}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-semibold text-accent hover:bg-accent-soft mb-1 border-b border-border-soft pb-2.5"
+                    >
+                      <Send className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Send custom message to all {selected.size}…</span>
+                    </button>
                     {selectedLeads.map((l) => {
                       const link = buildWhatsAppLink(l.parentPhone, l.parentName, l.sourceChannel);
                       return link ? (
@@ -566,6 +577,10 @@ export function Leads() {
           users={users}
           currentUserId={user!.uid}
         />
+      )}
+
+      {showBulkSend && (
+        <BulkSendWhatsAppModal leads={selectedLeads} staffId={user!.uid} onClose={() => setShowBulkSend(false)} />
       )}
     </div>
   );
