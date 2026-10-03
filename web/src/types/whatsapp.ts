@@ -95,6 +95,8 @@ export const WHATSAPP_TEMPLATE_VARIABLES = [
   "school_name",
   "school_phone",
   "school_address",
+  "admission_link",
+  "admission_link_label",
 ] as const;
 export type WhatsAppTemplateVariable = (typeof WHATSAPP_TEMPLATE_VARIABLES)[number];
 
