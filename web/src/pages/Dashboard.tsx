@@ -4,6 +4,8 @@ import { useLookups } from "@/hooks/useLookups";
 import { BigStat, Card, ProgressBar, EmptyState } from "@/components/ui";
 import { computeHeadlineMetrics, breakdownBySource, breakdownByStaff, stageFunnel } from "@/utils/metrics";
 import { computeAttentionFlags, ATTENTION_RULE_LABELS } from "@/utils/attention";
+import { isValidLeadPhone } from "@/utils/phone";
+import { isOpenStatus } from "@/types";
 import { StatusPill } from "@/components/Pills";
 import {
   Users,
@@ -12,10 +14,12 @@ import {
   AlertTriangle,
   Clock,
   GraduationCap,
-  ArrowUpRight,
   Radio,
   UserCog,
   ShieldCheck,
+  UserX,
+  ShieldAlert,
+  ChevronRight,
 } from "lucide-react";
 
 interface StatConfig {
@@ -62,7 +66,28 @@ export function Dashboard() {
     if (!flagsByLead.has(flag.lead.id)) flagsByLead.set(flag.lead.id, []);
     flagsByLead.get(flag.lead.id)!.push(flag);
   }
+  const attentionLeadCount = flagsByLead.size;
   const attentionLeads = Array.from(flagsByLead.entries()).slice(0, 8);
+
+  const unassignedCount = leads.filter((l) => l.assignedStaffId == null && isOpenStatus(l.status)).length;
+  const invalidNumberCount = leads.filter((l) => !isValidLeadPhone(l.parentPhone) && isOpenStatus(l.status)).length;
+
+  interface AttentionItem {
+    key: string;
+    label: string;
+    count: number;
+    href: string;
+    icon: typeof AlertTriangle;
+    urgent: boolean;
+  }
+  const attentionItems: AttentionItem[] = [
+    { key: "overdue", label: "Overdue follow-ups", count: metrics.overdueFollowUps, href: "/leads?view=Overdue", icon: AlertTriangle, urgent: true },
+    { key: "today", label: "Follow-up due today", count: metrics.todayFollowUps, href: "/leads?view=Follow-up%20Today", icon: Clock, urgent: true },
+    { key: "unassigned", label: "Without assigned staff", count: unassignedCount, href: "/leads?staffId=__unassigned__", icon: UserX, urgent: false },
+    { key: "invalid", label: "Invalid mobile numbers", count: invalidNumberCount, href: "/leads?special=invalid-numbers", icon: ShieldAlert, urgent: false },
+    { key: "stale", label: "Untouched / going quiet", count: attentionLeadCount, href: "/leads?view=attention", icon: ShieldCheck, urgent: true },
+    { key: "visits", label: "Upcoming visits", count: metrics.visitsScheduled, href: "/leads?view=Visits", icon: CalendarCheck, urgent: false },
+  ];
 
   const statValue: Record<(typeof statConfig)[number]["key"], number> = {
     month: metrics.totalLeadsThisMonth,
@@ -131,25 +156,39 @@ export function Dashboard() {
         <Card className="p-0 overflow-hidden flex flex-col">
           <div className="p-5 pb-3">
             <h2 className="font-semibold text-ink">Needs attention</h2>
-            <p className="text-xs text-ink-faint mt-1">Leakage rules flagging right now.</p>
+            <p className="text-xs text-ink-faint mt-1">Who needs you today — click any line to see them.</p>
           </div>
-          <div className="px-5 pb-5 flex-1 flex flex-col justify-center">
-            {attentionFlags.length === 0 ? (
-              <div className="rounded-xl border border-good/20 bg-good-soft px-4 py-5 text-center">
+          {attentionItems.every((i) => i.count === 0) ? (
+            <div className="px-5 pb-5 flex-1 flex items-center">
+              <div className="w-full rounded-xl border border-good/20 bg-good-soft px-4 py-5 text-center">
                 <ShieldCheck className="w-5 h-5 text-good mx-auto mb-2" />
                 <div className="font-semibold text-good text-sm">All clear</div>
-                <p className="text-xs text-good/80 mt-1">No leakage flags active.</p>
+                <p className="text-xs text-good/80 mt-1">Nothing needs attention right now.</p>
               </div>
-            ) : (
-              <Link to="/leads?view=attention" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-4 flex items-center justify-between hover:border-bad/40 transition-colors">
-                <div>
-                  <div className="text-[28px] font-display font-semibold text-bad leading-none">{attentionLeads.length}</div>
-                  <div className="text-xs text-bad/80 mt-1.5">leads flagged · {attentionFlags.length} rule hits</div>
-                </div>
-                <ArrowUpRight className="w-5 h-5 text-bad" />
-              </Link>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-border-soft">
+              {attentionItems.map((item) => {
+                const active = item.count > 0;
+                return (
+                  <Link
+                    key={item.key}
+                    to={item.href}
+                    className={`group flex items-center justify-between gap-3 px-5 py-3 transition-colors ${active ? "hover:bg-surface-2" : "opacity-60 hover:opacity-100 hover:bg-surface-2"}`}
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <item.icon className={`w-4 h-4 shrink-0 ${active && item.urgent ? "text-bad" : active ? "text-warn" : "text-ink-faint"}`} />
+                      <span className="text-sm text-ink truncate">{item.label}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-sm font-bold ${active && item.urgent ? "text-bad" : active ? "text-ink" : "text-ink-faint"}`}>{item.count}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-ink-faint group-hover:text-accent transition-colors" />
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
 

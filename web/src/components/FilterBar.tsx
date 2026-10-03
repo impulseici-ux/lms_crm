@@ -126,6 +126,7 @@ export function FilterBar({ filters, onApply }: { filters: Filters; onApply: (f:
           <label className="block text-[11px] uppercase text-ink-faint font-semibold mb-1">Staff</label>
           <Select value={draft.staffId} onChange={(e) => set({ staffId: e.target.value })} className="py-1.5 text-[13px]">
             <option value="">All staff</option>
+            <option value="__unassigned__">Unassigned</option>
             {users.map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
           </Select>
         </div>
@@ -256,7 +257,8 @@ export function applyFilters<T extends {
       to.setHours(23, 59, 59, 999);
       if (!r.nextFollowUpAt || r.nextFollowUpAt.toDate() > to) return false;
     }
-    if (f.staffId && r.assignedStaffId !== f.staffId) return false;
+    if (f.staffId === "__unassigned__" && r.assignedStaffId != null) return false;
+    if (f.staffId && f.staffId !== "__unassigned__" && r.assignedStaffId !== f.staffId) return false;
     if (f.sourceChannel && r.sourceChannel !== f.sourceChannel) return false;
     if (f.campaignId && r.campaignId !== f.campaignId) return false;
     if (f.programId && r.interestedProgramId !== f.programId) return false;
@@ -266,7 +268,7 @@ export function applyFilters<T extends {
   });
 
   const dir = f.sortDirection === "asc" ? 1 : -1;
-  const priorityRank: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+  const priorityRank: Record<string, number> = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
   return [...filtered].sort((a, b) => {
     switch (f.sortBy) {
       case "parentName":

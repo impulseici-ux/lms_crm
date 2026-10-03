@@ -89,7 +89,7 @@ export const REOPENABLE_CLOSED_STATUSES: ClosedStatus[] = [
   "Future Requirement",
 ];
 
-export type Priority = "High" | "Medium" | "Low";
+export type Priority = "Urgent" | "High" | "Medium" | "Low";
 
 /** Section 4 — recommended channel list. Seeded into `leadSources`, editable by admin. */
 export const DEFAULT_SOURCE_CHANNELS = [
@@ -195,6 +195,17 @@ export interface LeadDoc {
   householdId: string | null; // links sibling enquiries
 
   notes: string | null; // pinned internal note, staff-only
+
+  // "Lead blink" — flashes the row until someone opens it. Optional because
+  // leads created before this field existed simply don't have it; treat a
+  // missing value the same as `true` (viewed) so old leads never blink.
+  viewed?: boolean;
+  viewedAt?: Timestamp | null;
+  viewedBy?: string | null; // staff uid, resolved for display via staffName()
+
+  // WhatsApp Automation (Section 23). Optional/missing == "Unknown" — never
+  // treated as "Allowed", so automation never assumes consent it doesn't have.
+  whatsappOptStatus?: "Allowed" | "Opted Out" | "Unknown";
 
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;

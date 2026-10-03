@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Timestamp } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -15,13 +15,17 @@ import {
   confirmAdmission,
   reassignLead,
   updateLeadFields,
+  markLeadViewed,
 } from "@/lib/data/leads";
 import { subscribeActivities } from "@/lib/data/activities";
+import { subscribeWhatsAppMessagesForLead } from "@/lib/data/whatsapp";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
 import { DateTimePicker } from "@/components/DateTimePicker";
-import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
+import { StatusPill, PriorityPill, FollowUpPill, WhatsAppStatusPill } from "@/components/Pills";
+import { SendWhatsAppModal } from "@/components/SendWhatsAppModal";
 import { buildWhatsAppLink } from "@/utils/whatsapp";
 import { isValidLeadPhone } from "@/utils/phone";
+import { AUTOMATION_TRIGGER_LABELS, type WhatsAppMessageDoc } from "@/types/whatsapp";
 import {
   OPEN_STATUSES,
   CLOSED_STATUSES,
@@ -56,8 +60,10 @@ import {
   Landmark,
   IndianRupee,
   Layers,
+  ShieldCheck,
+  History,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 const FOLLOW_UP_TYPES: FollowUpType[] = ["Call", "WhatsApp", "Visit Reminder", "Email", "In-Person", "Other"];
 const OUTCOMES: FollowUpOutcome[] = ["Reached", "Interested", "No Answer", "Rescheduled", "Not Interested", "Converted to Visit"];
@@ -102,6 +108,7 @@ function initials(name: string): string {
 export function LeadProfile() {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, role } = useAuth();
   const { showToast } = useToast();
   const { programName, branchName, campaignName, staffName, users } = useLookups();
@@ -129,6 +136,16 @@ export function LeadProfile() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id]);
+
+  // Clears the "lead blink" the moment someone opens it — except for the
+  // creator's own redirect straight here after submitting the New Lead form
+  // (see NewLead.tsx), which isn't a real "someone looked at this" event and
+  // would otherwise clear the blink before anyone else ever saw it.
+  const justCreated = Boolean((location.state as { justCreated?: boolean } | null)?.justCreated);
+  useEffect(() => {
+    if (lead && user && !justCreated) markLeadViewed(lead, user.uid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead?.id, user?.uid, justCreated]);
 
   const [outcome, setOutcome] = useState<FollowUpOutcome>("Reached");
   const [outcomeNotes, setOutcomeNotes] = useState("");
@@ -171,6 +188,9 @@ export function LeadProfile() {
 
   const followUpValue = followUpAt ? Timestamp.fromDate(new Date(followUpAt)) : undefined;
 
+  const FOLLOW_UP_ACTIVITY_TYPES: ActivityType[] = ["follow_up_planned", "follow_up_outcome", "call_logged", "whatsapp_logged"];
+  const recentFollowUps = activities.filter((a) => FOLLOW_UP_ACTIVITY_TYPES.includes(a.type)).slice(0, 3);
+
   return (
     <div className="max-w-5xl mx-auto pb-8">
       <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-accent mb-4 transition-colors">
@@ -179,34 +199,38 @@ export function LeadProfile() {
 
       {/* Header */}
       <Card className="mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex items-start gap-4 min-w-0">
-            <div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent-strong flex items-center justify-center text-lg font-bold shrink-0">
-              {initials(lead.childName)}
-            </div>
-            <div className="min-w-0">
-              <h1 className="font-display text-2xl font-semibold truncate">{lead.childName}</h1>
-              <div className="text-ink-soft text-sm mt-0.5">Parent / guardian: {lead.parentName}</div>
-              <div className="flex flex-wrap gap-2 mt-2.5">
-                <StatusPill status={lead.status} />
-                <PriorityPill priority={lead.priority} />
-                <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
-              </div>
-            </div>
+        <div className="flex items-start gap-4 min-w-0">
+          <div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent-strong flex items-center justify-center text-lg font-bold shrink-0">
+            {initials(lead.childName)}
           </div>
-          <div className="grid grid-cols-2 sm:flex gap-2 w-full sm:w-auto shrink-0">
-            <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
-              <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
-            </a>
-            {waLink ? (
-              <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
-                <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
-              </a>
-            ) : (
-              <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — WhatsApp disabled.">
-                <MessageCircle className="w-4 h-4" /> WhatsApp
-              </Button>
-            )}
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-semibold truncate">{lead.childName}</h1>
+            <div className="text-ink-soft text-sm mt-0.5">Parent / guardian: {lead.parentName}</div>
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              <StatusPill status={lead.status} />
+              {canEdit ? (
+                <select
+                  value={lead.priority}
+                  onChange={(e) => doAction(() => updateLeadFields(lead.id, { priority: e.target.value as LeadDoc["priority"] }))}
+                  aria-label="Priority"
+                  className={`rounded-full pl-2.5 pr-7 py-1 text-[12px] font-semibold border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/25 appearance-none bg-no-repeat bg-[right_0.6rem_center] bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%238D97A8%22><path d=%22M5.5 7.5l4.5 4.5 4.5-4.5%22 stroke=%22%238D97A8%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>')] ${
+                    lead.priority === "Urgent" || lead.priority === "High"
+                      ? "bg-bad-soft text-bad"
+                      : lead.priority === "Medium"
+                      ? "bg-warn-soft text-warn"
+                      : "bg-surface-2 text-ink-soft"
+                  }`}
+                >
+                  <option value="Urgent">Urgent</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              ) : (
+                <PriorityPill priority={lead.priority} />
+              )}
+              <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-ink-faint mt-4 pt-3 border-t border-border-soft">
@@ -216,69 +240,76 @@ export function LeadProfile() {
 
       {error && <div role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-3 text-sm text-bad mb-4">{error}</div>}
 
-      {/* Next action — impossible to miss */}
-      <Card id="next-action" className="mb-4 border-accent/25 bg-accent-soft/40" padded={false}>
-        <div className="p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <IconTile tone="accent" size="sm"><CalendarClock /></IconTile>
-            <div>
-              <h2 className="font-semibold text-ink">Next action</h2>
-              <p className="text-xs text-ink-soft">{canEdit ? "What happens next, and when." : "Read-only — you don't own this lead."}</p>
-            </div>
-          </div>
-          {canEdit ? (
-            <>
-              <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end mb-1">
-                <Field label="Next follow-up">
-                  <DateTimePicker value={followUpAt} onChange={setFollowUpAt} />
-                </Field>
-                <Field label="Type">
-                  <Select value={followUpType} onChange={(e) => setFollowUpType(e.target.value as FollowUpType)}>
-                    {FOLLOW_UP_TYPES.map((t) => <option key={t}>{t}</option>)}
-                  </Select>
-                </Field>
-                <Button
-                  onClick={() => user && followUpValue && doAction(() => scheduleFollowUp(lead, followUpValue, followUpType, null, user.uid))}
-                  className="mb-4 sm:mb-0"
-                >
-                  Save
-                </Button>
-              </div>
-
-              <div className="border-t border-border-soft/70 mt-4 pt-4">
-                <div className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Check className="w-4 h-4 text-ink-faint" /> Log follow-up outcome</div>
-                <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end">
-                  <Field label="Outcome">
-                    <Select value={outcome} onChange={(e) => setOutcome(e.target.value as FollowUpOutcome)}>
-                      {OUTCOMES.map((o) => <option key={o}>{o}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label="Notes">
-                    <Input placeholder="Optional" value={outcomeNotes} onChange={(e) => setOutcomeNotes(e.target.value)} />
-                  </Field>
-                  <Button
-                    variant="secondary"
-                    className="mb-4 sm:mb-0"
-                    onClick={() =>
-                      user &&
-                      doAction(async () => {
-                        await logFollowUpOutcome(lead, outcome, outcomeNotes || null, user.uid);
-                        setOutcomeNotes("");
-                      })
-                    }
-                  >
-                    Log outcome
-                  </Button>
-                </div>
-              </div>
-            </>
+      {/* Quick actions */}
+      <GroupLabel>Quick actions</GroupLabel>
+      <Card className="mb-4">
+        <div className="grid grid-cols-2 sm:flex gap-2">
+          {isValidLeadPhone(lead.parentPhone) ? (
+            <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
+              <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
+            </a>
           ) : (
-            <p className="text-sm text-ink-soft">Only the assigned staff member or an admin can edit this lead.</p>
+            <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — calling disabled.">
+              <Phone className="w-4 h-4" /> Call
+            </Button>
+          )}
+          {waLink ? (
+            <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
+              <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
+            </a>
+          ) : (
+            <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — WhatsApp disabled.">
+              <MessageCircle className="w-4 h-4" /> WhatsApp
+            </Button>
+          )}
+          {canEdit && (
+            <a href="#follow-up" className="w-full sm:w-auto">
+              <Button variant="secondary" className="w-full"><CalendarClock className="w-4 h-4" /> Follow-up</Button>
+            </a>
           )}
         </div>
       </Card>
 
-      {/* Key facts */}
+      {isAdminRole(role) && (
+        <Card className="mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <IconTile tone="neutral" size="sm"><RefreshCcw /></IconTile>
+            <h2 className="font-semibold text-ink">Reassign lead</h2>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field label="Reassign to">
+              <Select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
+                <option value="">Select staff…</option>
+                {users.filter((u) => u.id !== lead.assignedStaffId).map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
+              </Select>
+            </Field>
+            <Field label="Reason (optional)">
+              <Input value={reassignReason} onChange={(e) => setReassignReason(e.target.value)} />
+            </Field>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              user &&
+              reassignTo &&
+              doAction(async () => {
+                await reassignLead(lead, reassignTo, reassignReason || null, user.uid);
+                setReassignTo("");
+                setReassignReason("");
+              })
+            }
+          >
+            Reassign
+          </Button>
+        </Card>
+      )}
+
+      {/* WhatsApp */}
+      <GroupLabel>WhatsApp</GroupLabel>
+      <WhatsAppLeadPanel lead={lead} canEdit={canEdit} staffId={user?.uid ?? null} />
+
+      {/* Child & admission details */}
+      <GroupLabel>Child &amp; admission details</GroupLabel>
       <Card className="mb-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold">Key facts</h2>
@@ -297,7 +328,17 @@ export function LeadProfile() {
           )}
         </div>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm">
-          <FactRow icon={Phone} label="Phone" value={isValidLeadPhone(lead.parentPhone) ? lead.parentPhone : `${lead.parentPhone} (unverified)`} />
+          <FactRow
+            icon={Phone}
+            label="Phone"
+            value={
+              isValidLeadPhone(lead.parentPhone) ? (
+                lead.parentPhone
+              ) : (
+                <span className="text-bad" title={lead.parentPhone || undefined}>Invalid Number</span>
+              )
+            }
+          />
           <FactRow icon={Mail} label="Email" value={lead.parentEmail ?? "—"} />
           <FactRow icon={Cake} label="Child age" value={lead.childAge ?? "—"} />
           <FactRow icon={BookOpen} label="Program" value={programName(lead.interestedProgramId)} />
@@ -452,62 +493,111 @@ export function LeadProfile() {
         </Card>
       )}
 
-      {/* Reassignment */}
-      {isAdminRole(role) && (
-        <Card className="mb-4">
+      {/* Follow-up */}
+      <GroupLabel>Follow-up</GroupLabel>
+      <Card id="follow-up" className="mb-4 border-accent/25 bg-accent-soft/40" padded={false}>
+        <div className="p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
-            <IconTile tone="neutral" size="sm"><RefreshCcw /></IconTile>
-            <h2 className="font-semibold text-ink">Reassign lead</h2>
+            <IconTile tone="accent" size="sm"><CalendarClock /></IconTile>
+            <div>
+              <h2 className="font-semibold text-ink">Follow-up</h2>
+              <p className="text-xs text-ink-soft">{canEdit ? "What happens next, and when." : "Read-only — you don't own this lead."}</p>
+            </div>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Reassign to">
-              <Select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
-                <option value="">Select staff…</option>
-                {users.filter((u) => u.id !== lead.assignedStaffId).map((u) => <option key={u.id} value={u.id}>{u.displayName}</option>)}
-              </Select>
-            </Field>
-            <Field label="Reason (optional)">
-              <Input value={reassignReason} onChange={(e) => setReassignReason(e.target.value)} />
-            </Field>
-          </div>
-          <Button
-            variant="secondary"
-            onClick={() =>
-              user &&
-              reassignTo &&
-              doAction(async () => {
-                await reassignLead(lead, reassignTo, reassignReason || null, user.uid);
-                setReassignTo("");
-                setReassignReason("");
-              })
-            }
-          >
-            Reassign
-          </Button>
-        </Card>
-      )}
+          {canEdit ? (
+            <>
+              <div className="grid sm:grid-cols-[1fr_auto_auto] gap-3 items-end mb-1">
+                <Field label="Next follow-up">
+                  <DateTimePicker value={followUpAt} onChange={setFollowUpAt} />
+                </Field>
+                <Field label="Type">
+                  <Select value={followUpType} onChange={(e) => setFollowUpType(e.target.value as FollowUpType)}>
+                    {FOLLOW_UP_TYPES.map((t) => <option key={t}>{t}</option>)}
+                  </Select>
+                </Field>
+                <Button
+                  onClick={() => user && followUpValue && doAction(() => scheduleFollowUp(lead, followUpValue, followUpType, null, user.uid))}
+                  className="mb-4 sm:mb-0"
+                >
+                  Save
+                </Button>
+              </div>
 
-      {/* Notes */}
+              <div className="border-t border-border-soft/70 mt-4 pt-4">
+                <div className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Check className="w-4 h-4 text-ink-faint" /> Log follow-up outcome</div>
+                <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end">
+                  <Field label="Outcome">
+                    <Select value={outcome} onChange={(e) => setOutcome(e.target.value as FollowUpOutcome)}>
+                      {OUTCOMES.map((o) => <option key={o}>{o}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Notes">
+                    <Input placeholder="Optional" value={outcomeNotes} onChange={(e) => setOutcomeNotes(e.target.value)} />
+                  </Field>
+                  <Button
+                    variant="secondary"
+                    className="mb-4 sm:mb-0"
+                    onClick={() =>
+                      user &&
+                      doAction(async () => {
+                        await logFollowUpOutcome(lead, outcome, outcomeNotes || null, user.uid);
+                        setOutcomeNotes("");
+                      })
+                    }
+                  >
+                    Log outcome
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-ink-soft">Only the assigned staff member or an admin can edit this lead.</p>
+          )}
+
+          {recentFollowUps.length > 0 && (
+            <div className="border-t border-border-soft/70 mt-4 pt-4">
+              <div className="text-sm font-semibold text-ink mb-2.5">Recent follow-ups</div>
+              <div className="space-y-2">
+                {recentFollowUps.map((a) => (
+                  <div key={a.id} className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-ink-soft truncate">{followUpSummary(a)}</span>
+                    <span className="text-xs text-ink-faint shrink-0">{a.at?.toDate().toLocaleDateString() ?? ""}</span>
+                  </div>
+                ))}
+              </div>
+              <a href="#activity-history" className="inline-block text-xs font-semibold text-accent hover:text-accent-strong mt-3">
+                View full activity history ↓
+              </a>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Remarks */}
       {canEdit && (
-        <Card className="mb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <IconTile tone="neutral" size="sm"><StickyNote /></IconTile>
-            <h2 className="font-semibold text-ink">Internal note</h2>
-          </div>
-          <Textarea rows={2} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Staff-only — never shown to the parent." />
-          <Button
-            className="mt-3"
-            variant="secondary"
-            onClick={() => user && noteText && doAction(async () => { await addNote(lead, noteText, user.uid); setNoteText(""); })}
-          >
-            Add note
-          </Button>
-        </Card>
+        <>
+          <GroupLabel>Remarks</GroupLabel>
+          <Card className="mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <IconTile tone="neutral" size="sm"><StickyNote /></IconTile>
+              <h2 className="font-semibold text-ink">Remarks</h2>
+            </div>
+            <Textarea rows={2} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Staff-only — never shown to the parent." />
+            <Button
+              className="mt-3"
+              variant="secondary"
+              onClick={() => user && noteText && doAction(async () => { await addNote(lead, noteText, user.uid); setNoteText(""); })}
+            >
+              Add note
+            </Button>
+          </Card>
+        </>
       )}
 
-      {/* Timeline */}
-      <Card>
-        <h2 className="font-semibold mb-4">Activity timeline</h2>
+      {/* Activity history */}
+      <GroupLabel>Activity history</GroupLabel>
+      <Card id="activity-history">
+        <h2 className="font-semibold mb-4">Activity history</h2>
         <div className="relative">
           {activities.map((a, i) => (
             <TimelineEntry key={a.id} activity={a} staffName={staffName} isLast={i === activities.length - 1} />
@@ -519,7 +609,119 @@ export function LeadProfile() {
   );
 }
 
-function FactRow({ icon: Icon, label, value }: { icon: ComponentType<{ className?: string }>; label: string; value: string }) {
+function GroupLabel({ children }: { children: ReactNode }) {
+  return <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-faint mb-2 mt-7 first:mt-0">{children}</div>;
+}
+
+function WhatsAppLeadPanel({ lead, canEdit, staffId }: { lead: LeadDoc; canEdit: boolean; staffId: string | null }) {
+  const [messages, setMessages] = useState<WhatsAppMessageDoc[]>([]);
+  const [showSend, setShowSend] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    return subscribeWhatsAppMessagesForLead(lead.id, setMessages);
+  }, [lead.id]);
+
+  const lastMessage = messages[0] ?? null;
+  const valid = isValidLeadPhone(lead.parentPhone);
+  const optStatus = lead.whatsappOptStatus ?? "Unknown";
+
+  return (
+    <Card className="mb-4">
+      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm mb-4">
+        <FactRow
+          icon={Phone}
+          label="Mobile number"
+          value={valid ? lead.parentPhone : <span className="text-bad">Invalid Number</span>}
+        />
+        <div className="flex items-start gap-2.5">
+          <ShieldCheck className="w-4 h-4 text-ink-faint mt-0.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint">WhatsApp eligibility</div>
+            {canEdit ? (
+              <Select
+                value={optStatus}
+                onChange={(e) => updateLeadFields(lead.id, { whatsappOptStatus: e.target.value as LeadDoc["whatsappOptStatus"] })}
+                className="mt-1 text-sm py-1.5"
+              >
+                <option value="Unknown">Unknown</option>
+                <option value="Allowed">Allowed</option>
+                <option value="Opted Out">Opted Out</option>
+              </Select>
+            ) : (
+              <div className="font-medium text-ink">{optStatus}</div>
+            )}
+          </div>
+        </div>
+        <FactRow icon={MessageCircle} label="Last message" value={lastMessage ? `${lastMessage.templateName ?? "Manual"}` : "—"} />
+        <div className="flex items-start gap-2.5">
+          <CircleCheck className="w-4 h-4 text-ink-faint mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-ink-faint">Last message status</div>
+            <div className="mt-0.5">{lastMessage ? <WhatsAppStatusPill status={lastMessage.status} /> : <span className="text-ink-faint">—</span>}</div>
+          </div>
+        </div>
+      </div>
+
+      {optStatus === "Opted Out" && (
+        <p className="text-xs text-bad mb-3">WhatsApp messaging is disabled for this lead — automated messages won't be sent; manual sending is still possible with discretion.</p>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {canEdit && (
+          <Button variant="secondary" size="sm" onClick={() => setShowSend(true)}>
+            <MessageCircle className="w-3.5 h-3.5" /> Send WhatsApp
+          </Button>
+        )}
+        <Button variant="subtle" size="sm" onClick={() => setShowHistory((v) => !v)}>
+          <History className="w-3.5 h-3.5" /> Message History {messages.length > 0 ? `(${messages.length})` : ""}
+        </Button>
+      </div>
+
+      {showHistory && (
+        <div className="mt-4 pt-4 border-t border-border-soft space-y-3">
+          {messages.length === 0 ? (
+            <p className="text-sm text-ink-faint">No WhatsApp messages for this lead yet.</p>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className="text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-ink">{m.templateName ?? "Manual message"}</span>
+                  <WhatsAppStatusPill status={m.status} />
+                </div>
+                <div className="text-xs text-ink-faint mt-0.5">
+                  {m.createdAt?.toDate().toLocaleString() ?? "—"} · {m.trigger === "manual" ? "Manual" : AUTOMATION_TRIGGER_LABELS[m.trigger]} ·{" "}
+                  {m.origin === "automated" ? "Automated" : "Manual"}
+                </div>
+                {m.renderedMessage && <p className="text-xs text-ink-soft mt-1 whitespace-pre-wrap line-clamp-3">{m.renderedMessage}</p>}
+                {m.error && <p className="text-xs text-bad mt-1">{m.error}</p>}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {showSend && staffId && <SendWhatsAppModal lead={lead} staffId={staffId} onClose={() => setShowSend(false)} />}
+    </Card>
+  );
+}
+
+function followUpSummary(activity: ActivityDoc): string {
+  switch (activity.type) {
+    case "follow_up_planned":
+      return `${activity.followUpType ?? "Follow-up"} scheduled for ${activity.dueAt?.toDate().toLocaleString() ?? "—"}`;
+    case "follow_up_outcome":
+      return `${activity.outcome ?? "Outcome logged"}${activity.outcomeNotes ? ` — ${activity.outcomeNotes}` : ""}`;
+    case "call_logged":
+      return activity.text || "Call logged";
+    case "whatsapp_logged":
+      return activity.text || "WhatsApp message sent";
+    default:
+      return ACTIVITY_LABEL[activity.type];
+  }
+}
+
+function FactRow({ icon: Icon, label, value }: { icon: ComponentType<{ className?: string }>; label: string; value: ReactNode }) {
   return (
     <div className="flex items-start gap-2.5">
       <Icon className="w-4 h-4 text-ink-faint mt-0.5 shrink-0" />

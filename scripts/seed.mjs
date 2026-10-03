@@ -121,6 +121,113 @@ async function main() {
     });
   }
 
+  console.log("Seeding WhatsApp Automation defaults…");
+  await db.collection("whatsappSettings").doc("config").set({
+    schoolName: "Little Millennium Singanallur",
+    schoolPhone: "+919944260036",
+    schoolAddress: "Singanallur, Coimbatore, Tamil Nadu",
+    futureProvider: null,
+    futurePhoneNumberId: null,
+    futureBusinessAccountId: null,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  const templateDefs = [
+    {
+      key: "newLeadWelcome",
+      name: "New Lead Welcome",
+      category: "New Lead",
+      content:
+        "Hi {{parent_name}} 👋\n\nThank you for your interest in {{school_name}}.\n\nWe received your enquiry for {{child_name}}.\n\nOur team will contact you shortly.\n\nRegards,\n{{school_name}}",
+    },
+    {
+      key: "visitConfirmation",
+      name: "Visit Confirmation",
+      category: "Visit",
+      content:
+        "Hi {{parent_name}} 👋\n\nYour visit to {{school_name}} has been scheduled.\n\nChild: {{child_name}}\nDate: {{visit_date}}\nTime: {{visit_time}}\n\nWe look forward to welcoming you.\n\nRegards,\n{{school_name}}",
+    },
+    {
+      key: "visitReminder",
+      name: "Visit Reminder",
+      category: "Visit",
+      content:
+        "Hi {{parent_name}} 👋\n\nJust a reminder about your visit to {{school_name}} tomorrow for {{child_name}}.\n\nDate: {{visit_date}}\nTime: {{visit_time}}\n\nSee you soon!\n\nRegards,\n{{school_name}}",
+    },
+    {
+      key: "visitCompleted",
+      name: "Visit Completed",
+      category: "Visit",
+      content:
+        "Hi {{parent_name}} 👋\n\nThank you for visiting {{school_name}} with {{child_name}}. We hope you liked what you saw!\n\nOur team will follow up shortly to answer any questions.\n\nRegards,\n{{school_name}}",
+    },
+    {
+      key: "followUpReminder",
+      name: "Follow-up Reminder",
+      category: "Follow-up",
+      content:
+        "Hi {{parent_name}} 👋\n\nThis is {{staff_name}} from {{school_name}}. Just checking in about {{child_name}}'s admission — happy to answer any questions you may have.\n\nRegards,\n{{school_name}}",
+    },
+    {
+      key: "admissionConfirmed",
+      name: "Admission Confirmed",
+      category: "Admission",
+      content:
+        "Hi {{parent_name}} 👋\n\nCongratulations! {{child_name}}'s admission to {{school_name}} is confirmed.\n\nOur team will share the next steps shortly.\n\nRegards,\n{{school_name}}",
+    },
+  ];
+
+  const templateIds = {};
+  for (const t of templateDefs) {
+    const ref = await db.collection("whatsappTemplates").add({
+      name: t.name,
+      category: t.category,
+      language: "English",
+      content: t.content,
+      active: true,
+      createdByStaffId: adminUid,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    templateIds[t.key] = ref.id;
+  }
+
+  const automationDefs = [
+    { name: "New Lead Welcome", trigger: "new_lead_created", condition: {}, templateKey: "newLeadWelcome", delayMinutes: 0 },
+    {
+      name: "Visit Confirmation",
+      trigger: "visit_scheduled",
+      condition: {},
+      templateKey: "visitConfirmation",
+      delayMinutes: 0,
+    },
+    {
+      name: "Visit Reminder (1 day before)",
+      trigger: "visit_scheduled",
+      condition: { reminderDaysBeforeVisit: 1 },
+      templateKey: "visitReminder",
+      delayMinutes: 0,
+    },
+    { name: "Visit Completed Thank You", trigger: "visit_completed", condition: {}, templateKey: "visitCompleted", delayMinutes: 0 },
+    { name: "Follow-up Due Reminder", trigger: "follow_up_due", condition: {}, templateKey: "followUpReminder", delayMinutes: 0 },
+    { name: "Follow-up Overdue Reminder", trigger: "follow_up_overdue", condition: {}, templateKey: "followUpReminder", delayMinutes: 0 },
+    { name: "Admission Confirmed", trigger: "admission_confirmed", condition: {}, templateKey: "admissionConfirmed", delayMinutes: 0 },
+  ];
+
+  for (const a of automationDefs) {
+    await db.collection("whatsappAutomations").add({
+      name: a.name,
+      trigger: a.trigger,
+      condition: a.condition,
+      templateId: templateIds[a.templateKey],
+      delayMinutes: a.delayMinutes,
+      active: true,
+      createdByStaffId: adminUid,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
   console.log("Seed complete.");
   console.log("Log in as admin@littlemillennium.local / counsellor@littlemillennium.local / management@littlemillennium.local, password: password123");
   console.log(`Admin UID: ${adminUid}`);
