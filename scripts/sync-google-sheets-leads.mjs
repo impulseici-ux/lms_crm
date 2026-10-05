@@ -22,7 +22,15 @@
 //                                       service account with Sheets API read
 //                                       access, shared as Viewer on the sheet.
 //   GOOGLE_SHEETS_SPREADSHEET_ID        Target spreadsheet ID.
-//   GOOGLE_SHEETS_SHEET_NAME            Tab name, e.g. "Sheet1".
+//   GOOGLE_SHEETS_SHEET_NAME            One tab name, e.g. "Sheet1" — or
+//                                       several, comma-separated, e.g.
+//                                       "Meta_ads_Leads,Vijayadasami Admission - OTP",
+//                                       when one spreadsheet has multiple lead
+//                                       tabs (one per ad campaign/drive). Every
+//                                       tab is synced into the same `leads`
+//                                       collection; each gets its own sync-run
+//                                       record (tagged with its sheet name) so
+//                                       a per-tab failure never blocks the rest.
 //   FIREBASE_SERVICE_ACCOUNT_KEY        JSON key (as a string) for the
 //                                       Firebase Admin SDK. Falls back to
 //                                       GOOGLE_APPLICATION_CREDENTIALS (a file
@@ -302,34 +310,29 @@ export async function processDataRows(db, { headerFields, dataRows, columnOverri
   return { imported, duplicates, failed, failedRows, rowsFound: dataRows.length };
 }
 
-async function main() {
-  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID ?? requireEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
-  const sheetName = process.env.GOOGLE_SHEETS_SHEET_NAME ?? requireEnv("GOOGLE_SHEETS_SHEET_NAME");
-  const triggeredBy = process.env.SYNC_TRIGGERED_BY === "manual" ? "manual" : "schedule";
+/** Splits the GOOGLE_SHEETS_SHEET_NAME env value into one or more tab names. */
+export function parseSheetNames(raw) {
+  return String(raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-  initFirebaseAdmin();
-  const db = getFirestore();
-
+/** Syncs one tab end to end (fetch → process → write its own run record). Never
+ * throws — a failure on one tab is recorded and reported, but must not stop the
+ * other tabs in the same spreadsheet from syncing. */
+async function syncOneSheet(db, { spreadsheetId, sheetName, accessToken, columnOverrides, triggeredBy, runsCol }) {
   const startedAt = new Date();
-  console.log("Sync Started");
-
-  const configRef = db.doc("integrations/googleSheetsSync");
-  const runsCol = configRef.collection("runs");
-
   try {
-    const configSnap = await configRef.get();
-    const columnOverrides = configSnap.exists ? configSnap.data().columnMapping ?? null : null;
-
-    const accessToken = await getSheetsAccessToken();
     const rows = await fetchSheetRows(spreadsheetId, sheetName, accessToken);
     if (rows.length < 2) {
-      console.log("0 new rows found (sheet has no data rows).");
+      console.log(`[${sheetName}] 0 new rows found (sheet has no data rows).`);
     }
 
     const headerRow = rows[0] ?? [];
     const headerFields = headerRow.map((h) => resolveHeader(h, columnOverrides));
     const dataRows = rows.slice(1);
-    console.log(`${dataRows.length} rows found`);
+    console.log(`[${sheetName}] ${dataRows.length} rows found`);
 
     const { imported, duplicates, failed, failedRows, rowsFound } = await processDataRows(db, {
       headerFields,
@@ -337,16 +340,14 @@ async function main() {
       columnOverrides,
     });
 
-    console.log(`${imported} leads imported`);
-    console.log(`${duplicates} duplicates skipped`);
-    console.log(`${failed} failed`);
+    console.log(`[${sheetName}] ${imported} leads imported, ${duplicates} duplicates skipped, ${failed} failed`);
 
-    const finishedAt = new Date();
     await runsCol.add({
+      sheetName,
       status: "success",
       triggeredBy,
       startedAt,
-      finishedAt,
+      finishedAt: new Date(),
       rowsFound,
       importedCount: imported,
       duplicateCount: duplicates,
@@ -354,28 +355,85 @@ async function main() {
       failedRows: failedRows.slice(0, 50),
       error: null,
     });
+
+    return { sheetName, imported, duplicates, failed, errored: false };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[${sheetName}] Sync failed before completing:`, message);
+    await runsCol
+      .add({
+        sheetName,
+        status: "failed",
+        triggeredBy,
+        startedAt,
+        finishedAt: new Date(),
+        rowsFound: 0,
+        importedCount: 0,
+        duplicateCount: 0,
+        failedCount: 0,
+        failedRows: [],
+        error: message,
+      })
+      .catch(() => {});
+    return { sheetName, imported: 0, duplicates: 0, failed: 0, errored: true };
+  }
+}
+
+async function main() {
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID ?? requireEnv("GOOGLE_SHEETS_SPREADSHEET_ID");
+  const sheetNames = parseSheetNames(process.env.GOOGLE_SHEETS_SHEET_NAME ?? requireEnv("GOOGLE_SHEETS_SHEET_NAME"));
+  if (sheetNames.length === 0) throw new Error("GOOGLE_SHEETS_SHEET_NAME resolved to no tab names.");
+  const triggeredBy = process.env.SYNC_TRIGGERED_BY === "manual" ? "manual" : "schedule";
+
+  initFirebaseAdmin();
+  const db = getFirestore();
+
+  console.log(`Sync Started (${sheetNames.length} tab${sheetNames.length > 1 ? "s" : ""}: ${sheetNames.join(", ")})`);
+
+  const configRef = db.doc("integrations/googleSheetsSync");
+  const runsCol = configRef.collection("runs");
+
+  try {
+    const configSnap = await configRef.get();
+    const columnOverrides = configSnap.exists ? configSnap.data().columnMapping ?? null : null;
+    const accessToken = await getSheetsAccessToken();
+
+    const results = [];
+    for (const sheetName of sheetNames) {
+      results.push(await syncOneSheet(db, { spreadsheetId, sheetName, accessToken, columnOverrides, triggeredBy, runsCol }));
+    }
+
+    const totals = results.reduce(
+      (acc, r) => ({ imported: acc.imported + r.imported, duplicates: acc.duplicates + r.duplicates, failed: acc.failed + r.failed }),
+      { imported: 0, duplicates: 0, failed: 0 }
+    );
+    const anyErrored = results.some((r) => r.errored);
+
     await configRef.set(
       {
         spreadsheetId,
-        sheetName,
+        sheetName: sheetNames.join(", "),
+        sheetNames,
         lastSyncAt: FieldValue.serverTimestamp(),
-        lastSyncStatus: "success",
-        totalImported: FieldValue.increment(imported),
-        totalDuplicates: FieldValue.increment(duplicates),
-        totalFailed: FieldValue.increment(failed),
+        lastSyncStatus: anyErrored ? "failed" : "success",
+        totalImported: FieldValue.increment(totals.imported),
+        totalDuplicates: FieldValue.increment(totals.duplicates),
+        totalFailed: FieldValue.increment(totals.failed),
       },
       { merge: true }
     );
 
     console.log("Sync Completed");
+    if (anyErrored) process.exitCode = 1;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("Sync failed before completing:", message);
     await runsCol
       .add({
+        sheetName: sheetNames.join(", "),
         status: "failed",
         triggeredBy,
-        startedAt,
+        startedAt: new Date(),
         finishedAt: new Date(),
         rowsFound: 0,
         importedCount: 0,

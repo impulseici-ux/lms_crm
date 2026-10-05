@@ -299,9 +299,13 @@ export interface SyncLedgerDoc {
   lastAttemptAt: Timestamp | null;
 }
 
-/** One doc per sync execution, written to `integrations/googleSheetsSync/runs/{runId}`. */
+/** One doc per sync execution, written to `integrations/googleSheetsSync/runs/{runId}`.
+ * One spreadsheet can have several lead tabs (sheetNames on the config doc) — each
+ * tab gets its own run doc per sync pass, tagged by `sheetName`, so a failure on one
+ * tab is traceable without hiding the others. */
 export interface SyncRunDoc {
   id: string;
+  sheetName?: string | null;
   status: "success" | "failed";
   triggeredBy: "schedule" | "manual" | "initial";
   startedAt: Timestamp | null;
@@ -317,7 +321,8 @@ export interface SyncRunDoc {
 /** Singleton config/status doc at `integrations/googleSheetsSync`. */
 export interface SyncConfigDoc {
   spreadsheetId: string | null;
-  sheetName: string | null;
+  sheetName: string | null; // comma-joined, kept for back-compat display
+  sheetNames?: string[]; // every tab currently being synced
   columnMapping: Record<string, string> | null; // optional override of the script's default header aliases
   lastSyncAt: Timestamp | null;
   lastSyncStatus: "success" | "failed" | null;
