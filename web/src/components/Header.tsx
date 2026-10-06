@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Bell, ChevronDown, LogOut, AlertTriangle, Clock, X } from "lucide-react";
+import { Search, Bell, ChevronDown, LogOut, AlertTriangle, Clock, X, Repeat } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLeads } from "@/hooks/useLeads";
+import { useToast } from "@/context/ToastContext";
 import { computeHeadlineMetrics } from "@/utils/metrics";
 import { isFollowUpOverdue, isFollowUpDueToday } from "@/utils/followUp";
+import { switchRole } from "@/lib/data/onboarding";
+import type { Role } from "@/types";
+
+const SWITCHABLE_ROLES: { value: Role; label: string }[] = [
+  { value: "superadmin", label: "Superadmin" },
+  { value: "admin", label: "Admin" },
+  { value: "management", label: "Management" },
+  { value: "counsellor", label: "Counsellor" },
+];
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -16,8 +26,9 @@ const TODAY_FORMATTER = new Intl.DateTimeFormat("en-GB", { weekday: "short", day
 /** Desktop-only top bar — search, urgent-items bell, date, account menu. The
  * mobile header (hamburger + logo) in Layout.tsx is separate and unaffected. */
 export function Header() {
-  const { role, profile, signOut, user } = useAuth();
+  const { role, profile, signOut, user, refreshRole } = useAuth();
   const { leads } = useLeads();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const displayName = profile?.displayName ?? user?.email ?? "";
 
@@ -25,9 +36,24 @@ export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
+
+  const handleSwitchRole = async (target: Role) => {
+    if (target === role || switching) return;
+    setSwitching(true);
+    try {
+      await switchRole(target);
+      await refreshRole();
+      showToast(`Now testing as ${target}.`, "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not switch role.", "error");
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -179,11 +205,36 @@ export function Header() {
             <ChevronDown className="w-3.5 h-3.5 text-ink-faint" />
           </button>
           {accountOpen && (
-            <div className="absolute right-0 mt-1.5 w-48 bg-surface border border-border rounded-xl shadow-[var(--shadow-card)] overflow-hidden z-50">
+            <div className="absolute right-0 mt-1.5 w-60 bg-surface border border-border rounded-xl shadow-[var(--shadow-card)] overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-border-soft">
                 <div className="text-sm font-semibold text-ink truncate">{displayName}</div>
                 <div className="text-[11px] text-ink-faint uppercase tracking-wide">{role ?? "no role assigned"}</div>
               </div>
+              {profile?.canSwitchRoles && (
+                <div className="px-4 py-3 border-b border-border-soft">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-faint uppercase tracking-wide mb-2">
+                    <Repeat className="w-3 h-3" /> Test as role
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {SWITCHABLE_ROLES.map((r) => (
+                      <button
+                        key={r.value}
+                        type="button"
+                        disabled={switching}
+                        onClick={() => handleSwitchRole(r.value)}
+                        className={`text-[12px] font-semibold rounded-lg px-2 py-1.5 transition-colors disabled:opacity-50 ${
+                          role === r.value ? "bg-accent text-white" : "bg-surface-2 text-ink-soft hover:bg-surface-hover hover:text-ink"
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                  {profile.trueRole && role !== profile.trueRole && (
+                    <p className="text-[11px] text-warn mt-2">Testing as {role} — not your real role.</p>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => signOut()}

@@ -32,6 +32,15 @@ export interface UserDoc {
   passwordSetupCompleted?: boolean;
   invitedByStaffId?: string | null;
   activatedAt?: Timestamp | null;
+  /** Grants access to the role-switch UI (Header account menu) — testing only, so a
+   * superadmin can flip between roles to verify real permission behavior without
+   * juggling separate test logins. Settable only via the Admin SDK (see firestore.rules'
+   * guarded-fields list on this collection) — never writable from the client, so an
+   * ordinary admin account can never self-grant it. */
+  canSwitchRoles?: boolean;
+  /** The role to always offer as "back to normal" in the switcher — set alongside
+   * canSwitchRoles, same write-protection. */
+  trueRole?: Role;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
