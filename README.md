@@ -255,7 +255,13 @@ of the batch.
 3. **GitHub repo secrets** (Settings → Secrets and variables → Actions):
    - `GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY` — the full JSON key from step 1, as one string
    - `GOOGLE_SHEETS_SPREADSHEET_ID` — from the sheet's URL
-   - `GOOGLE_SHEETS_SHEET_NAME` — the tab name, e.g. `Sheet1`
+   - `GOOGLE_SHEETS_SHEET_NAME` — the tab name, e.g. `Sheet1`. If the same spreadsheet has
+     more than one lead tab (e.g. one ongoing tab plus a separate tab per admission
+     drive/festival campaign), list them comma-separated: `Meta_ads_Leads,Vijayadasami
+     Admission - OTP`. Every tab listed is synced into the same `leads` collection on
+     every run; adding a new tab later just means editing this one secret — no code or
+     workflow change needed, as long as the new tab's headers match (or are added to)
+     the column mapping below.
    - `FIREBASE_SERVICE_ACCOUNT_KEY` — a Firebase Admin SDK service-account JSON key for the target project (dev or prod), as one string
 4. The workflow runs automatically every ~15 minutes. To run it immediately
    (including the first, historical-backfill run — it processes every

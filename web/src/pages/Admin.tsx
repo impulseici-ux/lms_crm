@@ -697,6 +697,15 @@ function IntegrationsPanel() {
             <Stat label="Duplicates skipped" value={String(config?.totalDuplicates ?? 0)} />
           </div>
         )}
+        {configured && (config?.sheetNames?.length ?? 0) > 0 && (
+          <div className="mt-3 ml-[42px] flex flex-wrap gap-1.5">
+            {config!.sheetNames!.map((name) => (
+              <span key={name} className="text-[11px] font-medium text-ink-soft bg-surface border border-border-soft rounded-full px-2.5 py-0.5">
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card padded={false}>
@@ -715,6 +724,7 @@ function IntegrationsPanel() {
                     <XCircle className="w-4 h-4 text-bad shrink-0" />
                   )}
                   <span className="font-medium text-ink text-sm">{formatTimestamp(run.startedAt)}</span>
+                  {run.sheetName && <span className="text-xs text-ink-faint">· {run.sheetName}</span>}
                   <span className="text-xs text-ink-faint capitalize">· {run.triggeredBy}</span>
                 </div>
                 <span className="text-xs text-ink-soft shrink-0">

@@ -1,5 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
-import type { FollowUpState } from "@/types";
+import type { FollowUpState, LeadStatus } from "@/types";
+import { isClosedStatus } from "@/types";
 
 function toDate(ts: Timestamp | null | undefined): Date | null {
   if (!ts) return null;
@@ -25,6 +26,28 @@ export function deriveFollowUpState(
     due.getMonth() === now.getMonth() &&
     due.getDate() === now.getDate();
   return isSameDay ? "Due Today" : "Upcoming";
+}
+
+/**
+ * A Closed-status lead (Not Interested, Future Requirement, etc.) can still
+ * hold a stale/past/today `nextFollowUpAt` from before it was closed — that
+ * date must never put it back into an active follow-up queue. This is the
+ * one place that combines status + date, so every view (quick filters,
+ * Stats, Dashboard, Analytics, Reports) agrees on what counts as "due today"
+ * or "overdue" for queue purposes.
+ */
+export function isFollowUpDueToday(
+  lead: { status: LeadStatus; nextFollowUpAt: Timestamp | null | undefined },
+  now: Date = new Date()
+): boolean {
+  return !isClosedStatus(lead.status) && deriveFollowUpState(lead.nextFollowUpAt, now) === "Due Today";
+}
+
+export function isFollowUpOverdue(
+  lead: { status: LeadStatus; nextFollowUpAt: Timestamp | null | undefined },
+  now: Date = new Date()
+): boolean {
+  return !isClosedStatus(lead.status) && deriveFollowUpState(lead.nextFollowUpAt, now) === "Overdue";
 }
 
 export const FOLLOW_UP_STATE_STYLES: Record<FollowUpState, { bg: string; fg: string; label: string }> = {

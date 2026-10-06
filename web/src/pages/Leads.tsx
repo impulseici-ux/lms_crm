@@ -6,14 +6,16 @@ import { useLookups } from "@/hooks/useLookups";
 import { FilterBar, EMPTY_FILTERS, applyFilters } from "@/components/FilterBar";
 import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
 import { computeAttentionFlags } from "@/utils/attention";
-import { deriveFollowUpState } from "@/utils/followUp";
+import { deriveFollowUpState, isFollowUpDueToday, isFollowUpOverdue } from "@/utils/followUp";
 import { downloadCsv } from "@/utils/csv";
 import { buildWhatsAppLink } from "@/utils/whatsapp";
 import { isValidLeadPhone } from "@/utils/phone";
+import { isLeadUnseen } from "@/utils/leadViewed";
 import { breakdownBySource, breakdownByStaff } from "@/utils/metrics";
 import { bulkChangeStatus, bulkReassign, deleteLead } from "@/lib/data/leads";
 import { ImportLeadsModal } from "@/components/ImportLeadsModal";
-import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar } from "@/components/ui";
+import { BulkSendWhatsAppModal } from "@/components/BulkSendWhatsAppModal";
+import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar, Badge } from "@/components/ui";
 import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, isOpenStatus, isClosedStatus, type LeadDoc, type LeadStatus } from "@/types";
 import {
   UserPlus,
@@ -23,9 +25,9 @@ import {
   Phone,
   Search,
   Eye,
-  Pencil,
   Trash2,
   MessageCircle,
+  Send,
   Table2,
   BarChart3,
   PieChart,
@@ -34,7 +36,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
-const QUICK_VIEWS = ["All", "My Leads", "Follow-up Today", "Overdue", "Visits", "Converted", "Needs Attention"] as const;
+const QUICK_VIEWS = ["All", "My Leads", "Follow-up Today", "Overdue", "Visits", "Converted", "Closed", "Needs Attention"] as const;
 type QuickView = (typeof QUICK_VIEWS)[number];
 
 const TABS = [
@@ -47,10 +49,11 @@ type TabKey = (typeof TABS)[number]["key"];
 
 function matchesQuickView(view: QuickView, lead: LeadDoc, uid: string | undefined): boolean {
   if (view === "My Leads") return !!uid && lead.assignedStaffId === uid;
-  if (view === "Follow-up Today") return deriveFollowUpState(lead.nextFollowUpAt) === "Due Today";
-  if (view === "Overdue") return deriveFollowUpState(lead.nextFollowUpAt) === "Overdue";
+  if (view === "Follow-up Today") return isFollowUpDueToday(lead);
+  if (view === "Overdue") return isFollowUpOverdue(lead);
   if (view === "Visits") return ["Visit Scheduled", "Visit Completed"].includes(lead.status);
   if (view === "Converted") return lead.status === "Admission Confirmed";
+  if (view === "Closed") return isClosedStatus(lead.status);
   return true;
 }
 
@@ -76,14 +79,18 @@ export function Leads() {
   const { programName, staffName, branches, programs, leadSources, campaigns, users } = useLookups();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusParam = searchParams.get("status");
-  const [filters, setFilters] = useState(() =>
-    statusParam && (isOpenStatus(statusParam) || isClosedStatus(statusParam)) ? { ...EMPTY_FILTERS, status: statusParam } : EMPTY_FILTERS
-  );
+  const staffIdParam = searchParams.get("staffId");
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_FILTERS,
+    status: statusParam && (isOpenStatus(statusParam) || isClosedStatus(statusParam)) ? statusParam : "",
+    staffId: staffIdParam ?? "",
+  }));
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>(EMPTY_COLUMN_FILTERS);
   const [tab, setTab] = useState<TabKey>("Data table");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showImport, setShowImport] = useState(false);
   const [showWhatsApp, setShowWhatsApp] = useState(false);
+  const [showBulkSend, setShowBulkSend] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<LeadStatus>("Contacted");
   const [bulkStaffId, setBulkStaffId] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -93,12 +100,18 @@ export function Leads() {
   const initialView = viewParam === "attention" ? "Needs Attention" : QUICK_VIEWS.includes(viewParam as QuickView) ? (viewParam as QuickView) : "All";
   const [quickView, setQuickView] = useState<QuickView>(initialView);
 
+  // A link-only filter (e.g. from Dashboard's Needs Attention breakdown) that isn't one of
+  // the 7 quick-view pills — doesn't touch the sticky bar, just narrows the table further.
+  const showInvalidOnly = searchParams.get("special") === "invalid-numbers";
+
   const filtered = useMemo(() => applyFilters(leads, filters), [leads, filters]);
   const attentionLeadIds = useMemo(() => new Set(computeAttentionFlags(filtered).map((f) => f.lead.id)), [filtered]);
   const quickViewFiltered = useMemo(() => {
-    const base = filtered.filter((lead) => matchesQuickView(quickView, lead, user?.uid));
-    return quickView === "Needs Attention" ? base.filter((l) => attentionLeadIds.has(l.id)) : base;
-  }, [filtered, quickView, user?.uid, attentionLeadIds]);
+    let base = filtered.filter((lead) => matchesQuickView(quickView, lead, user?.uid));
+    if (quickView === "Needs Attention") base = base.filter((l) => attentionLeadIds.has(l.id));
+    if (showInvalidOnly) base = base.filter((l) => !isValidLeadPhone(l.parentPhone));
+    return base;
+  }, [filtered, quickView, user?.uid, attentionLeadIds, showInvalidOnly]);
 
   const visible = useMemo(() => {
     const cf = columnFilters;
@@ -218,7 +231,8 @@ export function Leads() {
   }));
 
   return (
-    <div className="max-w-7xl mx-auto pb-8">
+    <div className="max-w-7xl mx-auto h-full flex flex-col">
+      <div className="shrink-0">
       <SectionHeading eyebrow="Admissions pipeline" title="Enquiries" description="Manage and track all your student enquiries in one place." />
 
       <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-5 border-b border-border-soft">
@@ -244,22 +258,45 @@ export function Leads() {
 
       <FilterBar filters={filters} onApply={setFilters} />
 
-      {filters.status && (
+      {(filters.status || filters.staffId === "__unassigned__" || showInvalidOnly) && (
         <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft border border-accent/20 px-4 py-2.5 mb-4 text-sm">
-          <span className="text-accent-strong font-semibold">Showing: {filters.status} leads</span>
+          <span className="text-accent-strong font-semibold">
+            Showing:{" "}
+            {showInvalidOnly
+              ? "leads with invalid mobile numbers"
+              : filters.staffId === "__unassigned__"
+              ? "unassigned leads"
+              : `${filters.status} leads`}
+          </span>
           <button
             type="button"
             onClick={() => { setFilters(EMPTY_FILTERS); setSearchParams({}); }}
             className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline shrink-0"
           >
-            <X className="w-3.5 h-3.5" /> Clear stage filter
+            <X className="w-3.5 h-3.5" /> Clear filter
           </button>
         </div>
       )}
+      </div>
 
+      <div className="flex-1 min-h-0 flex flex-col">
       {tab === "Data table" && (
-        <>
-          <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex-1 min-h-0 flex flex-col">
+          {/*
+            shrink-0, placed before the table's own flex-1 scroll area — so this bar
+            stays pinned above the table (no new scrollbar) while the table area
+            below flexes to fill whatever space remains, scrolling independently.
+          */}
+          <div className="shrink-0 mb-3 flex items-center justify-between gap-3 bg-surface border border-border-soft rounded-2xl shadow-[var(--shadow-card)] px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
+            </div>
+            <div className="text-xs text-ink-faint shrink-0">
+              Showing <span className="font-semibold text-ink-soft">{visible.length}</span> of {leads.length}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 mb-3 shrink-0">
             <h2 className="font-semibold text-lg text-ink">All Enquiries</h2>
             <div className="flex flex-wrap items-center gap-2 justify-end">
               <div className="relative">
@@ -268,6 +305,14 @@ export function Leads() {
                 </Button>
                 {showWhatsApp && selected.size > 0 && (
                   <div className="absolute right-0 mt-1 z-20 w-64 bg-surface border border-border rounded-xl shadow-elevated p-2 max-h-64 overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={() => { setShowBulkSend(true); setShowWhatsApp(false); }}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-semibold text-accent hover:bg-accent-soft mb-1 border-b border-border-soft pb-2.5"
+                    >
+                      <Send className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Send custom message to all {selected.size}…</span>
+                    </button>
                     {selectedLeads.map((l) => {
                       const link = buildWhatsAppLink(l.parentPhone, l.parentName, l.sourceChannel);
                       return link ? (
@@ -313,7 +358,7 @@ export function Leads() {
           </div>
 
           {selected.size > 0 && (
-            <div className="flex flex-wrap items-center gap-3 bg-accent-soft border border-accent/20 rounded-xl px-4 py-3 mb-3">
+            <div className="flex flex-wrap items-center gap-3 bg-accent-soft border border-accent/20 rounded-xl px-4 py-3 mb-3 shrink-0">
               <span className="text-sm font-semibold text-accent-strong shrink-0">{selected.size} selected</span>
               <div className="flex items-center gap-1.5">
                 <Select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value as LeadStatus)} className="py-1.5 text-[13px] w-44">
@@ -336,88 +381,113 @@ export function Leads() {
               </button>
             </div>
           )}
-          {bulkMessage && <div className="text-xs text-ink-soft mb-3 px-1">{bulkMessage}</div>}
+          {bulkMessage && <div className="text-xs text-ink-soft mb-3 px-1 shrink-0">{bulkMessage}</div>}
 
-          <div className="bg-surface border border-border rounded-2xl overflow-hidden">
-            <div className="hidden lg:block overflow-auto max-h-[65vh]">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10 bg-surface-2 text-ink-faint text-[11px] uppercase tracking-wide">
-                  <tr>
-                    <th className="px-4 py-3 w-10">
+          <div className="flex-1 min-h-0 bg-surface border border-border-soft rounded-2xl shadow-elevated overflow-hidden flex flex-col">
+            <div className="hidden lg:block flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-sm table-fixed">
+                <thead className="text-ink-faint text-[11px] uppercase tracking-wide">
+                  <tr className="h-11">
+                    <th className="sticky top-0 left-0 z-40 bg-surface-2 px-4 py-3 w-11">
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
                     </th>
-                    <th className="text-left px-2 py-3">Name</th>
-                    <th className="text-left px-2 py-3">Course</th>
-                    <th className="text-left px-2 py-3">Fees</th>
-                    <th className="text-left px-2 py-3">Status</th>
-                    <th className="text-left px-2 py-3">Source</th>
-                    <th className="text-left px-2 py-3">Priority</th>
-                    <th className="text-left px-2 py-3">Mobile</th>
-                    <th className="text-left px-2 py-3">Follow-up</th>
-                    <th className="text-left px-2 py-3">Location</th>
-                    <th className="text-left px-2 py-3">Remarks</th>
-                    <th className="text-left px-2 py-3">Admin</th>
-                    <th className="text-left px-2 py-3">Actions</th>
+                    <th className="sticky top-0 left-11 z-40 bg-surface-2 text-left px-2 py-3 w-[230px]">Name</th>
+                    <th className="sticky top-0 left-[274px] z-40 bg-surface-2 text-left px-2 py-3 w-[130px]">Status</th>
+                    <th className="sticky top-0 left-[404px] z-40 bg-surface-2 text-left px-2 py-3 w-[150px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]">Mobile</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[90px]">Priority</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[130px]">Follow-up</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[130px]">Course</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[90px]">Fees</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[120px]">Source</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[110px]">Location</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[200px]">Remarks</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[110px]">Admin</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[140px]">Actions</th>
                   </tr>
-                  <tr className="bg-surface">
-                    <td className="px-4 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
-                    <ColumnSearchCell value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
-                    <td className="px-2 py-1.5" />
-                    <td className="px-2 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />
-                    <td className="px-2 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
-                    <td className="px-2 py-1.5" />
-                    <ColumnSearchCell value={columnFilters.location} onChange={(v) => setColumnFilters((c) => ({ ...c, location: v }))} />
-                    <ColumnSearchCell value={columnFilters.remarks} onChange={(v) => setColumnFilters((c) => ({ ...c, remarks: v }))} />
-                    <ColumnSearchCell value={columnFilters.admin} onChange={(v) => setColumnFilters((c) => ({ ...c, admin: v }))} />
-                    <td className="px-2 py-1.5" />
+                  <tr className="h-10">
+                    <td className="sticky top-11 left-0 z-40 bg-surface px-4 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 left-11 z-40 bg-surface" value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
+                    <td className="sticky top-11 left-[274px] z-40 bg-surface px-2 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 left-[404px] z-40 bg-surface shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]" value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.location} onChange={(v) => setColumnFilters((c) => ({ ...c, location: v }))} />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.remarks} onChange={(v) => setColumnFilters((c) => ({ ...c, remarks: v }))} />
+                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.admin} onChange={(v) => setColumnFilters((c) => ({ ...c, admin: v }))} />
+                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((lead) => (
-                    <tr key={lead.id} className={`border-t border-border-soft transition-colors ${selected.has(lead.id) ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}>
-                      <td className="px-4 py-3">
-                        <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="rounded border-border" aria-label={`Select ${lead.parentName}`} />
+                  {visible.map((lead) => {
+                    const unseen = isLeadUnseen(lead);
+                    const isSelected = selected.has(lead.id);
+                    const stickyBg = unseen ? "" : isSelected ? "bg-accent-soft" : "bg-surface group-hover:bg-surface-2";
+                    return (
+                    <tr key={lead.id} className={`group border-t border-border-soft transition-colors ${unseen ? "lead-unseen-row" : isSelected ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}>
+                      <td className={`sticky left-0 z-20 px-4 py-3 overflow-hidden ${stickyBg}`}>
+                        <input type="checkbox" checked={isSelected} onChange={() => toggleOne(lead.id)} className="rounded border-border" aria-label={`Select ${lead.parentName}`} />
                       </td>
-                      <td className="px-2 py-3">
+                      <td className={`sticky left-11 z-20 px-2 py-3 overflow-hidden ${stickyBg}`}>
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-8 h-8 rounded-full bg-accent-soft text-accent-strong flex items-center justify-center text-[11px] font-bold shrink-0">
-                            {initials(lead.parentName)}
+                            {initials(lead.childName)}
                           </div>
                           <div className="min-w-0">
-                            <Link to={`/leads/${lead.id}`} className="font-semibold text-ink hover:text-accent">{lead.parentName}</Link>
-                            <div className="text-ink-faint text-xs mt-0.5 truncate">{lead.childName}</div>
+                            <div className="flex items-center gap-1.5">
+                              <Link to={`/leads/${lead.id}`} className="font-semibold text-[14.5px] text-ink hover:text-accent truncate">{lead.childName}</Link>
+                              {unseen && <Badge tone="warn">NEW</Badge>}
+                            </div>
+                            <div className="text-ink-faint text-xs mt-0.5 truncate">{lead.parentName}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{programName(lead.interestedProgramId)}</td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>
-                      <td className="px-2 py-3"><StatusPill status={lead.status} /></td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.sourceChannel}</td>
-                      <td className="px-2 py-3"><PriorityPill priority={lead.priority} /></td>
-                      <td className="px-2 py-3 whitespace-nowrap">
+                      <td className={`sticky left-[274px] z-20 px-2 py-3 overflow-hidden ${stickyBg}`}><StatusPill status={lead.status} /></td>
+                      <td className={`sticky left-[404px] z-20 px-2 py-3 truncate shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] ${stickyBg}`}>
                         {isValidLeadPhone(lead.parentPhone) ? (
                           <span className="inline-flex items-center gap-1 text-ink-soft"><Phone className="w-3 h-3" />{lead.parentPhone}</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-warn" title="Couldn't be verified as a valid mobile number">
-                            <ShieldAlert className="w-3 h-3" />{lead.parentPhone || "—"}
+                          <span className="inline-flex items-center gap-1 text-warn" title={lead.parentPhone ? `Stored value couldn't be verified: ${lead.parentPhone}` : "No number on file"}>
+                            <ShieldAlert className="w-3 h-3" /> Invalid Number
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-3"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{lead.location ?? "—"}</td>
-                      <td className="px-2 py-3 text-ink-faint max-w-[140px] truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>
-                      <td className="px-2 py-3 text-ink-soft whitespace-nowrap">{staffName(lead.assignedStaffId)}</td>
-                      <td className="px-2 py-3">
+                      <td className="px-2 py-3 overflow-hidden"><PriorityPill priority={lead.priority} /></td>
+                      <td className="px-2 py-3 overflow-hidden"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{programName(lead.interestedProgramId)}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{lead.sourceChannel}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{lead.location ?? "—"}</td>
+                      <td className="px-2 py-3 text-ink-faint truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>
+                      <td className="px-2 py-3 text-ink-soft truncate">{staffName(lead.assignedStaffId)}</td>
+                      <td className="px-2 py-3 overflow-hidden">
                         <div className="flex items-center gap-1">
-                          <Link to={`/leads/${lead.id}`} aria-label="View" title="View Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
+                          <Link to={`/leads/${lead.id}`} aria-label="Open lead" title="Open Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
                             <Eye className="w-4 h-4" />
                           </Link>
-                          <Link to={`/leads/${lead.id}`} aria-label="Edit" title="Edit Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
-                            <Pencil className="w-4 h-4" />
-                          </Link>
+                          {isValidLeadPhone(lead.parentPhone) ? (
+                            <a href={`tel:${lead.parentPhone}`} aria-label="Call" title="Call" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
+                              <Phone className="w-4 h-4" />
+                            </a>
+                          ) : (
+                            <span aria-hidden className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint/30" title="No valid number to call">
+                              <Phone className="w-4 h-4" />
+                            </span>
+                          )}
+                          {(() => {
+                            const link = buildWhatsAppLink(lead.parentPhone, lead.parentName, lead.sourceChannel);
+                            return link ? (
+                              <a href={link} target="_blank" rel="noreferrer" aria-label="WhatsApp" title="WhatsApp" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-good-soft hover:text-good">
+                                <MessageCircle className="w-4 h-4" />
+                              </a>
+                            ) : (
+                              <span aria-hidden className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint/30" title="No valid number for WhatsApp">
+                                <MessageCircle className="w-4 h-4" />
+                              </span>
+                            );
+                          })()}
                           {isAdminRole(role) && (
                             <button onClick={() => onDeleteRow(lead)} aria-label="Delete" title="Delete Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-bad-soft hover:text-bad">
                               <Trash2 className="w-4 h-4" />
@@ -426,21 +496,48 @@ export function Leads() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            <div className="lg:hidden divide-y divide-border-soft overflow-y-auto max-h-[65vh]">
-              {visible.map((lead) => (
-                <div key={lead.id} className="p-4">
+            {visible.length > 0 && (
+              <div className="lg:hidden flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border-soft shrink-0 bg-surface-2">
+                <label className="flex items-center gap-2 text-sm font-medium text-ink-soft">
+                  <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
+                  Select all {visible.length}
+                </label>
+                {selected.size > 0 && (
+                  <button type="button" onClick={() => setSelected(new Set())} className="text-xs font-semibold text-accent hover:underline">
+                    Clear ({selected.size})
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="lg:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-border-soft">
+              {visible.map((lead) => {
+                const unseen = isLeadUnseen(lead);
+                return (
+                <div key={lead.id} className={`p-4 ${unseen ? "lead-unseen-card" : ""}`}>
                   <div className="flex items-start gap-3">
-                    <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="mt-1 rounded border-border shrink-0" aria-label={`Select ${lead.parentName}`} />
+                    <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="mt-1 rounded border-border shrink-0" aria-label={`Select ${lead.childName}`} />
                     <Link to={`/leads/${lead.id}`} className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="font-semibold text-ink truncate">{lead.parentName}</div>
-                          <div className="text-xs text-ink-soft mt-0.5 truncate">{lead.childName} · {lead.parentPhone}</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="font-semibold text-ink truncate">{lead.childName}</div>
+                            {unseen && <Badge tone="warn">NEW</Badge>}
+                          </div>
+                          <div className="text-xs text-ink-soft mt-0.5 truncate">
+                            {lead.parentName} ·{" "}
+                            {isValidLeadPhone(lead.parentPhone) ? (
+                              lead.parentPhone
+                            ) : (
+                              <span className="text-bad" title={lead.parentPhone || undefined}>Invalid Number</span>
+                            )}
+                          </div>
                         </div>
                         <StatusPill status={lead.status} />
                       </div>
@@ -453,7 +550,8 @@ export function Leads() {
                     </Link>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {visible.length === 0 && (
@@ -474,29 +572,13 @@ export function Leads() {
             )}
           </div>
 
-          {/*
-            Sticky to the bottom of <main> — the CRM page's own scroll container (see
-            Layout.tsx) — not to the browser viewport, so it stays within the content
-            area rather than floating over the sidebar. The negative margins + matching
-            padding extend its background into <main>'s own bottom padding so it reaches
-            the true edge with no gap, while keeping comfortable internal spacing.
-          */}
-          <div className="sticky bottom-0 z-10 -mx-4 -mb-4 sm:-mx-6 sm:-mb-6 lg:-mx-8 lg:-mb-8 mt-3 bg-bg/95 backdrop-blur-sm border-t border-border-soft px-4 pt-3 pb-4 sm:px-6 sm:pb-6 lg:px-8 lg:pb-8">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
-              </div>
-              <div className="text-xs text-ink-faint shrink-0">
-                Showing <span className="font-semibold text-ink-soft">{visible.length}</span> of {leads.length}
-              </div>
-            </div>
-          </div>
-        </>
+        </div>
       )}
 
-      {tab === "Stats" && <StatsTab leads={visible} />}
-      {tab === "Analytics" && <AnalyticsTab leads={visible} staffName={staffName} />}
-      {tab === "Followups" && <FollowupsTab leads={visible} programName={programName} />}
+      {tab === "Stats" && <div className="flex-1 min-h-0 overflow-auto pb-8"><StatsTab leads={visible} /></div>}
+      {tab === "Analytics" && <div className="flex-1 min-h-0 overflow-auto pb-8"><AnalyticsTab leads={visible} staffName={staffName} /></div>}
+      {tab === "Followups" && <div className="flex-1 min-h-0 overflow-auto pb-8"><FollowupsTab leads={visible} programName={programName} /></div>}
+      </div>
 
       {showImport && (
         <ImportLeadsModal
@@ -510,13 +592,17 @@ export function Leads() {
           currentUserId={user!.uid}
         />
       )}
+
+      {showBulkSend && (
+        <BulkSendWhatsAppModal leads={selectedLeads} staffId={user!.uid} onClose={() => setShowBulkSend(false)} />
+      )}
     </div>
   );
 }
 
-function ColumnSearchCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ColumnSearchCell({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
   return (
-    <td className="px-2 py-1.5">
+    <td className={`px-2 py-1.5 ${className ?? ""}`}>
       <div className="relative">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-faint pointer-events-none" />
         <input
@@ -534,7 +620,7 @@ function StatsTab({ leads }: { leads: LeadDoc[] }) {
   const total = leads.length;
   const open = leads.filter((l) => !CLOSED_STATUSES.includes(l.status as (typeof CLOSED_STATUSES)[number])).length;
   const closed = total - open;
-  const overdue = leads.filter((l) => deriveFollowUpState(l.nextFollowUpAt) === "Overdue").length;
+  const overdue = leads.filter((l) => isFollowUpOverdue(l)).length;
   const admitted = leads.filter((l) => l.status === "Admission Confirmed").length;
   const totalFees = leads.reduce((sum, l) => sum + (l.fees ?? 0), 0);
   const stats = [
@@ -593,6 +679,7 @@ function AnalyticsTab({ leads, staffName }: { leads: LeadDoc[]; staffName: (id: 
 function FollowupsTab({ leads, programName }: { leads: LeadDoc[]; programName: (id: string | null) => string }) {
   const groups = { Overdue: [] as LeadDoc[], "Due Today": [] as LeadDoc[], Upcoming: [] as LeadDoc[] };
   for (const l of leads) {
+    if (isClosedStatus(l.status)) continue;
     const state = deriveFollowUpState(l.nextFollowUpAt);
     if (state === "Overdue" || state === "Due Today" || state === "Upcoming") groups[state].push(l);
   }

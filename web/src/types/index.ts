@@ -89,7 +89,7 @@ export const REOPENABLE_CLOSED_STATUSES: ClosedStatus[] = [
   "Future Requirement",
 ];
 
-export type Priority = "High" | "Medium" | "Low";
+export type Priority = "Urgent" | "High" | "Medium" | "Low";
 
 /** Section 4 — recommended channel list. Seeded into `leadSources`, editable by admin. */
 export const DEFAULT_SOURCE_CHANNELS = [
@@ -196,6 +196,17 @@ export interface LeadDoc {
 
   notes: string | null; // pinned internal note, staff-only
 
+  // "Lead blink" — flashes the row until someone opens it. Optional because
+  // leads created before this field existed simply don't have it; treat a
+  // missing value the same as `true` (viewed) so old leads never blink.
+  viewed?: boolean;
+  viewedAt?: Timestamp | null;
+  viewedBy?: string | null; // staff uid, resolved for display via staffName()
+
+  // WhatsApp Automation (Section 23). Optional/missing == "Unknown" — never
+  // treated as "Allowed", so automation never assumes consent it doesn't have.
+  whatsappOptStatus?: "Allowed" | "Opted Out" | "Unknown";
+
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -288,9 +299,13 @@ export interface SyncLedgerDoc {
   lastAttemptAt: Timestamp | null;
 }
 
-/** One doc per sync execution, written to `integrations/googleSheetsSync/runs/{runId}`. */
+/** One doc per sync execution, written to `integrations/googleSheetsSync/runs/{runId}`.
+ * One spreadsheet can have several lead tabs (sheetNames on the config doc) — each
+ * tab gets its own run doc per sync pass, tagged by `sheetName`, so a failure on one
+ * tab is traceable without hiding the others. */
 export interface SyncRunDoc {
   id: string;
+  sheetName?: string | null;
   status: "success" | "failed";
   triggeredBy: "schedule" | "manual" | "initial";
   startedAt: Timestamp | null;
@@ -306,7 +321,8 @@ export interface SyncRunDoc {
 /** Singleton config/status doc at `integrations/googleSheetsSync`. */
 export interface SyncConfigDoc {
   spreadsheetId: string | null;
-  sheetName: string | null;
+  sheetName: string | null; // comma-joined, kept for back-compat display
+  sheetNames?: string[]; // every tab currently being synced
   columnMapping: Record<string, string> | null; // optional override of the script's default header aliases
   lastSyncAt: Timestamp | null;
   lastSyncStatus: "success" | "failed" | null;

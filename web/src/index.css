@@ -20,15 +20,19 @@
   --color-accent: #4338CA;
   --color-accent-strong: #312E81;
   --color-accent-soft: #EEF0FC;
+  --color-accent-hover: #352DA3;
+  --color-focus-ring: #4338CA;
 
   --color-border: #E2E5EB;
   --color-border-soft: #EDEFF3;
 
-  --color-good: #0F8558;
+  /* Status text darkened a step from the brand ramp for safer contrast
+     against the soft badge backgrounds below (design-system refinement). */
+  --color-good: #0B6943;
   --color-good-soft: #E9F7EF;
-  --color-warn: #B45C09;
+  --color-warn: #8A4607;
   --color-warn-soft: #FDF2E3;
-  --color-bad: #C0362C;
+  --color-bad: #972A22;
   --color-bad-soft: #FBEAE8;
 
   /* Dark sidebar / app shell — distinct from the light content surfaces. */
@@ -63,7 +67,7 @@ code, .font-mono { font-family: var(--font-mono); }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
-  outline: 2.5px solid var(--color-accent);
+  outline: 2.5px solid var(--color-focus-ring);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -80,3 +84,29 @@ input[type="date"], input[type="datetime-local"] { color-scheme: light; }
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-up { animation: fade-in-up 0.25s ease-out; }
+
+/* Lead blink — rows for leads nobody has opened yet flash until viewed.
+   Uses the existing --color-warn/-soft tokens (same "needs attention" tone
+   as Medium priority / Due Today), not a new color. */
+@keyframes lead-blink {
+  0%, 49% { background-color: var(--color-warn-soft); }
+  50%, 100% { background-color: transparent; }
+}
+.lead-unseen-row > td {
+  animation: lead-blink 1s steps(1, end) infinite;
+}
+.lead-unseen-row > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-warn);
+}
+.lead-unseen-card {
+  animation: lead-blink 1s steps(1, end) infinite;
+  box-shadow: inset 3px 0 0 var(--color-warn);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lead-unseen-row > td,
+  .lead-unseen-card {
+    animation: none;
+    background-color: var(--color-warn-soft);
+  }
+}
