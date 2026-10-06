@@ -27,7 +27,7 @@ export function Layout() {
   const displayName = profile?.displayName ?? user?.email ?? "";
 
   const brand = (
-    <Link to="/" onClick={() => setMobileOpen(false)} className="block px-5 py-5 hover:bg-sidebar-bg-raised transition-colors">
+    <Link to="/" onClick={() => setMobileOpen(false)} className="h-[72px] shrink-0 flex items-center px-5 hover:bg-sidebar-bg-raised transition-colors">
       <div className="bg-white rounded-xl p-2 inline-block">
         <img src={logo} alt="Little Millennium Singanallur" className="h-10 w-auto object-contain" />
       </div>

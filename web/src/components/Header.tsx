@@ -71,7 +71,7 @@ export function Header() {
   };
 
   return (
-    <header className="hidden lg:flex shrink-0 items-center gap-4 bg-surface border-b border-border px-6 py-3">
+    <header className="hidden lg:flex h-[72px] shrink-0 items-center gap-4 bg-surface border-b border-border px-6">
       <div ref={searchRef} className="relative flex-1 max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint pointer-events-none" />
         <input
