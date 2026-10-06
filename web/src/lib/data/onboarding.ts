@@ -75,3 +75,10 @@ export function setUserActive(uid: string, active: boolean) {
 export function deleteUser(uid: string) {
   return callBackend<{ ok: true }>("/api/delete-user", { uid }, true);
 }
+
+/** Only works for an account with users/{uid}.canSwitchRoles === true (set via the Admin
+ * SDK, testing-only). Switches the caller's OWN role. Call AuthContext's refreshRole()
+ * right after this resolves so the UI picks up the new permissions immediately. */
+export function switchRole(role: Role) {
+  return callBackend<{ ok: true; role: Role }>("/api/switch-role", { role }, true);
+}

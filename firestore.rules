@@ -79,7 +79,9 @@ service cloud.firestore {
       allow update: if isAdmin() &&
         request.resource.data.get('status', null) == resource.data.get('status', null) &&
         request.resource.data.get('passwordSetupCompleted', null) == resource.data.get('passwordSetupCompleted', null) &&
-        request.resource.data.get('activatedAt', null) == resource.data.get('activatedAt', null);
+        request.resource.data.get('activatedAt', null) == resource.data.get('activatedAt', null) &&
+        request.resource.data.get('canSwitchRoles', null) == resource.data.get('canSwitchRoles', null) &&
+        request.resource.data.get('trueRole', null) == resource.data.get('trueRole', null);
       // Permanent deletion is superadmin-only (stricter than every other admin write here) —
       // the real deletion path is the backend's /api/delete-user (Admin SDK, also removes the
       // Auth credential and userActivations doc), this is defense-in-depth against a direct
