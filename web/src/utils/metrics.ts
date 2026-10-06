@@ -13,6 +13,7 @@ export interface HeadlineMetrics {
   totalLeadsThisMonth: number;
   newLeadsToday: number;
   visitsScheduled: number;
+  visitsToday: number;
   overdueFollowUps: number;
   todayFollowUps: number;
   admissionsConfirmedThisMonth: number;
@@ -22,6 +23,7 @@ export function computeHeadlineMetrics(leads: LeadDoc[], now: Date = new Date())
   let totalLeadsThisMonth = 0;
   let newLeadsToday = 0;
   let visitsScheduled = 0;
+  let visitsToday = 0;
   let overdueFollowUps = 0;
   let todayFollowUps = 0;
   let admissionsConfirmedThisMonth = 0;
@@ -31,6 +33,7 @@ export function computeHeadlineMetrics(leads: LeadDoc[], now: Date = new Date())
     if (created && isSameMonth(created, now)) totalLeadsThisMonth++;
     if (created && isSameDay(created, now)) newLeadsToday++;
     if (lead.status === "Visit Scheduled") visitsScheduled++;
+    if (lead.visitDate && isSameDay(lead.visitDate.toDate(), now)) visitsToday++;
     if (isFollowUpOverdue(lead, now)) overdueFollowUps++;
     if (isFollowUpDueToday(lead, now)) todayFollowUps++;
     if (
@@ -42,7 +45,64 @@ export function computeHeadlineMetrics(leads: LeadDoc[], now: Date = new Date())
     }
   }
 
-  return { totalLeadsThisMonth, newLeadsToday, visitsScheduled, overdueFollowUps, todayFollowUps, admissionsConfirmedThisMonth };
+  return { totalLeadsThisMonth, newLeadsToday, visitsScheduled, visitsToday, overdueFollowUps, todayFollowUps, admissionsConfirmedThisMonth };
+}
+
+function percentChange(current: number, previous: number): number {
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+export interface HeadlineTrends {
+  totalLeadsTrend: number; // this month vs last month
+  newLeadsTodayTrend: number; // today vs yesterday
+  visitsTodayTrend: number; // today vs yesterday
+  admissionsTrend: number; // this month vs last month
+}
+
+/** Period-over-period % change for the Dashboard's top stat cards. Every
+ * comparison re-derives both periods from the same `leads` array (no stored
+ * "previous period" snapshot) so it's always consistent with what's on screen. */
+export function computeHeadlineTrends(leads: LeadDoc[], now: Date = new Date()): HeadlineTrends {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const lastMonthRef = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  let thisMonthLeads = 0;
+  let lastMonthLeads = 0;
+  let todayNew = 0;
+  let yesterdayNew = 0;
+  let visitsToday = 0;
+  let visitsYesterday = 0;
+  let admissionsThisMonth = 0;
+  let admissionsLastMonth = 0;
+
+  for (const lead of leads) {
+    const created = lead.createdAt?.toDate();
+    if (created) {
+      if (isSameMonth(created, now)) thisMonthLeads++;
+      if (isSameMonth(created, lastMonthRef)) lastMonthLeads++;
+      if (isSameDay(created, now)) todayNew++;
+      if (isSameDay(created, yesterday)) yesterdayNew++;
+    }
+    if (lead.visitDate) {
+      const visit = lead.visitDate.toDate();
+      if (isSameDay(visit, now)) visitsToday++;
+      if (isSameDay(visit, yesterday)) visitsYesterday++;
+    }
+    if (lead.status === "Admission Confirmed" && lead.admissionConfirmedAt) {
+      const confirmed = lead.admissionConfirmedAt.toDate();
+      if (isSameMonth(confirmed, now)) admissionsThisMonth++;
+      if (isSameMonth(confirmed, lastMonthRef)) admissionsLastMonth++;
+    }
+  }
+
+  return {
+    totalLeadsTrend: percentChange(thisMonthLeads, lastMonthLeads),
+    newLeadsTodayTrend: percentChange(todayNew, yesterdayNew),
+    visitsTodayTrend: percentChange(visitsToday, visitsYesterday),
+    admissionsTrend: percentChange(admissionsThisMonth, admissionsLastMonth),
+  };
 }
 
 export interface GroupBreakdown {

@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut, MessageCircle } from "lucide-react";
 import type { ComponentType } from "react";
 import logo from "@/assets/brand/lm-singanallur-logo.webp";
+import { Header } from "@/components/Header";
 
 const navItems: { to: string; label: string; roles: string[]; icon: ComponentType<{ className?: string }> }[] = [
   { to: "/", label: "Dashboard", roles: ["admin", "superadmin", "counsellor", "management"], icon: LayoutDashboard },
@@ -117,11 +118,13 @@ export function Layout() {
         <aside className="hidden lg:flex w-[204px] shrink-0 bg-sidebar-bg h-full flex-col">
           {brand}
           <div className="flex-1 overflow-y-auto">{navigation}</div>
-          {account}
         </aside>
-        <main className="flex-1 min-w-0 h-full overflow-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
-        </main>
+        <div className="flex-1 min-w-0 h-full flex flex-col">
+          <Header />
+          <main className="flex-1 min-w-0 overflow-auto p-4 sm:p-6 lg:p-8">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   );
