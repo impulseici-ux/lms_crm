@@ -91,8 +91,13 @@ service cloud.firestore {
 
     // ---- Leads (the hub) ----
     match /leads/{leadId} {
-      allow read: if isAdmin() || isManagement() ||
-        (isCounsellor() && resource.data.assignedStaffId == request.auth.uid);
+      // Every role can read every lead (the Leads/Dashboard pages fetch the whole
+      // collection with one unfiltered query — a counsellor-only where-filtered read
+      // rule here would reject that query outright, since Firestore denies a list
+      // request whenever a conditional rule branch isn't matched by the query's own
+      // filters, rather than silently narrowing the results). Write access below stays
+      // restricted to admin/management or a counsellor's own assigned leads.
+      allow read: if isStaff();
 
       allow create: if isStaff() &&
         request.resource.data.createdByStaffId == request.auth.uid &&
