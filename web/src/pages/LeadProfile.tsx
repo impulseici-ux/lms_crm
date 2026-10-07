@@ -23,7 +23,6 @@ import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { StatusPill, PriorityPill, FollowUpPill, WhatsAppStatusPill } from "@/components/Pills";
 import { SendWhatsAppModal } from "@/components/SendWhatsAppModal";
-import { buildWhatsAppLink } from "@/utils/whatsapp";
 import { isValidLeadPhone } from "@/utils/phone";
 import { AUTOMATION_TRIGGER_LABELS, type WhatsAppMessageDoc } from "@/types/whatsapp";
 import {
@@ -116,6 +115,7 @@ export function LeadProfile() {
   const [lead, setLead] = useState<LeadDoc | null | undefined>(undefined);
   const [activities, setActivities] = useState<ActivityDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showSend, setShowSend] = useState(false);
 
   useEffect(() => {
     if (!leadId) return;
@@ -182,7 +182,6 @@ export function LeadProfile() {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     }
   };
-  const waLink = buildWhatsAppLink(lead.parentPhone, lead.parentName, lead.sourceChannel);
   const isVisitStage = ["Visit Scheduled", "Visit Completed", "Admission Discussion", "Admission Confirmed"].includes(lead.status);
   const stageIndex = OPEN_STATUSES.indexOf(lead.status as (typeof OPEN_STATUSES)[number]);
 
@@ -253,10 +252,10 @@ export function LeadProfile() {
               <Phone className="w-4 h-4" /> Call
             </Button>
           )}
-          {waLink ? (
-            <a href={waLink} target="_blank" rel="noreferrer" onClick={() => user && doAction(() => logContact(lead, "whatsapp_logged", user.uid))} className="w-full sm:w-auto">
-              <Button variant="secondary" className="w-full"><MessageCircle className="w-4 h-4" /> WhatsApp</Button>
-            </a>
+          {isValidLeadPhone(lead.parentPhone) ? (
+            <Button variant="secondary" className="w-full" onClick={() => setShowSend(true)}>
+              <MessageCircle className="w-4 h-4" /> WhatsApp
+            </Button>
           ) : (
             <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — WhatsApp disabled.">
               <MessageCircle className="w-4 h-4" /> WhatsApp
@@ -306,7 +305,7 @@ export function LeadProfile() {
 
       {/* WhatsApp */}
       <GroupLabel>WhatsApp</GroupLabel>
-      <WhatsAppLeadPanel lead={lead} canEdit={canEdit} staffId={user?.uid ?? null} />
+      <WhatsAppLeadPanel lead={lead} canEdit={canEdit} staffId={user?.uid ?? null} showSend={showSend} setShowSend={setShowSend} />
 
       {/* Child & admission details */}
       <GroupLabel>Child &amp; admission details</GroupLabel>
@@ -613,9 +612,20 @@ function GroupLabel({ children }: { children: ReactNode }) {
   return <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-faint mb-2 mt-7 first:mt-0">{children}</div>;
 }
 
-function WhatsAppLeadPanel({ lead, canEdit, staffId }: { lead: LeadDoc; canEdit: boolean; staffId: string | null }) {
+function WhatsAppLeadPanel({
+  lead,
+  canEdit,
+  staffId,
+  showSend,
+  setShowSend,
+}: {
+  lead: LeadDoc;
+  canEdit: boolean;
+  staffId: string | null;
+  showSend: boolean;
+  setShowSend: (v: boolean) => void;
+}) {
   const [messages, setMessages] = useState<WhatsAppMessageDoc[]>([]);
-  const [showSend, setShowSend] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
