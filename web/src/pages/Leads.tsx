@@ -16,7 +16,7 @@ import { bulkChangeStatus, bulkReassign, deleteLead } from "@/lib/data/leads";
 import { ImportLeadsModal } from "@/components/ImportLeadsModal";
 import { BulkSendWhatsAppModal } from "@/components/BulkSendWhatsAppModal";
 import { Button, EmptyState, SectionHeading, SegmentedControl, Skeleton, Select, ProgressBar, Badge } from "@/components/ui";
-import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, isOpenStatus, isClosedStatus, type LeadDoc, type LeadStatus } from "@/types";
+import { OPEN_STATUSES, CLOSED_STATUSES, isAdminRole, canExportData, isOpenStatus, isClosedStatus, type LeadDoc, type LeadStatus } from "@/types";
 import {
   UserPlus,
   Download,
@@ -337,7 +337,9 @@ export function Leads() {
                   </div>
                 )}
               </div>
-              <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export</Button>
+              {canExportData(role) && (
+                <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export</Button>
+              )}
               <Button variant="secondary" size="sm" onClick={() => setShowImport(true)}><Upload className="w-3.5 h-3.5" /> Upload</Button>
               {(Object.values(filters).some(Boolean) || Object.values(columnFilters).some(Boolean)) && (
                 <Button

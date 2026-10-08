@@ -7,6 +7,12 @@ export function isAdminRole(role: Role | null | undefined): boolean {
   return role === "admin" || role === "superadmin";
 }
 
+/** Bulk CSV export carries full parent/child PII — gate it to admin-level and management
+ * roles, not a counsellor's day-to-day lead work (Product Audit Part 10/17, P0 #2). */
+export function canExportData(role: Role | null | undefined): boolean {
+  return role === "admin" || role === "superadmin" || role === "management";
+}
+
 /**
  * Onboarding pipeline for a newly-invited user (Admin > Staff > Invite User).
  * Missing on any pre-existing account created before this flow existed —
@@ -70,7 +76,7 @@ export const OPEN_STATUSES = [
   "Admission Confirmed",
 ] as const;
 
-/** Section 5 — six closed statuses, reachable from any open stage. */
+/** Section 5 — closed statuses, reachable from any open stage. */
 export const CLOSED_STATUSES = [
   "Not Interested",
   "Not Reachable",
@@ -78,6 +84,7 @@ export const CLOSED_STATUSES = [
   "Future Requirement",
   "Lost to Competitor",
   "Duplicate",
+  "Visit No-Show",
 ] as const;
 
 export type OpenStatus = (typeof OPEN_STATUSES)[number];
@@ -92,10 +99,13 @@ export function isClosedStatus(status: string): status is ClosedStatus {
   return (CLOSED_STATUSES as readonly string[]).includes(status);
 }
 
-/** Closed statuses that represent a genuine loss vs. a nurture bucket (Section 5). */
+/** Closed statuses that represent a genuine loss vs. a nurture bucket (Section 5).
+ * A no-show is usually a scheduling miss, not a lost lead — reopenable so a
+ * staff member can bring it back to re-attempt the visit, same as the other two. */
 export const REOPENABLE_CLOSED_STATUSES: ClosedStatus[] = [
   "Not Reachable",
   "Future Requirement",
+  "Visit No-Show",
 ];
 
 export type Priority = "Urgent" | "High" | "Medium" | "Low";
