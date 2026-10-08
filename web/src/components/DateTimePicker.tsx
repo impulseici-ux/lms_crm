@@ -57,17 +57,20 @@ export function DateTimePicker({
   const [draft, setDraft] = useState<Date>(() => (value ? fromInputValue(value) : new Date()));
   const [viewMonth, setViewMonth] = useState<Date>(() => startOfMonth(draft));
   const containerRef = useRef<HTMLDivElement>(null);
+  // The value in effect when the popover was opened — what "Cancel" restores.
+  const openedWithRef = useRef<string>(value);
 
   useEffect(() => {
     if (!open) return;
     const onClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onChange(openedWithRef.current);
         setOpen(false);
       }
     };
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
+  }, [open, onChange]);
 
   // `Field` (the usual wrapper) renders a <label>. A <label> with several
   // buttons inside it forwards any click to the *first* labelable descendant
@@ -76,15 +79,36 @@ export function DateTimePicker({
   // and undo itself. preventDefault() on every internal click suppresses that.
   const openPicker = (e: ReactMouseEvent) => {
     e.preventDefault();
+    openedWithRef.current = value;
     const base = value ? fromInputValue(value) : new Date();
     setDraft(base);
     setViewMonth(startOfMonth(base));
     setOpen(true);
   };
 
-  const commit = (e: ReactMouseEvent) => {
+  // Every pick (day or time) commits immediately — so the field's real value
+  // is always current, whether the user closes via "Done" or saves the
+  // surrounding form directly without opening the popover's own actions.
+  const selectDay = (cellDate: Date) => {
+    const next = new Date(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate(), draft.getHours(), draft.getMinutes());
+    setDraft(next);
+    onChange(toInputValue(next));
+  };
+
+  const selectTime = (h: number, m: number) => {
+    const next = new Date(draft.getFullYear(), draft.getMonth(), draft.getDate(), h, m);
+    setDraft(next);
+    onChange(toInputValue(next));
+  };
+
+  const cancel = (e: ReactMouseEvent) => {
     e.preventDefault();
-    onChange(toInputValue(draft));
+    onChange(openedWithRef.current);
+    setOpen(false);
+  };
+
+  const done = (e: ReactMouseEvent) => {
+    e.preventDefault();
     setOpen(false);
   };
 
@@ -143,7 +167,7 @@ export function DateTimePicker({
                   type="button"
                   onClick={(e) => {
                     e.preventDefault();
-                    setDraft((d) => new Date(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate(), d.getHours(), d.getMinutes()));
+                    selectDay(cellDate);
                   }}
                   className={`h-8 rounded-lg text-[13px] font-medium transition-colors ${
                     selected
@@ -166,15 +190,15 @@ export function DateTimePicker({
               value={`${pad(draft.getHours())}:${pad(draft.getMinutes())}`}
               onChange={(e) => {
                 const [h, m] = e.target.value.split(":").map(Number);
-                setDraft((d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), h ?? 0, m ?? 0));
+                selectTime(h ?? 0, m ?? 0);
               }}
               className="flex-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
             />
           </div>
 
           <div className="flex justify-end gap-2 mt-3.5 pt-3 border-t border-border-soft">
-            <Button type="button" size="sm" variant="secondary" onClick={(e) => { e.preventDefault(); setOpen(false); }}>Cancel</Button>
-            <Button type="button" size="sm" onClick={commit}>Done</Button>
+            <Button type="button" size="sm" variant="secondary" onClick={cancel}>Cancel</Button>
+            <Button type="button" size="sm" onClick={done}>Done</Button>
           </div>
         </div>
       )}
