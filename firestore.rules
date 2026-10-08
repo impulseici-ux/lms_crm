@@ -105,7 +105,8 @@ service cloud.firestore {
         // next follow-up date, unless it is already in a closed status.
         (request.resource.data.status in
           ['Not Interested', 'Not Reachable', 'Wrong/Invalid Number',
-           'Future Requirement', 'Lost to Competitor', 'Duplicate', 'Visit No-Show'] ||
+           'Future Requirement', 'Lost to Competitor', 'Duplicate', 'Visit No-Show',
+           'Out of Service Area'] ||
          (request.resource.data.nextFollowUpAt != null));
 
       allow update: if (isAdmin() ||
@@ -114,7 +115,8 @@ service cloud.firestore {
         (request.resource.data.assignedStaffId == resource.data.assignedStaffId || isAdmin()) &&
         (request.resource.data.status in
           ['Not Interested', 'Not Reachable', 'Wrong/Invalid Number',
-           'Future Requirement', 'Lost to Competitor', 'Duplicate', 'Visit No-Show'] ||
+           'Future Requirement', 'Lost to Competitor', 'Duplicate', 'Visit No-Show',
+           'Out of Service Area'] ||
          (request.resource.data.nextFollowUpAt != null));
 
       allow delete: if isAdmin();

@@ -85,6 +85,7 @@ export const CLOSED_STATUSES = [
   "Lost to Competitor",
   "Duplicate",
   "Visit No-Show",
+  "Out of Service Area",
 ] as const;
 
 export type OpenStatus = (typeof OPEN_STATUSES)[number];
