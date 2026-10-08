@@ -64,13 +64,17 @@ export function DateTimePicker({
     if (!open) return;
     const onClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        onChange(openedWithRef.current);
+        // Every pick already committed via onChange as it happened (see
+        // selectDay/selectTime below) — closing here must NOT revert, or
+        // clicking an outer "Save" button would wipe the pick out from under
+        // it: mousedown (which fires this) always runs before that button's
+        // own click handler.
         setOpen(false);
       }
     };
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open, onChange]);
+  }, [open]);
 
   // `Field` (the usual wrapper) renders a <label>. A <label> with several
   // buttons inside it forwards any click to the *first* labelable descendant
