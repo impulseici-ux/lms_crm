@@ -2,7 +2,6 @@ import {
   doc,
   addDoc,
   updateDoc,
-  deleteDoc,
   onSnapshot,
   getDoc,
   query,
@@ -13,7 +12,7 @@ import {
   type Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { leadsCol, leadDoc, activitiesCol } from "@/lib/data/collections";
+import { leadsCol, leadDoc, activitiesCol, auditLogCol } from "@/lib/data/collections";
 import { addActivity } from "@/lib/data/activities";
 import { assertFollowUpGuardrail } from "@/lib/guardrail";
 import { normalizeLeadPhone } from "@/utils/phone";
@@ -349,8 +348,29 @@ export async function markLeadViewed(lead: LeadDoc, byStaffId: string) {
   }
 }
 
-export async function deleteLead(leadId: string) {
-  await deleteDoc(leadDoc(leadId));
+/**
+ * Deletes a lead AND, in the same batch, a permanent audit entry (Admin > Audit
+ * Log) — deleting the doc removes every other trace of it (its activities
+ * subcollection included), so the snapshot here is the only record left that
+ * it ever existed.
+ */
+export async function deleteLead(lead: LeadDoc, byStaffId: string, byDisplayName: string | null) {
+  const batch = writeBatch(db);
+  batch.delete(leadDoc(lead.id));
+  batch.set(doc(auditLogCol()), {
+    type: "lead_deleted",
+    byStaffId,
+    byDisplayName,
+    at: serverTimestamp(),
+    leadId: lead.id,
+    leadSnapshot: {
+      parentName: lead.parentName,
+      parentPhone: lead.parentPhone,
+      childName: lead.childName,
+      status: lead.status,
+    },
+  });
+  await batch.commit();
 }
 
 export function leadRef(leadId: string) {

@@ -51,6 +51,44 @@ export interface UserDoc {
   updatedAt: Timestamp | null;
 }
 
+/**
+ * System-wide audit trail — superadmin-only (Admin > Audit Log). Two write paths:
+ * the activation backend (backend/api/*, Admin SDK, for account/role events) and
+ * the client directly for `lead_deleted` (the one destructive action with no
+ * backend endpoint of its own — see firestore.rules' create rule on this collection).
+ * Append-only: no update/delete rule exists on this collection, by design.
+ */
+export type AuditLogType =
+  | "lead_deleted"
+  | "user_invited"
+  | "user_activated"
+  | "user_deactivated"
+  | "user_deleted"
+  | "role_switch_used";
+
+export interface AuditLogDoc {
+  id: string;
+  type: AuditLogType;
+  byStaffId: string;
+  byDisplayName: string | null;
+  at: Timestamp | null;
+
+  // lead_deleted — a full snapshot, since deleting the lead doc removes every
+  // other trace of it (its activities subcollection included).
+  leadId?: string;
+  leadSnapshot?: { parentName: string; parentPhone: string; childName: string; status: string } | null;
+
+  // user_invited / user_activated / user_deactivated / user_deleted
+  targetUserId?: string;
+  targetDisplayName?: string;
+
+  // role_switch_used
+  fromRole?: Role;
+  toRole?: Role;
+
+  details?: string | null;
+}
+
 /** `integrations`-style doc at `userActivations/{uid}` — written only by the activation backend (backend/api/*), read-only for admins in the CRM UI. */
 export interface UserActivationDoc {
   id: string; // == uid

@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { applyCors } from "../lib/cors";
 import { requireAdmin, HttpError } from "../lib/requireAdmin";
 import { auth, db } from "../lib/firebaseAdmin";
+import { logAudit } from "../lib/auditLog";
 
 // Admin-only. Disables the Firebase Auth credential itself (not just a Firestore flag) so
 // a deactivated account genuinely can't sign in, not merely display as "Inactive" in the UI.
@@ -11,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed." });
 
   try {
-    await requireAdmin(req);
+    const { uid: callerUid } = await requireAdmin(req);
     const { uid, active } = req.body ?? {};
     if (!uid || typeof active !== "boolean") throw new HttpError(400, "uid and active (boolean) are required.");
 
@@ -27,6 +28,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // silently move a pending/password-setup account into "active".
       status: active ? (currentStatus === "inactive" ? "active" : currentStatus) : "inactive",
       updatedAt: FieldValue.serverTimestamp(),
+    });
+    await logAudit({
+      type: active ? "user_activated" : "user_deactivated",
+      byStaffId: callerUid,
+      targetUserId: uid,
+      targetDisplayName: userSnap.data()!.displayName ?? uid,
     });
 
     return res.status(200).json({ ok: true });

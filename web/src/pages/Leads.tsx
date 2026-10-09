@@ -209,7 +209,7 @@ export function Leads() {
 
   const onDeleteRow = async (lead: LeadDoc) => {
     if (!window.confirm(`Delete the lead for ${lead.parentName} · ${lead.childName}? This cannot be undone.`)) return;
-    await deleteLead(lead.id);
+    await deleteLead(lead, user!.uid, staffName(user?.uid ?? null));
   };
 
   if (loading) {

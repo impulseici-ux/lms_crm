@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLookups } from "@/hooks/useLookups";
@@ -6,8 +6,9 @@ import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/
 import { setUserRole } from "@/lib/data/users";
 import { subscribeSyncConfig, subscribeSyncRuns } from "@/lib/data/sync";
 import { inviteUser, resendActivationCode, setUserActive, deleteUser, type IssueCodeResult } from "@/lib/data/onboarding";
-import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile, Badge } from "@/components/ui";
-import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc } from "@/types";
+import { subscribeAuditLog } from "@/lib/data/auditLog";
+import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile, Badge, Skeleton, SegmentedControl } from "@/components/ui";
+import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc, AuditLogDoc, AuditLogType } from "@/types";
 import { resolveUserStatus } from "@/types";
 import {
   Radio,
@@ -32,6 +33,9 @@ import {
   Ban,
   Power,
   Trash2,
+  ShieldAlert,
+  Repeat,
+  FileX,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -43,18 +47,22 @@ const TABS: { key: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "Staff", icon: Users },
   { key: "Integrations", icon: RefreshCw },
 ];
-type Tab = (typeof TABS)[number]["key"];
+type Tab = (typeof TABS)[number]["key"] | "Audit Log";
 
 export function Admin() {
   const [tab, setTab] = useState<Tab>("Lead Sources");
   const lookups = useLookups();
+  const { role } = useAuth();
+  // Covers security-sensitive account/role events, not day-to-day lead work — same
+  // tier as permanent user deletion elsewhere in this app (Section 18).
+  const tabs = role === "superadmin" ? [...TABS, { key: "Audit Log" as const, icon: ShieldAlert }] : TABS;
 
   return (
     <div className="max-w-4xl mx-auto pb-8">
       <SectionHeading eyebrow="Configuration" title="Admin Settings" description="Manage the CRM lists, campaigns and staff access." />
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const active = tab === t.key;
           return (
             <button
@@ -71,6 +79,7 @@ export function Admin() {
         })}
       </div>
 
+      {tab === "Audit Log" && <AuditLogTab />}
       {tab === "Lead Sources" && (
         <SimpleListEditor icon={Radio} items={lookups.leadSources} onAdd={(name) => addLeadSource(name, lookups.leadSources.length)} onToggle={(id, active) => setActive("leadSources", id, active)} placeholder="e.g. Snapchat Ads" />
       )}
@@ -753,6 +762,106 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
     <div className="rounded-xl border border-border-soft bg-surface-2 px-3.5 py-3">
       <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold">{label}</div>
       <div className="text-sm font-semibold text-ink mt-1">{value}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Audit Log (superadmin-only — see firestore.rules' auditLog collection)
+// ---------------------------------------------------------------------------
+
+const AUDIT_TYPE_META: Record<AuditLogType, { icon: ComponentType<{ className?: string }>; label: string; tone: "bad" | "warn" | "good" | "accent" | "neutral" }> = {
+  lead_deleted: { icon: FileX, label: "Lead deleted", tone: "bad" },
+  user_invited: { icon: UserPlus, label: "Staff invited", tone: "accent" },
+  user_activated: { icon: Power, label: "Staff activated", tone: "good" },
+  user_deactivated: { icon: Ban, label: "Staff deactivated", tone: "warn" },
+  user_deleted: { icon: Trash2, label: "Staff account deleted", tone: "bad" },
+  role_switch_used: { icon: Repeat, label: "Role switch used", tone: "neutral" },
+};
+
+const AUDIT_FILTERS = ["All", "Lead Deletions", "Staff & Roles"] as const;
+
+function formatAuditTime(at: AuditLogDoc["at"]): string {
+  if (!at) return "—";
+  return at.toDate().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+function AuditLogTab() {
+  const [entries, setEntries] = useState<AuditLogDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<(typeof AUDIT_FILTERS)[number]>("All");
+  const { staffName } = useLookups();
+
+  useEffect(() => {
+    return subscribeAuditLog((items) => {
+      setEntries(items);
+      setLoading(false);
+    });
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (filter === "All") return entries;
+    if (filter === "Lead Deletions") return entries.filter((e) => e.type === "lead_deleted");
+    return entries.filter((e) => e.type !== "lead_deleted");
+  }, [entries, filter]);
+
+  return (
+    <div>
+      <p className="text-sm text-ink-faint mb-4">
+        Every lead deletion, staff account change, and role-switcher use across the CRM. Append-only — nothing shown here can be
+        edited or removed, including by a superadmin.
+      </p>
+      <SegmentedControl className="mb-4" options={AUDIT_FILTERS.map((f) => ({ value: f, label: f }))} value={filter} onChange={setFilter} />
+      {loading ? (
+        <Skeleton className="h-40 rounded-2xl" />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon={<ShieldAlert />} title="No audit entries yet" description="Lead deletions, staff changes, and role-switcher use will appear here as they happen." />
+      ) : (
+        <div className="divide-y divide-border-soft bg-surface border border-border rounded-2xl overflow-hidden">
+          {filtered.map((entry) => (
+            <AuditRow key={entry.id} entry={entry} staffName={staffName} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AuditRow({ entry, staffName }: { entry: AuditLogDoc; staffName: (id: string | null) => string }) {
+  const meta = AUDIT_TYPE_META[entry.type];
+  const actor = entry.byDisplayName ?? staffName(entry.byStaffId);
+
+  return (
+    <div className="flex items-start gap-3 px-5 py-3.5">
+      <IconTile tone={meta.tone} size="sm">
+        <meta.icon />
+      </IconTile>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-ink text-sm">{meta.label}</span>
+          <Badge tone={meta.tone}>{actor}</Badge>
+        </div>
+
+        {entry.type === "lead_deleted" && entry.leadSnapshot && (
+          <p className="text-sm text-ink-soft mt-1">
+            {entry.leadSnapshot.parentName} ({entry.leadSnapshot.childName}) · {entry.leadSnapshot.parentPhone} · was{" "}
+            <span className="font-medium">{entry.leadSnapshot.status}</span>
+          </p>
+        )}
+        {(entry.type === "user_invited" || entry.type === "user_activated" || entry.type === "user_deactivated" || entry.type === "user_deleted") && (
+          <p className="text-sm text-ink-soft mt-1">
+            {entry.targetDisplayName}
+            {entry.details ? ` · ${entry.details}` : ""}
+          </p>
+        )}
+        {entry.type === "role_switch_used" && (
+          <p className="text-sm text-ink-soft mt-1">
+            {entry.fromRole ?? "?"} → {entry.toRole ?? "?"}
+          </p>
+        )}
+
+        <p className="text-xs text-ink-faint mt-1">{formatAuditTime(entry.at)}</p>
+      </div>
     </div>
   );
 }
