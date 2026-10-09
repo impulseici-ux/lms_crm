@@ -17,7 +17,7 @@ import {
   updateLeadFields,
   markLeadViewed,
 } from "@/lib/data/leads";
-import { subscribeActivities } from "@/lib/data/activities";
+import { subscribeActivities, ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABELS, formatActivityDetail } from "@/lib/data/activities";
 import { subscribeWhatsAppMessagesForLead } from "@/lib/data/whatsapp";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
 import { DateTimePicker } from "@/components/DateTimePicker";
@@ -52,8 +52,6 @@ import {
   UserCog,
   GraduationCap,
   RefreshCcw,
-  ArrowRightLeft,
-  Sparkles,
   CircleCheck,
   Pencil,
   Landmark,
@@ -66,30 +64,6 @@ import type { ComponentType, ReactNode } from "react";
 
 const FOLLOW_UP_TYPES: FollowUpType[] = ["Call", "WhatsApp", "Visit Reminder", "Email", "In-Person", "Other"];
 const OUTCOMES: FollowUpOutcome[] = ["Reached", "Interested", "No Answer", "Rescheduled", "Not Interested", "Converted to Visit"];
-
-const ACTIVITY_ICON: Record<ActivityType, ComponentType<{ className?: string }>> = {
-  follow_up_planned: CalendarClock,
-  follow_up_outcome: CircleCheck,
-  note: StickyNote,
-  status_change: ArrowRightLeft,
-  reassignment: UserCog,
-  visit: CalendarCheck,
-  call_logged: Phone,
-  whatsapp_logged: MessageCircle,
-  lead_created: Sparkles,
-};
-
-const ACTIVITY_LABEL: Record<ActivityType, string> = {
-  follow_up_planned: "Follow-up scheduled",
-  follow_up_outcome: "Follow-up outcome",
-  note: "Note",
-  status_change: "Status changed",
-  reassignment: "Reassigned",
-  visit: "Visit",
-  call_logged: "Call logged",
-  whatsapp_logged: "WhatsApp logged",
-  lead_created: "Lead created",
-};
 
 function toLocalInput(ts: Timestamp | null): string {
   if (!ts) return "";
@@ -730,7 +704,7 @@ function followUpSummary(activity: ActivityDoc): string {
     case "whatsapp_logged":
       return activity.text || "WhatsApp message sent";
     default:
-      return ACTIVITY_LABEL[activity.type];
+      return ACTIVITY_TYPE_LABELS[activity.type];
   }
 }
 
@@ -748,31 +722,8 @@ function FactRow({ icon: Icon, label, value }: { icon: ComponentType<{ className
 
 function TimelineEntry({ activity, staffName, isLast }: { activity: ActivityDoc; staffName: (id: string | null) => string; isLast: boolean }) {
   const when = activity.at?.toDate().toLocaleString() ?? "";
-  let detail = "";
-  switch (activity.type) {
-    case "status_change":
-      detail = `${activity.fromStatus ?? "—"} → ${activity.toStatus ?? "—"}`;
-      break;
-    case "reassignment":
-      detail = `${staffName(activity.fromStaffId ?? null)} → ${staffName(activity.toStaffId ?? null)}${activity.reason ? ` (${activity.reason})` : ""}`;
-      break;
-    case "follow_up_planned":
-      detail = `${activity.followUpType ?? ""} due ${activity.dueAt?.toDate().toLocaleString() ?? ""}`;
-      break;
-    case "follow_up_outcome":
-      detail = `${activity.outcome ?? ""}${activity.outcomeNotes ? ` — ${activity.outcomeNotes}` : ""}`;
-      break;
-    case "visit":
-      detail = `${activity.visitDate?.toDate().toLocaleString() ?? ""}${activity.visitNotes ? ` — ${activity.visitNotes}` : ""}`;
-      break;
-    case "note":
-    case "lead_created":
-    case "call_logged":
-    case "whatsapp_logged":
-      detail = activity.text ?? "";
-      break;
-  }
-  const Icon = ACTIVITY_ICON[activity.type];
+  const detail = formatActivityDetail(activity, staffName);
+  const Icon = ACTIVITY_TYPE_ICON[activity.type];
   return (
     <div className="flex gap-3.5">
       <div className="flex flex-col items-center shrink-0">
@@ -783,7 +734,7 @@ function TimelineEntry({ activity, staffName, isLast }: { activity: ActivityDoc;
       </div>
       <div className="pb-5 min-w-0 flex-1">
         <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-0.5">
-          <span className="font-semibold text-sm">{ACTIVITY_LABEL[activity.type]}</span>
+          <span className="font-semibold text-sm">{ACTIVITY_TYPE_LABELS[activity.type]}</span>
           <span className="text-xs text-ink-faint">{when} · {staffName(activity.byStaffId)}</span>
         </div>
         {detail && <div className="text-sm text-ink-soft mt-0.5">{detail}</div>}

@@ -69,7 +69,11 @@ export type AuditLogType =
   // Catch-all for an account edit made directly via the Admin SDK (console/support
   // action) rather than through one of the typed flows above — e.g. a login ID or
   // password reset, or granting canSwitchRoles. `details` carries the specifics.
-  | "user_updated";
+  | "user_updated"
+  // Admin > Lead Sources/Programs/Branches/Campaigns: added, activated, or
+  // deactivated. `details` carries what changed (this list is short-lived,
+  // low-cardinality config, not worth a dedicated schema per action).
+  | "config_changed";
 
 /** One changed field, for `lead_updated` entries. Values are pre-formatted strings
  * (not raw Firestore values) so the Audit Log can render them without knowing each

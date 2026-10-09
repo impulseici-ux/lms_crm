@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLookups } from "@/hooks/useLookups";
+import { useLeads } from "@/hooks/useLeads";
+import { subscribeAllActivities, ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABELS, formatActivityDetail } from "@/lib/data/activities";
 import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/lib/data/lookups";
 import { setUserRole } from "@/lib/data/users";
 import { subscribeSyncConfig, subscribeSyncRuns } from "@/lib/data/sync";
 import { inviteUser, resendActivationCode, setUserActive, deleteUser, type IssueCodeResult } from "@/lib/data/onboarding";
 import { subscribeAuditLog } from "@/lib/data/auditLog";
 import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile, Badge, Skeleton, SegmentedControl } from "@/components/ui";
-import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc, AuditLogDoc, AuditLogType } from "@/types";
+import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc, AuditLogDoc, AuditLogType, ActivityDoc, LeadDoc } from "@/types";
 import { resolveUserStatus } from "@/types";
 import {
   Radio,
@@ -54,7 +56,9 @@ type Tab = (typeof TABS)[number]["key"] | "Audit Log";
 export function Admin() {
   const [tab, setTab] = useState<Tab>("Lead Sources");
   const lookups = useLookups();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
+  const byStaffId = user?.uid ?? "";
+  const byDisplayName = lookups.staffName(user?.uid ?? null);
   // Covers security-sensitive account/role events, not day-to-day lead work — same
   // tier as permanent user deletion elsewhere in this app (Section 18).
   const tabs = role === "superadmin" ? [...TABS, { key: "Audit Log" as const, icon: ShieldAlert }] : TABS;
@@ -83,15 +87,33 @@ export function Admin() {
 
       {tab === "Audit Log" && <AuditLogTab />}
       {tab === "Lead Sources" && (
-        <SimpleListEditor icon={Radio} items={lookups.leadSources} onAdd={(name) => addLeadSource(name, lookups.leadSources.length)} onToggle={(id, active) => setActive("leadSources", id, active)} placeholder="e.g. Snapchat Ads" />
+        <SimpleListEditor
+          icon={Radio}
+          items={lookups.leadSources}
+          onAdd={(name) => addLeadSource(name, lookups.leadSources.length, byStaffId, byDisplayName)}
+          onToggle={(id, active, name) => setActive("leadSources", id, active, name, byStaffId, byDisplayName)}
+          placeholder="e.g. Snapchat Ads"
+        />
       )}
       {tab === "Programs" && (
-        <SimpleListEditor icon={BookOpen} items={lookups.programs} onAdd={(name) => addProgram(name, lookups.programs.length)} onToggle={(id, active) => setActive("programs", id, active)} placeholder="e.g. Grade 3" />
+        <SimpleListEditor
+          icon={BookOpen}
+          items={lookups.programs}
+          onAdd={(name) => addProgram(name, lookups.programs.length, byStaffId, byDisplayName)}
+          onToggle={(id, active, name) => setActive("programs", id, active, name, byStaffId, byDisplayName)}
+          placeholder="e.g. Grade 3"
+        />
       )}
       {tab === "Branches" && (
-        <SimpleListEditor icon={MapPin} items={lookups.branches} onAdd={(name) => addBranch(name)} onToggle={(id, active) => setActive("branches", id, active)} placeholder="e.g. Singanallur" />
+        <SimpleListEditor
+          icon={MapPin}
+          items={lookups.branches}
+          onAdd={(name) => addBranch(name, byStaffId, byDisplayName)}
+          onToggle={(id, active, name) => setActive("branches", id, active, name, byStaffId, byDisplayName)}
+          placeholder="e.g. Singanallur"
+        />
       )}
-      {tab === "Campaigns" && <CampaignsEditor />}
+      {tab === "Campaigns" && <CampaignsEditor byStaffId={byStaffId} byDisplayName={byDisplayName} />}
       {tab === "Staff" && <StaffEditor />}
       {tab === "Integrations" && <IntegrationsPanel />}
     </div>
@@ -108,7 +130,7 @@ function SimpleListEditor({
   icon: ComponentType<{ className?: string }>;
   items: { id: string; name: string; active: boolean }[];
   onAdd: (name: string) => Promise<unknown>;
-  onToggle: (id: string, active: boolean) => Promise<unknown>;
+  onToggle: (id: string, active: boolean, name: string) => Promise<unknown>;
   placeholder: string;
 }) {
   const [name, setName] = useState("");
@@ -137,7 +159,7 @@ function SimpleListEditor({
               <IconTile tone={item.active ? "accent" : "neutral"} size="sm"><Icon /></IconTile>
               <span className={`min-w-0 truncate font-medium ${item.active ? "text-ink" : "text-ink-faint line-through"}`}>{item.name}</span>
             </div>
-            <button type="button" className="shrink-0 text-xs font-semibold text-accent hover:text-accent-strong" onClick={() => onToggle(item.id, !item.active)}>
+            <button type="button" className="shrink-0 text-xs font-semibold text-accent hover:text-accent-strong" onClick={() => onToggle(item.id, !item.active, item.name)}>
               {item.active ? "Deactivate" : "Activate"}
             </button>
           </div>
@@ -148,7 +170,7 @@ function SimpleListEditor({
   );
 }
 
-function CampaignsEditor() {
+function CampaignsEditor({ byStaffId, byDisplayName }: { byStaffId: string; byDisplayName: string | null }) {
   const { campaigns, leadSources } = useLookups();
   const { showToast } = useToast();
   const [name, setName] = useState("");
@@ -156,7 +178,7 @@ function CampaignsEditor() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await addCampaign(name.trim(), channels, null, null, null);
+    await addCampaign(name.trim(), channels, null, null, null, byStaffId, byDisplayName);
     setName("");
     setChannels([]);
     showToast("Saved");
@@ -781,53 +803,123 @@ const AUDIT_TYPE_META: Record<AuditLogType, { icon: ComponentType<{ className?: 
   user_deleted: { icon: Trash2, label: "Staff account deleted", tone: "bad" },
   role_switch_used: { icon: Repeat, label: "Role switch used", tone: "neutral" },
   user_updated: { icon: UserCog, label: "Account updated", tone: "accent" },
+  config_changed: { icon: ListChecks, label: "Config changed", tone: "accent" },
 };
 
 const AUDIT_FILTERS = ["All", "Lead Changes", "Staff & Roles"] as const;
-const LEAD_AUDIT_TYPES: AuditLogType[] = ["lead_deleted", "lead_updated"];
+const LEAD_DELETE_UPDATE_TYPES: AuditLogType[] = ["lead_deleted", "lead_updated"];
 
 function formatAuditTime(at: AuditLogDoc["at"]): string {
   if (!at) return "—";
   return at.toDate().toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
+type UnifiedAuditEntry =
+  | { kind: "audit"; id: string; atMillis: number; data: AuditLogDoc }
+  | { kind: "activity"; id: string; atMillis: number; data: ActivityDoc & { leadId: string } };
+
+/**
+ * Merges two independent sources into one feed, rather than duplicating every
+ * lead activity into the `auditLog` collection: `auditLog` itself (deletions,
+ * field edits, staff/role events, config changes — things with no home anywhere
+ * else) and a superadmin-wide collection-group read of every lead's own
+ * `activities` subcollection (status changes, reassignments, follow-ups, notes,
+ * visits, call/WhatsApp logs, lead creation — already recorded per-lead, just not
+ * previously visible in one place across the whole CRM).
+ */
 function AuditLogTab() {
-  const [entries, setEntries] = useState<AuditLogDoc[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [auditEntries, setAuditEntries] = useState<AuditLogDoc[]>([]);
+  const [activityEntries, setActivityEntries] = useState<(ActivityDoc & { leadId: string })[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(true);
+  const [loadingActivities, setLoadingActivities] = useState(true);
   const [filter, setFilter] = useState<(typeof AUDIT_FILTERS)[number]>("All");
   const { staffName } = useLookups();
+  const { leads } = useLeads();
 
   useEffect(() => {
     return subscribeAuditLog((items) => {
-      setEntries(items);
-      setLoading(false);
+      setAuditEntries(items);
+      setLoadingAudit(false);
     });
   }, []);
 
+  useEffect(() => {
+    return subscribeAllActivities((items) => {
+      setActivityEntries(items);
+      setLoadingActivities(false);
+    });
+  }, []);
+
+  const leadsById = useMemo(() => new Map(leads.map((l) => [l.id, l])), [leads]);
+
+  const unified = useMemo<UnifiedAuditEntry[]>(() => {
+    const a: UnifiedAuditEntry[] = auditEntries.map((e) => ({ kind: "audit", id: `audit:${e.id}`, atMillis: e.at?.toMillis() ?? 0, data: e }));
+    const b: UnifiedAuditEntry[] = activityEntries.map((e) => ({ kind: "activity", id: `activity:${e.id}`, atMillis: e.at?.toMillis() ?? 0, data: e }));
+    return [...a, ...b].sort((x, y) => y.atMillis - x.atMillis).slice(0, 300);
+  }, [auditEntries, activityEntries]);
+
   const filtered = useMemo(() => {
-    if (filter === "All") return entries;
-    if (filter === "Lead Changes") return entries.filter((e) => LEAD_AUDIT_TYPES.includes(e.type));
-    return entries.filter((e) => !LEAD_AUDIT_TYPES.includes(e.type));
-  }, [entries, filter]);
+    if (filter === "All") return unified;
+    if (filter === "Lead Changes") return unified.filter((e) => e.kind === "activity" || LEAD_DELETE_UPDATE_TYPES.includes(e.data.type));
+    return unified.filter((e) => e.kind === "audit" && !LEAD_DELETE_UPDATE_TYPES.includes(e.data.type));
+  }, [unified, filter]);
+
+  const loading = loadingAudit || loadingActivities;
 
   return (
     <div>
       <p className="text-sm text-ink-faint mb-4">
-        Every lead deletion, lead field edit (Fees, Location, Priority, WhatsApp eligibility), staff account change, and
-        role-switcher use across the CRM. Append-only — nothing shown here can be edited or removed, including by a superadmin.
+        Every lead change (status, reassignment, follow-ups, notes, visits, calls/WhatsApp logged, field edits, deletions),
+        config change (lead sources, programs, branches, campaigns), staff account change, and role-switcher use across the
+        CRM. Append-only — nothing shown here can be edited or removed, including by a superadmin.
       </p>
       <SegmentedControl className="mb-4" options={AUDIT_FILTERS.map((f) => ({ value: f, label: f }))} value={filter} onChange={setFilter} />
       {loading ? (
         <Skeleton className="h-40 rounded-2xl" />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={<ShieldAlert />} title="No audit entries yet" description="Lead changes, staff changes, and role-switcher use will appear here as they happen." />
+        <EmptyState icon={<ShieldAlert />} title="No audit entries yet" description="Lead changes, config changes, staff changes, and role-switcher use will appear here as they happen." />
       ) : (
         <div className="divide-y divide-border-soft bg-surface border border-border rounded-2xl overflow-hidden">
-          {filtered.map((entry) => (
-            <AuditRow key={entry.id} entry={entry} staffName={staffName} />
-          ))}
+          {filtered.map((entry) =>
+            entry.kind === "audit" ? (
+              <AuditRow key={entry.id} entry={entry.data} staffName={staffName} />
+            ) : (
+              <ActivityAuditRow key={entry.id} activity={entry.data} staffName={staffName} lead={leadsById.get(entry.data.leadId)} />
+            )
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ActivityAuditRow({
+  activity,
+  staffName,
+  lead,
+}: {
+  activity: ActivityDoc & { leadId: string };
+  staffName: (id: string | null) => string;
+  lead: LeadDoc | undefined;
+}) {
+  const Icon = ACTIVITY_TYPE_ICON[activity.type];
+  const detail = formatActivityDetail(activity, staffName);
+  return (
+    <div className="flex items-start gap-3 px-5 py-3.5">
+      <IconTile tone="neutral" size="sm">
+        <Icon />
+      </IconTile>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-ink text-sm">{ACTIVITY_TYPE_LABELS[activity.type]}</span>
+          <Badge tone="neutral">{staffName(activity.byStaffId)}</Badge>
+        </div>
+        <p className="text-sm text-ink-soft mt-1">
+          {lead ? `${lead.parentName} (${lead.childName})` : "Lead no longer exists"}
+          {detail ? ` · ${detail}` : ""}
+        </p>
+        <p className="text-xs text-ink-faint mt-1">{formatAuditTime(activity.at)}</p>
+      </div>
     </div>
   );
 }
@@ -880,6 +972,7 @@ function AuditRow({ entry, staffName }: { entry: AuditLogDoc; staffName: (id: st
             {entry.fromRole ?? "?"} → {entry.toRole ?? "?"}
           </p>
         )}
+        {entry.type === "config_changed" && entry.details && <p className="text-sm text-ink-soft mt-1">{entry.details}</p>}
 
         <p className="text-xs text-ink-faint mt-1">{formatAuditTime(entry.at)}</p>
       </div>
