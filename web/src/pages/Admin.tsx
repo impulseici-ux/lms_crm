@@ -36,6 +36,7 @@ import {
   ShieldAlert,
   Repeat,
   FileX,
+  UserCog,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -777,6 +778,7 @@ const AUDIT_TYPE_META: Record<AuditLogType, { icon: ComponentType<{ className?: 
   user_deactivated: { icon: Ban, label: "Staff deactivated", tone: "warn" },
   user_deleted: { icon: Trash2, label: "Staff account deleted", tone: "bad" },
   role_switch_used: { icon: Repeat, label: "Role switch used", tone: "neutral" },
+  user_updated: { icon: UserCog, label: "Account updated", tone: "accent" },
 };
 
 const AUDIT_FILTERS = ["All", "Lead Deletions", "Staff & Roles"] as const;
@@ -848,7 +850,7 @@ function AuditRow({ entry, staffName }: { entry: AuditLogDoc; staffName: (id: st
             <span className="font-medium">{entry.leadSnapshot.status}</span>
           </p>
         )}
-        {(entry.type === "user_invited" || entry.type === "user_activated" || entry.type === "user_deactivated" || entry.type === "user_deleted") && (
+        {(entry.type === "user_invited" || entry.type === "user_activated" || entry.type === "user_deactivated" || entry.type === "user_deleted" || entry.type === "user_updated") && (
           <p className="text-sm text-ink-soft mt-1">
             {entry.targetDisplayName}
             {entry.details ? ` · ${entry.details}` : ""}
