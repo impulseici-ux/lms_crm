@@ -60,6 +60,7 @@ export interface UserDoc {
  */
 export type AuditLogType =
   | "lead_deleted"
+  | "lead_updated"
   | "user_invited"
   | "user_activated"
   | "user_deactivated"
@@ -70,6 +71,15 @@ export type AuditLogType =
   // password reset, or granting canSwitchRoles. `details` carries the specifics.
   | "user_updated";
 
+/** One changed field, for `lead_updated` entries. Values are pre-formatted strings
+ * (not raw Firestore values) so the Audit Log can render them without knowing each
+ * field's type. */
+export interface AuditFieldChange {
+  field: string;
+  from: string;
+  to: string;
+}
+
 export interface AuditLogDoc {
   id: string;
   type: AuditLogType;
@@ -79,8 +89,11 @@ export interface AuditLogDoc {
 
   // lead_deleted — a full snapshot, since deleting the lead doc removes every
   // other trace of it (its activities subcollection included).
+  // lead_updated — identity only (the lead itself still exists); `changes` below
+  // carries what actually moved.
   leadId?: string;
   leadSnapshot?: { parentName: string; parentPhone: string; childName: string; status: string } | null;
+  changes?: AuditFieldChange[];
 
   // user_invited / user_activated / user_deactivated / user_deleted
   targetUserId?: string;

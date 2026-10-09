@@ -37,6 +37,7 @@ import {
   Repeat,
   FileX,
   UserCog,
+  Pencil,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -773,6 +774,7 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
 
 const AUDIT_TYPE_META: Record<AuditLogType, { icon: ComponentType<{ className?: string }>; label: string; tone: "bad" | "warn" | "good" | "accent" | "neutral" }> = {
   lead_deleted: { icon: FileX, label: "Lead deleted", tone: "bad" },
+  lead_updated: { icon: Pencil, label: "Lead updated", tone: "accent" },
   user_invited: { icon: UserPlus, label: "Staff invited", tone: "accent" },
   user_activated: { icon: Power, label: "Staff activated", tone: "good" },
   user_deactivated: { icon: Ban, label: "Staff deactivated", tone: "warn" },
@@ -781,7 +783,8 @@ const AUDIT_TYPE_META: Record<AuditLogType, { icon: ComponentType<{ className?: 
   user_updated: { icon: UserCog, label: "Account updated", tone: "accent" },
 };
 
-const AUDIT_FILTERS = ["All", "Lead Deletions", "Staff & Roles"] as const;
+const AUDIT_FILTERS = ["All", "Lead Changes", "Staff & Roles"] as const;
+const LEAD_AUDIT_TYPES: AuditLogType[] = ["lead_deleted", "lead_updated"];
 
 function formatAuditTime(at: AuditLogDoc["at"]): string {
   if (!at) return "—";
@@ -803,21 +806,21 @@ function AuditLogTab() {
 
   const filtered = useMemo(() => {
     if (filter === "All") return entries;
-    if (filter === "Lead Deletions") return entries.filter((e) => e.type === "lead_deleted");
-    return entries.filter((e) => e.type !== "lead_deleted");
+    if (filter === "Lead Changes") return entries.filter((e) => LEAD_AUDIT_TYPES.includes(e.type));
+    return entries.filter((e) => !LEAD_AUDIT_TYPES.includes(e.type));
   }, [entries, filter]);
 
   return (
     <div>
       <p className="text-sm text-ink-faint mb-4">
-        Every lead deletion, staff account change, and role-switcher use across the CRM. Append-only — nothing shown here can be
-        edited or removed, including by a superadmin.
+        Every lead deletion, lead field edit (Fees, Location, Priority, WhatsApp eligibility), staff account change, and
+        role-switcher use across the CRM. Append-only — nothing shown here can be edited or removed, including by a superadmin.
       </p>
       <SegmentedControl className="mb-4" options={AUDIT_FILTERS.map((f) => ({ value: f, label: f }))} value={filter} onChange={setFilter} />
       {loading ? (
         <Skeleton className="h-40 rounded-2xl" />
       ) : filtered.length === 0 ? (
-        <EmptyState icon={<ShieldAlert />} title="No audit entries yet" description="Lead deletions, staff changes, and role-switcher use will appear here as they happen." />
+        <EmptyState icon={<ShieldAlert />} title="No audit entries yet" description="Lead changes, staff changes, and role-switcher use will appear here as they happen." />
       ) : (
         <div className="divide-y divide-border-soft bg-surface border border-border rounded-2xl overflow-hidden">
           {filtered.map((entry) => (
@@ -849,6 +852,22 @@ function AuditRow({ entry, staffName }: { entry: AuditLogDoc; staffName: (id: st
             {entry.leadSnapshot.parentName} ({entry.leadSnapshot.childName}) · {entry.leadSnapshot.parentPhone} · was{" "}
             <span className="font-medium">{entry.leadSnapshot.status}</span>
           </p>
+        )}
+        {entry.type === "lead_updated" && entry.leadSnapshot && (
+          <div className="text-sm text-ink-soft mt-1">
+            <p>
+              {entry.leadSnapshot.parentName} ({entry.leadSnapshot.childName}) · {entry.leadSnapshot.parentPhone}
+            </p>
+            {entry.changes && entry.changes.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {entry.changes.map((c) => (
+                  <li key={c.field}>
+                    <span className="font-medium text-ink">{c.field}</span>: {c.from} → {c.to}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
         {(entry.type === "user_invited" || entry.type === "user_activated" || entry.type === "user_deactivated" || entry.type === "user_deleted" || entry.type === "user_updated") && (
           <p className="text-sm text-ink-soft mt-1">

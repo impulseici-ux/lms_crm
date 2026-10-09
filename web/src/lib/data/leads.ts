@@ -16,7 +16,7 @@ import { leadsCol, leadDoc, activitiesCol, auditLogCol } from "@/lib/data/collec
 import { addActivity } from "@/lib/data/activities";
 import { assertFollowUpGuardrail } from "@/lib/guardrail";
 import { normalizeLeadPhone } from "@/utils/phone";
-import { isOpenStatus, type LeadDoc, type LeadStatus, type Priority, type FollowUpType, type FollowUpOutcome } from "@/types";
+import { isOpenStatus, type LeadDoc, type LeadStatus, type Priority, type FollowUpType, type FollowUpOutcome, type AuditFieldChange } from "@/types";
 import { runAutomationsForEvent } from "@/lib/whatsapp/triggers";
 
 export function subscribeLeads(onChange: (leads: LeadDoc[]) => void) {
@@ -329,8 +329,51 @@ export async function reassignLead(
   );
 }
 
-export async function updateLeadFields(leadId: string, patch: Partial<LeadDoc>) {
-  await updateDoc(leadDoc(leadId), { ...patch, updatedAt: serverTimestamp() });
+function formatAuditValue(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  return String(v);
+}
+
+function diffLeadPatch(lead: LeadDoc, patch: Partial<LeadDoc>): AuditFieldChange[] {
+  const changes: AuditFieldChange[] = [];
+  for (const key of Object.keys(patch) as (keyof LeadDoc)[]) {
+    const from = lead[key];
+    const to = patch[key];
+    if (from === to) continue;
+    changes.push({ field: key, from: formatAuditValue(from), to: formatAuditValue(to) });
+  }
+  return changes;
+}
+
+/**
+ * Generic field-level edit (Fees, Location, Priority, WhatsApp opt status today) —
+ * the one write path on a lead that otherwise leaves zero trace anywhere, not even
+ * on the lead's own activity timeline. Writes a `lead_updated` audit entry (Admin >
+ * Audit Log, superadmin-only) in the same batch whenever the patch actually changes
+ * something, so every contact edit is attributable.
+ */
+export async function updateLeadFields(lead: LeadDoc, patch: Partial<LeadDoc>, byStaffId: string, byDisplayName: string | null) {
+  const changes = diffLeadPatch(lead, patch);
+  const batch = writeBatch(db);
+  batch.update(leadDoc(lead.id), { ...patch, updatedAt: serverTimestamp() });
+  if (changes.length > 0) {
+    batch.set(doc(auditLogCol()), {
+      type: "lead_updated",
+      byStaffId,
+      byDisplayName,
+      at: serverTimestamp(),
+      leadId: lead.id,
+      leadSnapshot: {
+        parentName: lead.parentName,
+        parentPhone: lead.parentPhone,
+        childName: lead.childName,
+        status: lead.status,
+      },
+      changes,
+    });
+  }
+  await batch.commit();
 }
 
 // Clears the "lead blink" the first time someone opens an unseen lead. Deliberately

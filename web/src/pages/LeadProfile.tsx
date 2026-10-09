@@ -210,7 +210,7 @@ export function LeadProfile() {
               {canEdit ? (
                 <select
                   value={lead.priority}
-                  onChange={(e) => doAction(() => updateLeadFields(lead.id, { priority: e.target.value as LeadDoc["priority"] }))}
+                  onChange={(e) => doAction(() => updateLeadFields(lead, { priority: e.target.value as LeadDoc["priority"] }, user!.uid, staffName(user?.uid ?? null)))}
                   aria-label="Priority"
                   className={`rounded-full pl-2.5 pr-7 py-1 text-[12px] font-semibold border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/25 appearance-none bg-no-repeat bg-[right_0.6rem_center] bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22%238D97A8%22><path d=%22M5.5 7.5l4.5 4.5 4.5-4.5%22 stroke=%22%238D97A8%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/></svg>')] ${
                     lead.priority === "Urgent" || lead.priority === "High"
@@ -368,10 +368,12 @@ export function LeadProfile() {
                 size="sm"
                 onClick={() =>
                   doAction(async () => {
-                    await updateLeadFields(lead.id, {
-                      location: editLocation.trim() || null,
-                      fees: editFees.trim() ? Number(editFees) : null,
-                    });
+                    await updateLeadFields(
+                      lead,
+                      { location: editLocation.trim() || null, fees: editFees.trim() ? Number(editFees) : null },
+                      user!.uid,
+                      staffName(user?.uid ?? null)
+                    );
                     setEditingFacts(false);
                   })
                 }
@@ -627,6 +629,7 @@ function WhatsAppLeadPanel({
 }) {
   const [messages, setMessages] = useState<WhatsAppMessageDoc[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const { staffName } = useLookups();
 
   useEffect(() => {
     return subscribeWhatsAppMessagesForLead(lead.id, setMessages);
@@ -651,7 +654,7 @@ function WhatsAppLeadPanel({
             {canEdit ? (
               <Select
                 value={optStatus}
-                onChange={(e) => updateLeadFields(lead.id, { whatsappOptStatus: e.target.value as LeadDoc["whatsappOptStatus"] })}
+                onChange={(e) => updateLeadFields(lead, { whatsappOptStatus: e.target.value as LeadDoc["whatsappOptStatus"] }, staffId ?? "", staffName(staffId))}
                 className="mt-1 text-sm py-1.5"
               >
                 <option value="Unknown">Unknown</option>

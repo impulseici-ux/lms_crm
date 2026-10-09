@@ -263,16 +263,18 @@ service cloud.firestore {
     // ---- System-wide audit trail (Admin > Audit Log) ----
     // Most entries (user invited/activated/deactivated/deleted, role-switch usage)
     // come from the activation backend via the Admin SDK, which bypasses this rule
-    // entirely. The one exception is `lead_deleted`: lead deletion itself stays a
-    // direct client write (see leads/{leadId}'s own `allow delete`), so the audit
-    // entry for it is too — written in the same batch as the delete, by whoever did
-    // it. Read is superadmin-only: this trail covers security-sensitive account
-    // actions, not just day-to-day lead activity (that's leads/{id}/activities).
+    // entirely. `lead_deleted` and `lead_updated` are the exceptions: lead writes
+    // stay direct client writes (see leads/{leadId}'s own allow delete/update), so
+    // the audit entry for each is too — written in the same batch as the lead write
+    // itself, by whoever did it. Read is superadmin-only: this trail is for
+    // oversight across every staff member's edits, not just what a counsellor or
+    // admin can already see on a lead's own timeline (that's leads/{id}/activities).
     match /auditLog/{entryId} {
       allow read: if isSuperAdmin();
-      allow create: if isAdmin() &&
-        request.resource.data.type == 'lead_deleted' &&
-        request.resource.data.byStaffId == request.auth.uid;
+      allow create: if request.resource.data.byStaffId == request.auth.uid && (
+        (isAdmin() && request.resource.data.type == 'lead_deleted') ||
+        (isStaff() && request.resource.data.type == 'lead_updated')
+      );
       allow update, delete: if false;
     }
 
