@@ -27,7 +27,7 @@ export function Layout() {
   const displayName = profile?.displayName ?? user?.email ?? "";
 
   const brand = (
-    <Link to="/" onClick={() => setMobileOpen(false)} className="h-[72px] shrink-0 flex items-center px-5 hover:bg-sidebar-bg-raised transition-colors">
+    <Link to="/" onClick={() => setMobileOpen(false)} className="h-14 shrink-0 flex items-center px-5 hover:bg-sidebar-bg-raised transition-colors">
       <div className="bg-white rounded-xl p-2 inline-block">
         <img src={logo} alt="Little Millennium Singanallur" className="h-10 w-auto object-contain" />
       </div>
@@ -87,16 +87,16 @@ export function Layout() {
   // is exactly one page-level scrollbar (both axes) plus whatever a page nests inside.
   return (
     <div className="h-screen overflow-hidden bg-bg text-ink flex flex-col">
-      <header className="lg:hidden shrink-0 flex items-center justify-between bg-sidebar-bg border-b border-sidebar-border px-4 py-3">
-        <Link to="/" onClick={() => setMobileOpen(false)} className="bg-white rounded-lg p-1.5 inline-block">
-          <img src={logo} alt="Little Millennium Singanallur" className="h-8 w-auto object-contain" />
+      <header className="lg:hidden h-12 shrink-0 flex items-center justify-between bg-sidebar-bg border-b border-sidebar-border px-3">
+        <Link to="/" onClick={() => setMobileOpen(false)} className="bg-white rounded-lg p-1 inline-block">
+          <img src={logo} alt="Little Millennium Singanallur" className="h-7 w-auto object-contain" />
         </Link>
         <button
           type="button"
           aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((open) => !open)}
-          className="rounded-lg border border-sidebar-border w-9 h-9 flex items-center justify-center text-sidebar-ink hover:bg-sidebar-bg-raised"
+          className="rounded-lg border border-sidebar-border w-8 h-8 flex items-center justify-center text-sidebar-ink hover:bg-sidebar-bg-raised"
         >
           {mobileOpen ? <X className="w-[18px] h-[18px]" /> : <Menu className="w-[18px] h-[18px]" />}
         </button>
@@ -105,7 +105,7 @@ export function Layout() {
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-30 bg-black/40" onClick={() => setMobileOpen(false)}>
           <aside
-            className="absolute right-0 top-[57px] bottom-0 w-[min(18rem,88vw)] bg-sidebar-bg border-l border-sidebar-border shadow-2xl flex flex-col"
+            className="absolute right-0 top-12 bottom-0 w-[min(18rem,88vw)] bg-sidebar-bg border-l border-sidebar-border shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex-1 overflow-y-auto pt-2">{navigation}</div>
@@ -121,7 +121,7 @@ export function Layout() {
         </aside>
         <div className="flex-1 min-w-0 h-full flex flex-col">
           <Header />
-          <main className="flex-1 min-w-0 overflow-auto p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 min-w-0 overflow-auto p-3 sm:p-4 lg:p-5">
             <Outlet />
           </main>
         </div>

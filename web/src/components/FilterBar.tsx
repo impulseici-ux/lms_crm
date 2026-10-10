@@ -77,11 +77,11 @@ export function FilterBar({ filters, onApply }: { filters: Filters; onApply: (f:
   };
 
   return (
-    <div className="bg-surface border border-border rounded-2xl mb-5 overflow-hidden">
+    <div className="bg-surface border border-border rounded-xl mb-2 overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-surface-2/50 transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-3.5 py-2 text-left hover:bg-surface-2/50 transition-colors"
       >
         <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
           <SlidersHorizontal className="w-4 h-4 text-ink-faint" />

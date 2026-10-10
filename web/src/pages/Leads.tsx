@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useLeads } from "@/hooks/useLeads";
 import { useLookups } from "@/hooks/useLookups";
 import { FilterBar, EMPTY_FILTERS, applyFilters } from "@/components/FilterBar";
 import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
+import { LeadDrawer } from "@/components/LeadDrawer";
 import { computeAttentionFlags } from "@/utils/attention";
 import { deriveFollowUpState, isFollowUpDueToday, isFollowUpOverdue } from "@/utils/followUp";
 import { downloadCsv } from "@/utils/csv";
@@ -34,10 +35,42 @@ import {
   CalendarClock,
   X,
   ShieldAlert,
+  Columns3,
+  MoreHorizontal,
 } from "lucide-react";
 
 const QUICK_VIEWS = ["All", "My Leads", "Follow-up Today", "Overdue", "Visits", "Converted", "Closed", "Needs Attention"] as const;
 type QuickView = (typeof QUICK_VIEWS)[number];
+
+const TOGGLEABLE_COLUMNS = ["course", "fees", "source", "location", "remarks", "admin"] as const;
+type ToggleableColumn = (typeof TOGGLEABLE_COLUMNS)[number];
+const COLUMN_LABELS: Record<ToggleableColumn, string> = {
+  course: "Course",
+  fees: "Fees",
+  source: "Source",
+  location: "Location",
+  remarks: "Remarks",
+  admin: "Admin",
+};
+const DEFAULT_VISIBLE_COLUMNS: Record<ToggleableColumn, boolean> = {
+  course: true,
+  fees: true,
+  source: true,
+  location: true,
+  remarks: true,
+  admin: true,
+};
+const COLUMN_PREFS_KEY = "lms-crm:leads-table-columns";
+
+function loadColumnPrefs(): Record<ToggleableColumn, boolean> {
+  try {
+    const raw = localStorage.getItem(COLUMN_PREFS_KEY);
+    if (!raw) return DEFAULT_VISIBLE_COLUMNS;
+    return { ...DEFAULT_VISIBLE_COLUMNS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_VISIBLE_COLUMNS;
+  }
+}
 
 const TABS = [
   { key: "Data table", icon: Table2 },
@@ -76,7 +109,7 @@ const EMPTY_COLUMN_FILTERS: ColumnFilters = { name: "", course: "", source: "", 
 export function Leads() {
   const { user, role } = useAuth();
   const { leads, loading } = useLeads();
-  const { programName, staffName, branches, programs, leadSources, campaigns, users } = useLookups();
+  const { programName, staffName, branchName, branches, programs, leadSources, campaigns, users } = useLookups();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusParam = searchParams.get("status");
   const staffIdParam = searchParams.get("staffId");
@@ -93,6 +126,17 @@ export function Leads() {
   const [showBulkSend, setShowBulkSend] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<LeadStatus>("Contacted");
   const [bulkStaffId, setBulkStaffId] = useState("");
+  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Record<ToggleableColumn, boolean>>(loadColumnPrefs);
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(visibleColumns));
+    } catch {
+      // ignore — purely a UI preference, fine to lose in private-browsing etc.
+    }
+  }, [visibleColumns]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
 
@@ -130,6 +174,7 @@ export function Leads() {
 
   const selectedLeads = useMemo(() => visible.filter((l) => selected.has(l.id)), [visible, selected]);
   const allVisibleSelected = visible.length > 0 && visible.every((l) => selected.has(l.id));
+  const openLead = useMemo(() => leads.find((l) => l.id === openLeadId) ?? null, [leads, openLeadId]);
 
   const toggleAll = () => {
     setSelected(allVisibleSelected ? new Set() : new Set(visible.map((l) => l.id)));
@@ -233,9 +278,9 @@ export function Leads() {
   return (
     <div className="max-w-7xl mx-auto h-full flex flex-col">
       <div className="shrink-0">
-      <SectionHeading eyebrow="Admissions pipeline" title="Enquiries" description="Manage and track all your student enquiries in one place." />
+      <SectionHeading title="Enquiries" description="Manage and track all your student enquiries in one place." compact />
 
-      <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-5 border-b border-border-soft">
+      <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-2 border-b border-border-soft overflow-x-auto">
         {TABS.map((t) => {
           const active = tab === t.key;
           return (
@@ -245,11 +290,11 @@ export function Leads() {
               role="tab"
               aria-selected={active}
               onClick={() => setTab(t.key)}
-              className={`relative inline-flex items-center gap-2 text-[13px] font-semibold px-4 py-2.5 -mb-px border-b-2 transition-colors ${
+              className={`relative inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 -mb-px border-b-2 whitespace-nowrap transition-colors ${
                 active ? "border-accent text-accent" : "border-transparent text-ink-soft hover:text-ink hover:border-ink-faint/30"
               }`}
             >
-              <t.icon className="w-4 h-4" />
+              <t.icon className="w-3.5 h-3.5" />
               {t.key}
             </button>
           );
@@ -259,21 +304,20 @@ export function Leads() {
       <FilterBar filters={filters} onApply={setFilters} />
 
       {(filters.status || filters.staffId === "__unassigned__" || showInvalidOnly) && (
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft border border-accent/20 px-4 py-2.5 mb-4 text-sm">
-          <span className="text-accent-strong font-semibold">
-            Showing:{" "}
+        <div className="flex items-center gap-2 mb-2 text-xs">
+          <Badge tone="accent">
             {showInvalidOnly
-              ? "leads with invalid mobile numbers"
+              ? "Invalid mobile numbers"
               : filters.staffId === "__unassigned__"
-              ? "unassigned leads"
-              : `${filters.status} leads`}
-          </span>
+              ? "Unassigned leads"
+              : `${filters.status}`}
+          </Badge>
           <button
             type="button"
             onClick={() => { setFilters(EMPTY_FILTERS); setSearchParams({}); }}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline shrink-0"
+            className="inline-flex items-center gap-0.5 font-semibold text-ink-faint hover:text-accent-strong shrink-0"
           >
-            <X className="w-3.5 h-3.5" /> Clear filter
+            <X className="w-3 h-3" /> Clear
           </button>
         </div>
       )}
@@ -287,60 +331,141 @@ export function Leads() {
             stays pinned above the table (no new scrollbar) while the table area
             below flexes to fill whatever space remains, scrolling independently.
           */}
-          <div className="shrink-0 mb-3 flex items-center justify-between gap-3 bg-surface border border-border-soft rounded-2xl shadow-[var(--shadow-card)] px-4 py-3">
+          <div className="shrink-0 mb-2 flex items-center justify-between gap-3 bg-surface border border-border-soft rounded-xl shadow-[var(--shadow-card)] px-3 py-1.5">
             <div className="min-w-0 flex-1">
               <SegmentedControl options={segments} value={quickView} onChange={chooseView} />
             </div>
             <div className="text-xs text-ink-faint shrink-0">
-              Showing <span className="font-semibold text-ink-soft">{visible.length}</span> of {leads.length}
+              <span className="font-semibold text-ink-soft">{visible.length}</span> / {leads.length}
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 mb-3 shrink-0">
-            <h2 className="font-semibold text-lg text-ink">All Enquiries</h2>
-            <div className="flex flex-wrap items-center gap-2 justify-end">
-              <div className="relative">
-                <Button variant="secondary" size="sm" onClick={() => setShowWhatsApp((v) => !v)} disabled={selected.size === 0} className="!bg-good/10 !text-good !border-good/20 hover:!bg-good/15">
-                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+          <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+            <h2 className="hidden sm:block font-semibold text-[13.5px] text-ink-soft uppercase tracking-wide shrink-0">All Enquiries</h2>
+            <div className="flex flex-wrap items-center gap-2 justify-end flex-1 sm:flex-initial">
+              {/* Secondary actions: inline on sm+, tucked behind "More" on phones so the
+                  toolbar never wraps to 3 lines above the list (mobile requirement #7). */}
+              <div className="hidden sm:flex items-center gap-2">
+                <div className="relative">
+                  <Button variant="secondary" size="sm" onClick={() => setShowWhatsApp((v) => !v)} disabled={selected.size === 0} className="!bg-good/10 !text-good !border-good/20 hover:!bg-good/15">
+                    <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                  </Button>
+                  {showWhatsApp && selected.size > 0 && (
+                    <div className="absolute right-0 mt-1 z-20 w-64 bg-surface border border-border rounded-xl shadow-elevated p-2 max-h-64 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => { setShowBulkSend(true); setShowWhatsApp(false); }}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-semibold text-accent hover:bg-accent-soft mb-1 border-b border-border-soft pb-2.5"
+                      >
+                        <Send className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Send custom message to all {selected.size}…</span>
+                      </button>
+                      {selectedLeads.map((l) => {
+                        const link = buildWhatsAppLink(l.parentPhone, l.parentName, l.sourceChannel);
+                        return link ? (
+                          <a
+                            key={l.id}
+                            href={link}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => setShowWhatsApp(false)}
+                            className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm hover:bg-surface-2"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-good shrink-0" />
+                            <span className="truncate">{l.parentName} · {l.childName}</span>
+                          </a>
+                        ) : (
+                          <div key={l.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-ink-faint opacity-60" title="Invalid/unverified mobile number">
+                            <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{l.parentName} · {l.childName}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {canExportData(role) && (
+                  <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export</Button>
+                )}
+                <Button variant="secondary" size="sm" onClick={() => setShowImport(true)}><Upload className="w-3.5 h-3.5" /> Upload</Button>
+                <div className="relative">
+                  <Button variant="secondary" size="sm" onClick={() => setColumnsMenuOpen((v) => !v)}>
+                    <Columns3 className="w-3.5 h-3.5" /> Columns
+                  </Button>
+                  {columnsMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setColumnsMenuOpen(false)} />
+                      <div className="absolute right-0 mt-1 z-20 w-48 bg-surface border border-border rounded-xl shadow-elevated p-2">
+                        <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold px-2 py-1">Show columns</div>
+                        {TOGGLEABLE_COLUMNS.map((col) => (
+                          <label key={col} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-ink-soft hover:bg-surface-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={visibleColumns[col]}
+                              onChange={(e) => setVisibleColumns((v) => ({ ...v, [col]: e.target.checked }))}
+                              className="rounded border-border"
+                            />
+                            {COLUMN_LABELS[col]}
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="relative sm:hidden">
+                <Button variant="secondary" size="sm" onClick={() => setMoreMenuOpen((v) => !v)} aria-label="More actions">
+                  <MoreHorizontal className="w-3.5 h-3.5" />
                 </Button>
-                {showWhatsApp && selected.size > 0 && (
-                  <div className="absolute right-0 mt-1 z-20 w-64 bg-surface border border-border rounded-xl shadow-elevated p-2 max-h-64 overflow-y-auto">
-                    <button
-                      type="button"
-                      onClick={() => { setShowBulkSend(true); setShowWhatsApp(false); }}
-                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-semibold text-accent hover:bg-accent-soft mb-1 border-b border-border-soft pb-2.5"
-                    >
-                      <Send className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Send custom message to all {selected.size}…</span>
-                    </button>
-                    {selectedLeads.map((l) => {
-                      const link = buildWhatsAppLink(l.parentPhone, l.parentName, l.sourceChannel);
-                      return link ? (
-                        <a
-                          key={l.id}
-                          href={link}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => setShowWhatsApp(false)}
-                          className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm hover:bg-surface-2"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5 text-good shrink-0" />
-                          <span className="truncate">{l.parentName} · {l.childName}</span>
-                        </a>
-                      ) : (
-                        <div key={l.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm text-ink-faint opacity-60" title="Invalid/unverified mobile number">
-                          <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{l.parentName} · {l.childName}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {moreMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setMoreMenuOpen(false)} />
+                    <div className="absolute right-0 mt-1 z-20 w-56 bg-surface border border-border rounded-xl shadow-elevated p-1.5">
+                      <button
+                        type="button"
+                        disabled={selected.size === 0}
+                        onClick={() => { setShowWhatsApp(true); setMoreMenuOpen(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-good hover:bg-good-soft disabled:opacity-40 disabled:hover:bg-transparent"
+                      >
+                        <MessageCircle className="w-4 h-4" /> WhatsApp {selected.size > 0 ? `(${selected.size})` : ""}
+                      </button>
+                      {canExportData(role) && (
+                        <button type="button" onClick={() => { exportCsv(); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-ink-soft hover:bg-surface-2">
+                          <Download className="w-4 h-4" /> Export
+                        </button>
+                      )}
+                      <button type="button" onClick={() => { setShowImport(true); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-ink-soft hover:bg-surface-2">
+                        <Upload className="w-4 h-4" /> Upload
+                      </button>
+                      <button type="button" onClick={() => { setColumnsMenuOpen(true); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-ink-soft hover:bg-surface-2">
+                        <Columns3 className="w-4 h-4" /> Columns
+                      </button>
+                    </div>
+                  </>
+                )}
+                {/* The Columns checklist panel itself is shared with the desktop trigger above. */}
+                {columnsMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setColumnsMenuOpen(false)} />
+                    <div className="absolute right-0 mt-1 z-20 w-48 bg-surface border border-border rounded-xl shadow-elevated p-2">
+                      <div className="text-[11px] uppercase tracking-wide text-ink-faint font-semibold px-2 py-1">Show columns</div>
+                      {TOGGLEABLE_COLUMNS.map((col) => (
+                        <label key={col} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-ink-soft hover:bg-surface-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns[col]}
+                            onChange={(e) => setVisibleColumns((v) => ({ ...v, [col]: e.target.checked }))}
+                            className="rounded border-border"
+                          />
+                          {COLUMN_LABELS[col]}
+                        </label>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
-              {canExportData(role) && (
-                <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export</Button>
-              )}
-              <Button variant="secondary" size="sm" onClick={() => setShowImport(true)}><Upload className="w-3.5 h-3.5" /> Upload</Button>
+
               {(Object.values(filters).some(Boolean) || Object.values(columnFilters).some(Boolean)) && (
                 <Button
                   variant="subtle"
@@ -350,7 +475,7 @@ export function Leads() {
                     setColumnFilters(EMPTY_COLUMN_FILTERS);
                   }}
                 >
-                  <X className="w-3.5 h-3.5" /> Clear Filters
+                  <X className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Clear Filters</span>
                 </Button>
               )}
               <Link to="/leads/new">
@@ -389,37 +514,37 @@ export function Leads() {
             <div className="hidden lg:block flex-1 min-h-0 overflow-auto">
               <table className="w-full text-sm table-fixed">
                 <thead className="text-ink-faint text-[11px] uppercase tracking-wide">
-                  <tr className="h-11">
-                    <th className="sticky top-0 left-0 z-40 bg-surface-2 px-4 py-3 w-11">
+                  <tr className="h-9">
+                    <th className="sticky top-0 left-0 z-40 bg-surface-2 px-3 py-2 w-10">
                       <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
                     </th>
-                    <th className="sticky top-0 left-11 z-40 bg-surface-2 text-left px-2 py-3 w-[230px]">Name</th>
-                    <th className="sticky top-0 left-[274px] z-40 bg-surface-2 text-left px-2 py-3 w-[130px]">Status</th>
-                    <th className="sticky top-0 left-[404px] z-40 bg-surface-2 text-left px-2 py-3 w-[150px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]">Mobile</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[90px]">Priority</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[130px]">Follow-up</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[130px]">Course</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[90px]">Fees</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[120px]">Source</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[110px]">Location</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[200px]">Remarks</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[110px]">Admin</th>
-                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-3 w-[140px]">Actions</th>
+                    <th className="sticky top-0 left-10 z-40 bg-surface-2 text-left px-2 py-2 w-[220px]">Name</th>
+                    <th className="sticky top-0 left-[264px] z-40 bg-surface-2 text-left px-2 py-2 w-[120px]">Status</th>
+                    <th className="sticky top-0 left-[384px] z-40 bg-surface-2 text-left px-2 py-2 w-[145px] shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]">Mobile</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[85px]">Priority</th>
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[125px]">Follow-up</th>
+                    {visibleColumns.course && <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[125px]">Course</th>}
+                    {visibleColumns.fees && <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[85px]">Fees</th>}
+                    {visibleColumns.source && <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[115px]">Source</th>}
+                    {visibleColumns.location && <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[105px]">Location</th>}
+                    {visibleColumns.remarks && <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[190px]">Remarks</th>}
+                    {visibleColumns.admin && <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[105px]">Admin</th>}
+                    <th className="sticky top-0 z-30 bg-surface-2 text-left px-2 py-2 w-[135px]">Actions</th>
                   </tr>
-                  <tr className="h-10">
-                    <td className="sticky top-11 left-0 z-40 bg-surface px-4 py-1.5" />
-                    <ColumnSearchCell className="sticky top-11 left-11 z-40 bg-surface" value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
-                    <td className="sticky top-11 left-[274px] z-40 bg-surface px-2 py-1.5" />
-                    <ColumnSearchCell className="sticky top-11 left-[404px] z-40 bg-surface shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]" value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
-                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
-                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
-                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />
-                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
-                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />
-                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.location} onChange={(v) => setColumnFilters((c) => ({ ...c, location: v }))} />
-                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.remarks} onChange={(v) => setColumnFilters((c) => ({ ...c, remarks: v }))} />
-                    <ColumnSearchCell className="sticky top-11 z-30 bg-surface" value={columnFilters.admin} onChange={(v) => setColumnFilters((c) => ({ ...c, admin: v }))} />
-                    <td className="sticky top-11 z-30 bg-surface px-2 py-1.5" />
+                  <tr className="h-9">
+                    <td className="sticky top-9 left-0 z-40 bg-surface px-3 py-1" />
+                    <ColumnSearchCell className="sticky top-9 left-10 z-40 bg-surface" value={columnFilters.name} onChange={(v) => setColumnFilters((c) => ({ ...c, name: v }))} />
+                    <td className="sticky top-9 left-[264px] z-40 bg-surface px-2 py-1" />
+                    <ColumnSearchCell className="sticky top-9 left-[384px] z-40 bg-surface shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)]" value={columnFilters.mobile} onChange={(v) => setColumnFilters((c) => ({ ...c, mobile: v }))} />
+                    <td className="sticky top-9 z-30 bg-surface px-2 py-1" />
+                    <td className="sticky top-9 z-30 bg-surface px-2 py-1" />
+                    {visibleColumns.course && <ColumnSearchCell className="sticky top-9 z-30 bg-surface" value={columnFilters.course} onChange={(v) => setColumnFilters((c) => ({ ...c, course: v }))} />}
+                    {visibleColumns.fees && <td className="sticky top-9 z-30 bg-surface px-2 py-1" />}
+                    {visibleColumns.source && <ColumnSearchCell className="sticky top-9 z-30 bg-surface" value={columnFilters.source} onChange={(v) => setColumnFilters((c) => ({ ...c, source: v }))} />}
+                    {visibleColumns.location && <ColumnSearchCell className="sticky top-9 z-30 bg-surface" value={columnFilters.location} onChange={(v) => setColumnFilters((c) => ({ ...c, location: v }))} />}
+                    {visibleColumns.remarks && <ColumnSearchCell className="sticky top-9 z-30 bg-surface" value={columnFilters.remarks} onChange={(v) => setColumnFilters((c) => ({ ...c, remarks: v }))} />}
+                    {visibleColumns.admin && <ColumnSearchCell className="sticky top-9 z-30 bg-surface" value={columnFilters.admin} onChange={(v) => setColumnFilters((c) => ({ ...c, admin: v }))} />}
+                    <td className="sticky top-9 z-30 bg-surface px-2 py-1" />
                   </tr>
                 </thead>
                 <tbody>
@@ -428,26 +553,30 @@ export function Leads() {
                     const isSelected = selected.has(lead.id);
                     const stickyBg = unseen ? "" : isSelected ? "bg-accent-soft" : "bg-surface group-hover:bg-surface-2";
                     return (
-                    <tr key={lead.id} className={`group border-t border-border-soft transition-colors ${unseen ? "lead-unseen-row" : isSelected ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}>
-                      <td className={`sticky left-0 z-20 px-4 py-3 overflow-hidden ${stickyBg}`}>
+                    <tr
+                      key={lead.id}
+                      onClick={() => setOpenLeadId(lead.id)}
+                      className={`group border-t border-border-soft transition-colors cursor-pointer ${unseen ? "lead-unseen-row" : isSelected ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}
+                    >
+                      <td className={`sticky left-0 z-20 px-3 py-2.5 overflow-hidden ${stickyBg}`} onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={isSelected} onChange={() => toggleOne(lead.id)} className="rounded border-border" aria-label={`Select ${lead.parentName}`} />
                       </td>
-                      <td className={`sticky left-11 z-20 px-2 py-3 overflow-hidden ${stickyBg}`}>
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-accent-soft text-accent-strong flex items-center justify-center text-[11px] font-bold shrink-0">
+                      <td className={`sticky left-10 z-20 px-2 py-2.5 overflow-hidden ${stickyBg}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-accent-soft text-accent-strong flex items-center justify-center text-[10.5px] font-bold shrink-0">
                             {initials(lead.childName)}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <Link to={`/leads/${lead.id}`} className="font-semibold text-[14.5px] text-ink hover:text-accent truncate">{lead.childName}</Link>
+                              <span className="font-semibold text-[13.5px] text-ink group-hover:text-accent truncate">{lead.childName}</span>
                               {unseen && <Badge tone="warn">NEW</Badge>}
                             </div>
-                            <div className="text-ink-faint text-xs mt-0.5 truncate">{lead.parentName}</div>
+                            <div className="text-ink-faint text-[11.5px] truncate">{lead.parentName}</div>
                           </div>
                         </div>
                       </td>
-                      <td className={`sticky left-[274px] z-20 px-2 py-3 overflow-hidden ${stickyBg}`}><StatusPill status={lead.status} /></td>
-                      <td className={`sticky left-[404px] z-20 px-2 py-3 truncate shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] ${stickyBg}`}>
+                      <td className={`sticky left-[264px] z-20 px-2 py-2.5 overflow-hidden ${stickyBg}`}><StatusPill status={lead.status} /></td>
+                      <td className={`sticky left-[384px] z-20 px-2 py-2.5 truncate shadow-[2px_0_6px_-2px_rgba(0,0,0,0.12)] ${stickyBg}`}>
                         {isValidLeadPhone(lead.parentPhone) ? (
                           <span className="inline-flex items-center gap-1 text-ink-soft"><Phone className="w-3 h-3" />{lead.parentPhone}</span>
                         ) : (
@@ -456,17 +585,17 @@ export function Leads() {
                           </span>
                         )}
                       </td>
-                      <td className="px-2 py-3 overflow-hidden"><PriorityPill priority={lead.priority} /></td>
-                      <td className="px-2 py-3 overflow-hidden"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
-                      <td className="px-2 py-3 text-ink-soft truncate">{programName(lead.interestedProgramId)}</td>
-                      <td className="px-2 py-3 text-ink-soft truncate">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>
-                      <td className="px-2 py-3 text-ink-soft truncate">{lead.sourceChannel}</td>
-                      <td className="px-2 py-3 text-ink-soft truncate">{lead.location ?? "—"}</td>
-                      <td className="px-2 py-3 text-ink-faint truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>
-                      <td className="px-2 py-3 text-ink-soft truncate">{staffName(lead.assignedStaffId)}</td>
-                      <td className="px-2 py-3 overflow-hidden">
+                      <td className="px-2 py-2.5 overflow-hidden"><PriorityPill priority={lead.priority} /></td>
+                      <td className="px-2 py-2.5 overflow-hidden"><FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} /></td>
+                      {visibleColumns.course && <td className="px-2 py-2.5 text-ink-soft truncate">{programName(lead.interestedProgramId)}</td>}
+                      {visibleColumns.fees && <td className="px-2 py-2.5 text-ink-soft truncate">{lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"}</td>}
+                      {visibleColumns.source && <td className="px-2 py-2.5 text-ink-soft truncate">{lead.sourceChannel}</td>}
+                      {visibleColumns.location && <td className="px-2 py-2.5 text-ink-soft truncate">{lead.location ?? "—"}</td>}
+                      {visibleColumns.remarks && <td className="px-2 py-2.5 text-ink-faint truncate" title={lead.notes ?? ""}>{lead.notes ?? "—"}</td>}
+                      {visibleColumns.admin && <td className="px-2 py-2.5 text-ink-soft truncate">{staffName(lead.assignedStaffId)}</td>}
+                      <td className="px-2 py-2.5 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1">
-                          <Link to={`/leads/${lead.id}`} aria-label="Open lead" title="Open Lead" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
+                          <Link to={`/leads/${lead.id}`} aria-label="Open full profile" title="Open Full Profile" className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-faint hover:bg-surface-2 hover:text-accent">
                             <Eye className="w-4 h-4" />
                           </Link>
                           {isValidLeadPhone(lead.parentPhone) ? (
@@ -505,7 +634,7 @@ export function Leads() {
             </div>
 
             {visible.length > 0 && (
-              <div className="lg:hidden flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border-soft shrink-0 bg-surface-2">
+              <div className="lg:hidden flex items-center justify-between gap-2 px-3 py-2 border-b border-border-soft shrink-0 bg-surface-2">
                 <label className="flex items-center gap-2 text-sm font-medium text-ink-soft">
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
                   Select all {visible.length}
@@ -522,34 +651,58 @@ export function Leads() {
               {visible.map((lead) => {
                 const unseen = isLeadUnseen(lead);
                 return (
-                <div key={lead.id} className={`p-4 ${unseen ? "lead-unseen-card" : ""}`}>
-                  <div className="flex items-start gap-3">
-                    <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggleOne(lead.id)} className="mt-1 rounded border-border shrink-0" aria-label={`Select ${lead.childName}`} />
-                    <Link to={`/leads/${lead.id}`} className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3">
+                <div
+                  key={lead.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setOpenLeadId(lead.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter") setOpenLeadId(lead.id); }}
+                  className={`p-3 active:bg-surface-2/60 ${unseen ? "lead-unseen-card" : ""}`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(lead.id)}
+                      onChange={() => toggleOne(lead.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="mt-1 rounded border-border shrink-0"
+                      aria-label={`Select ${lead.childName}`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <div className="font-semibold text-ink truncate">{lead.childName}</div>
+                            <div className="font-semibold text-[14px] text-ink truncate">{lead.childName}</div>
                             {unseen && <Badge tone="warn">NEW</Badge>}
                           </div>
-                          <div className="text-xs text-ink-soft mt-0.5 truncate">
-                            {lead.parentName} ·{" "}
-                            {isValidLeadPhone(lead.parentPhone) ? (
-                              lead.parentPhone
-                            ) : (
-                              <span className="text-bad" title={lead.parentPhone || undefined}>Invalid Number</span>
-                            )}
-                          </div>
+                          <div className="text-xs text-ink-soft mt-0.5 truncate">{lead.parentName}</div>
                         </div>
                         <StatusPill status={lead.status} />
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
                         <PriorityPill priority={lead.priority} />
                         <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
-                        <span className="text-xs text-ink-soft">{programName(lead.interestedProgramId)}</span>
                       </div>
-                      <div className="text-xs text-ink-faint mt-2">{lead.sourceChannel} · {staffName(lead.assignedStaffId)}{lead.fees != null ? ` · ₹${lead.fees.toLocaleString("en-IN")}` : ""}</div>
-                    </Link>
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <div className="text-[11px] text-ink-faint truncate min-w-0">
+                          {programName(lead.interestedProgramId)} · {lead.sourceChannel}
+                        </div>
+                        {isValidLeadPhone(lead.parentPhone) ? (
+                          <a
+                            href={`tel:${lead.parentPhone}`}
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label="Call"
+                            className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-accent bg-accent-soft"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </a>
+                        ) : (
+                          <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-warn">
+                            <ShieldAlert className="w-3.5 h-3.5" /> Invalid number
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
                 );
@@ -597,6 +750,10 @@ export function Leads() {
 
       {showBulkSend && (
         <BulkSendWhatsAppModal leads={selectedLeads} staffId={user!.uid} onClose={() => setShowBulkSend(false)} />
+      )}
+
+      {openLead && (
+        <LeadDrawer lead={openLead} onClose={() => setOpenLeadId(null)} programName={programName} branchName={branchName} staffName={staffName} />
       )}
     </div>
   );
