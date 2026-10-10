@@ -137,10 +137,10 @@ export function LeadProfile() {
 
   if (lead === undefined) {
     return (
-      <div className="max-w-5xl mx-auto">
-        <Skeleton className="h-5 w-16 mb-4" />
-        <Skeleton className="h-32 rounded-2xl mb-4" />
-        <Skeleton className="h-48 rounded-2xl" />
+      <div className="max-w-4xl mx-auto">
+        <Skeleton className="h-5 w-16 mb-3" />
+        <Skeleton className="h-24 rounded-2xl mb-3" />
+        <Skeleton className="h-40 rounded-2xl" />
       </div>
     );
   }
@@ -165,21 +165,21 @@ export function LeadProfile() {
   const recentFollowUps = activities.filter((a) => FOLLOW_UP_ACTIVITY_TYPES.includes(a.type)).slice(0, 3);
 
   return (
-    <div className="max-w-5xl mx-auto pb-8">
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-accent mb-4 transition-colors">
+    <div className="max-w-4xl mx-auto pb-6">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-accent mb-3 transition-colors">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
       {/* Header */}
-      <Card className="mb-4">
-        <div className="flex items-start gap-4 min-w-0">
-          <div className="w-14 h-14 rounded-2xl bg-accent-soft text-accent-strong flex items-center justify-center text-lg font-bold shrink-0">
+      <Card padded={false} className="p-4 mb-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-xl bg-accent-soft text-accent-strong flex items-center justify-center text-[13px] font-bold shrink-0">
             {initials(lead.childName)}
           </div>
           <div className="min-w-0">
-            <h1 className="font-display text-2xl font-semibold truncate">{lead.childName}</h1>
-            <div className="text-ink-soft text-sm mt-0.5">Parent / guardian: {lead.parentName}</div>
-            <div className="flex flex-wrap gap-2 mt-2.5">
+            <h1 className="font-display text-[17px] font-semibold truncate leading-tight">{lead.childName}</h1>
+            <div className="text-ink-soft text-[12.5px] mt-0.5">Parent / guardian: {lead.parentName}</div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
               <StatusPill status={lead.status} />
               {canEdit ? (
                 <select
@@ -206,50 +206,50 @@ export function LeadProfile() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-ink-faint mt-4 pt-3 border-t border-border-soft">
+        <div className="flex items-center gap-1.5 text-xs text-ink-faint mt-3 pt-2.5 border-t border-border-soft">
           <UserCog className="w-3.5 h-3.5" /> Assigned to <span className="font-semibold text-ink-soft">{staffName(lead.assignedStaffId)}</span>
         </div>
       </Card>
 
-      {error && <div role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-3 text-sm text-bad mb-4">{error}</div>}
+      {error && <div role="alert" className="rounded-xl border border-bad/20 bg-bad-soft px-4 py-2.5 text-sm text-bad mb-3">{error}</div>}
 
       {/* Quick actions */}
       <GroupLabel>Quick actions</GroupLabel>
-      <Card className="mb-4">
+      <Card padded={false} className="p-3.5 mb-3">
         <div className="grid grid-cols-2 sm:flex gap-2">
           {isValidLeadPhone(lead.parentPhone) ? (
             <a href={`tel:${lead.parentPhone}`} onClick={() => user && doAction(() => logContact(lead, "call_logged", user.uid))} className="w-full sm:w-auto">
-              <Button variant="secondary" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
+              <Button variant="secondary" size="sm" className="w-full"><Phone className="w-4 h-4" /> Call</Button>
             </a>
           ) : (
-            <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — calling disabled.">
+            <Button variant="secondary" size="sm" className="w-full" disabled title="This number couldn't be verified — calling disabled.">
               <Phone className="w-4 h-4" /> Call
             </Button>
           )}
           {isValidLeadPhone(lead.parentPhone) ? (
-            <Button variant="secondary" className="w-full" onClick={() => setShowSend(true)}>
+            <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => setShowSend(true)}>
               <MessageCircle className="w-4 h-4" /> WhatsApp
             </Button>
           ) : (
-            <Button variant="secondary" className="w-full" disabled title="This number couldn't be verified — WhatsApp disabled.">
+            <Button variant="secondary" size="sm" className="w-full sm:w-auto" disabled title="This number couldn't be verified — WhatsApp disabled.">
               <MessageCircle className="w-4 h-4" /> WhatsApp
             </Button>
           )}
           {canEdit && (
             <a href="#follow-up" className="w-full sm:w-auto">
-              <Button variant="secondary" className="w-full"><CalendarClock className="w-4 h-4" /> Follow-up</Button>
+              <Button variant="secondary" size="sm" className="w-full"><CalendarClock className="w-4 h-4" /> Follow-up</Button>
             </a>
           )}
         </div>
       </Card>
 
       {isAdminRole(role) && (
-        <Card className="mb-4">
-          <div className="flex items-center gap-2 mb-4">
+        <Card padded={false} className="p-3.5 mb-3">
+          <div className="flex items-center gap-2 mb-3">
             <IconTile tone="neutral" size="sm"><RefreshCcw /></IconTile>
-            <h2 className="font-semibold text-ink">Reassign lead</h2>
+            <h2 className="font-semibold text-[13.5px] text-ink">Reassign lead</h2>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 gap-3">
             <Field label="Reassign to">
               <Select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}>
                 <option value="">Select staff…</option>
@@ -262,6 +262,7 @@ export function LeadProfile() {
           </div>
           <Button
             variant="secondary"
+            size="sm"
             onClick={() =>
               user &&
               reassignTo &&
@@ -283,9 +284,9 @@ export function LeadProfile() {
 
       {/* Child & admission details */}
       <GroupLabel>Child &amp; admission details</GroupLabel>
-      <Card className="mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold">Key facts</h2>
+      <Card padded={false} className="p-3.5 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-[13.5px]">Key facts</h2>
           {canEdit && !editingFacts && (
             <button
               type="button"
@@ -300,7 +301,7 @@ export function LeadProfile() {
             </button>
           )}
         </div>
-        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm">
+        <div className="grid sm:grid-cols-2 gap-x-5 gap-y-2.5 text-sm">
           <FactRow
             icon={Phone}
             label="Phone"
@@ -330,7 +331,7 @@ export function LeadProfile() {
           )}
         </div>
         {editingFacts && (
-          <div className="grid sm:grid-cols-2 gap-x-5 mt-4 pt-4 border-t border-border-soft">
+          <div className="grid sm:grid-cols-2 gap-x-5 mt-3 pt-3 border-t border-border-soft">
             <Field label="Location">
               <Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="e.g. Singanallur" />
             </Field>
@@ -364,8 +365,8 @@ export function LeadProfile() {
 
       {/* Pipeline stepper */}
       {canEdit && (
-        <Card className="mb-4">
-          <h2 className="font-semibold mb-4">Pipeline</h2>
+        <Card padded={false} className="p-3.5 mb-3">
+          <h2 className="font-semibold text-[13.5px] mb-3">Pipeline</h2>
           <div className="flex items-center overflow-x-auto pb-2 -mx-1 px-1">
             {OPEN_STATUSES.map((s, i) => {
               const done = i < stageIndex || (i === stageIndex && lead.status === "Admission Confirmed");
@@ -402,7 +403,7 @@ export function LeadProfile() {
               );
             })}
           </div>
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-soft">
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border-soft">
             <span className="text-xs font-semibold text-ink-faint shrink-0">Not moving forward?</span>
             <Select
               value={closingStatus}
@@ -426,12 +427,12 @@ export function LeadProfile() {
 
       {/* Visit & admission */}
       {canEdit && isVisitStage && (
-        <Card id="visit-details" className="mb-4">
-          <div className="flex items-center gap-2 mb-4">
+        <Card id="visit-details" padded={false} className="p-3.5 mb-3">
+          <div className="flex items-center gap-2 mb-3">
             <IconTile tone="accent" size="sm"><CalendarCheck /></IconTile>
-            <h2 className="font-semibold text-ink">Visit details</h2>
+            <h2 className="font-semibold text-[13.5px] text-ink">Visit details</h2>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 gap-3">
             <Field label="Visit date">
               <DateTimePicker value={visitDate || toLocalInput(lead.visitDate)} onChange={setVisitDate} />
             </Field>
@@ -441,18 +442,19 @@ export function LeadProfile() {
           </div>
           <Button
             variant="secondary"
+            size="sm"
             onClick={() => user && visitDate && doAction(() => recordVisit(lead, Timestamp.fromDate(new Date(visitDate)), visitNotes || null, user.uid))}
           >
             Save visit
           </Button>
 
           {["Admission Discussion", "Admission Confirmed"].includes(lead.status) && (
-            <div className="border-t border-border-soft mt-5 pt-5">
+            <div className="border-t border-border-soft mt-4 pt-4">
               <div className="flex items-center gap-2 mb-3">
                 <IconTile tone="good" size="sm"><GraduationCap /></IconTile>
                 <h3 className="font-semibold text-sm text-ink">Admission</h3>
               </div>
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-2 gap-3">
                 <Field label="Admission number">
                   <Input value={admissionNumber || lead.admissionNumber || ""} onChange={(e) => setAdmissionNumber(e.target.value)} />
                 </Field>
@@ -460,7 +462,7 @@ export function LeadProfile() {
                   <Input value={admissionFeePlan || lead.admissionFeePlan || ""} onChange={(e) => setAdmissionFeePlan(e.target.value)} />
                 </Field>
               </div>
-              <Button onClick={() => user && admissionNumber && doAction(() => confirmAdmission(lead, admissionNumber, admissionFeePlan || null, user.uid))}>
+              <Button size="sm" onClick={() => user && admissionNumber && doAction(() => confirmAdmission(lead, admissionNumber, admissionFeePlan || null, user.uid))}>
                 Confirm admission
               </Button>
             </div>
@@ -470,12 +472,12 @@ export function LeadProfile() {
 
       {/* Follow-up */}
       <GroupLabel>Follow-up</GroupLabel>
-      <Card id="follow-up" className="mb-4 border-accent/25 bg-accent-soft/40" padded={false}>
-        <div className="p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
+      <Card id="follow-up" className="mb-3 border-accent/25 bg-accent-soft/40" padded={false}>
+        <div className="p-3.5">
+          <div className="flex items-center gap-2 mb-3">
             <IconTile tone="accent" size="sm"><CalendarClock /></IconTile>
             <div>
-              <h2 className="font-semibold text-ink">Follow-up</h2>
+              <h2 className="font-semibold text-[13.5px] text-ink">Follow-up</h2>
               <p className="text-xs text-ink-soft">{canEdit ? "What happens next, and when." : "Read-only — you don't own this lead."}</p>
             </div>
           </div>
@@ -491,6 +493,7 @@ export function LeadProfile() {
                   </Select>
                 </Field>
                 <Button
+                  size="sm"
                   onClick={() => user && followUpValue && doAction(() => scheduleFollowUp(lead, followUpValue, followUpType, null, user.uid))}
                   className="mb-4 sm:mb-0"
                 >
@@ -498,7 +501,7 @@ export function LeadProfile() {
                 </Button>
               </div>
 
-              <div className="border-t border-border-soft/70 mt-4 pt-4">
+              <div className="border-t border-border-soft/70 mt-3 pt-3">
                 <div className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Check className="w-4 h-4 text-ink-faint" /> Log follow-up outcome</div>
                 <div className="grid sm:grid-cols-[1fr_2fr_auto] gap-3 items-end">
                   <Field label="Outcome">
@@ -511,6 +514,7 @@ export function LeadProfile() {
                   </Field>
                   <Button
                     variant="secondary"
+                    size="sm"
                     className="mb-4 sm:mb-0"
                     onClick={() =>
                       user &&
@@ -530,7 +534,7 @@ export function LeadProfile() {
           )}
 
           {recentFollowUps.length > 0 && (
-            <div className="border-t border-border-soft/70 mt-4 pt-4">
+            <div className="border-t border-border-soft/70 mt-3 pt-3">
               <div className="text-sm font-semibold text-ink mb-2.5">Recent follow-ups</div>
               <div className="space-y-2">
                 {recentFollowUps.map((a) => (
@@ -552,15 +556,16 @@ export function LeadProfile() {
       {canEdit && (
         <>
           <GroupLabel>Remarks</GroupLabel>
-          <Card className="mb-4">
-            <div className="flex items-center gap-2 mb-3">
+          <Card padded={false} className="p-3.5 mb-3">
+            <div className="flex items-center gap-2 mb-2.5">
               <IconTile tone="neutral" size="sm"><StickyNote /></IconTile>
-              <h2 className="font-semibold text-ink">Remarks</h2>
+              <h2 className="font-semibold text-[13.5px] text-ink">Remarks</h2>
             </div>
             <Textarea rows={2} value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Staff-only — never shown to the parent." />
             <Button
-              className="mt-3"
+              className="mt-2.5"
               variant="secondary"
+              size="sm"
               onClick={() => user && noteText && doAction(async () => { await addNote(lead, noteText, user.uid); setNoteText(""); })}
             >
               Add note
@@ -571,8 +576,8 @@ export function LeadProfile() {
 
       {/* Activity history */}
       <GroupLabel>Activity history</GroupLabel>
-      <Card id="activity-history">
-        <h2 className="font-semibold mb-4">Activity history</h2>
+      <Card padded={false} className="p-3.5" id="activity-history">
+        <h2 className="font-semibold text-[13.5px] mb-3">Activity history</h2>
         <div className="relative">
           {activities.map((a, i) => (
             <TimelineEntry key={a.id} activity={a} staffName={staffName} isLast={i === activities.length - 1} />
@@ -585,7 +590,7 @@ export function LeadProfile() {
 }
 
 function GroupLabel({ children }: { children: ReactNode }) {
-  return <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-faint mb-2 mt-7 first:mt-0">{children}</div>;
+  return <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-ink-faint mb-1.5 mt-5 first:mt-0">{children}</div>;
 }
 
 function WhatsAppLeadPanel({
@@ -614,8 +619,8 @@ function WhatsAppLeadPanel({
   const optStatus = lead.whatsappOptStatus ?? "Unknown";
 
   return (
-    <Card className="mb-4">
-      <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3.5 text-sm mb-4">
+    <Card padded={false} className="p-3.5 mb-3">
+      <div className="grid sm:grid-cols-2 gap-x-5 gap-y-2.5 text-sm mb-3">
         <FactRow
           icon={Phone}
           label="Mobile number"
@@ -725,14 +730,14 @@ function TimelineEntry({ activity, staffName, isLast }: { activity: ActivityDoc;
   const detail = formatActivityDetail(activity, staffName);
   const Icon = ACTIVITY_TYPE_ICON[activity.type];
   return (
-    <div className="flex gap-3.5">
+    <div className="flex gap-3">
       <div className="flex flex-col items-center shrink-0">
-        <div className="w-8 h-8 rounded-full bg-surface-2 text-ink-soft flex items-center justify-center">
-          <Icon className="w-[15px] h-[15px]" />
+        <div className="w-7 h-7 rounded-full bg-surface-2 text-ink-soft flex items-center justify-center">
+          <Icon className="w-[14px] h-[14px]" />
         </div>
         {!isLast && <div className="w-px flex-1 bg-border-soft my-1" />}
       </div>
-      <div className="pb-5 min-w-0 flex-1">
+      <div className="pb-3.5 min-w-0 flex-1">
         <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-0.5">
           <span className="font-semibold text-sm">{ACTIVITY_TYPE_LABELS[activity.type]}</span>
           <span className="text-xs text-ink-faint">{when} · {staffName(activity.byStaffId)}</span>

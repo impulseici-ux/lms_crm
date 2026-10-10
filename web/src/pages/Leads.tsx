@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useLeads } from "@/hooks/useLeads";
 import { useLookups } from "@/hooks/useLookups";
 import { FilterBar, EMPTY_FILTERS, applyFilters } from "@/components/FilterBar";
 import { StatusPill, PriorityPill, FollowUpPill } from "@/components/Pills";
-import { LeadDrawer } from "@/components/LeadDrawer";
 import { computeAttentionFlags } from "@/utils/attention";
 import { deriveFollowUpState, isFollowUpDueToday, isFollowUpOverdue } from "@/utils/followUp";
 import { downloadCsv } from "@/utils/csv";
@@ -116,9 +115,10 @@ interface ColumnFilters {
 const EMPTY_COLUMN_FILTERS: ColumnFilters = { name: "", course: "", source: "", mobile: "", location: "", remarks: "", admin: "" };
 
 export function Leads() {
+  const navigate = useNavigate();
   const { user, role } = useAuth();
   const { leads, loading } = useLeads();
-  const { programName, staffName, branchName, branches, programs, leadSources, campaigns, users } = useLookups();
+  const { programName, staffName, branches, programs, leadSources, campaigns, users } = useLookups();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusParam = searchParams.get("status");
   const staffIdParam = searchParams.get("staffId");
@@ -135,7 +135,6 @@ export function Leads() {
   const [showBulkSend, setShowBulkSend] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<LeadStatus>("Contacted");
   const [bulkStaffId, setBulkStaffId] = useState("");
-  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<ToggleableColumn, boolean>>(loadColumnPrefs);
@@ -194,7 +193,6 @@ export function Leads() {
 
   const selectedLeads = useMemo(() => visible.filter((l) => selected.has(l.id)), [visible, selected]);
   const allVisibleSelected = visible.length > 0 && visible.every((l) => selected.has(l.id));
-  const openLead = useMemo(() => leads.find((l) => l.id === openLeadId) ?? null, [leads, openLeadId]);
   // Mobile list is windowed ("Load more") so it never mounts hundreds of rows at
   // once — the desktop table instead relies on native row virtualization-free
   // rendering inside its own scroll container, which measured fine at the sizes
@@ -705,7 +703,7 @@ export function Leads() {
                     return (
                     <tr
                       key={lead.id}
-                      onClick={() => setOpenLeadId(lead.id)}
+                      onClick={() => navigate(`/leads/${lead.id}`)}
                       className={`group border-t border-border-soft transition-colors cursor-pointer ${unseen ? "lead-unseen-row" : isSelected ? "bg-accent-soft/40" : "hover:bg-surface-2/50"}`}
                     >
                       <td className={`sticky left-0 z-20 px-3 py-2.5 overflow-hidden ${stickyBg}`} onClick={(e) => e.stopPropagation()}>
@@ -809,8 +807,8 @@ export function Leads() {
                   key={lead.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setOpenLeadId(lead.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter") setOpenLeadId(lead.id); }}
+                  onClick={() => navigate(`/leads/${lead.id}`)}
+                  onKeyDown={(e) => { if (e.key === "Enter") navigate(`/leads/${lead.id}`); }}
                   className={`flex items-center gap-2.5 px-3 py-2.5 active:bg-surface-2/60 ${unseen ? "lead-unseen-card" : ""}`}
                 >
                   {mobileSelectMode && (
@@ -915,10 +913,6 @@ export function Leads() {
 
       {showBulkSend && (
         <BulkSendWhatsAppModal leads={selectedLeads} staffId={user!.uid} onClose={() => setShowBulkSend(false)} />
-      )}
-
-      {openLead && (
-        <LeadDrawer lead={openLead} onClose={() => setOpenLeadId(null)} programName={programName} branchName={branchName} staffName={staffName} />
       )}
 
       {/* Floating Add Enquiry — mobile only; the toolbar's own Add Enquiry button
