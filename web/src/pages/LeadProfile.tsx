@@ -59,7 +59,6 @@ import {
   Layers,
   ShieldCheck,
   History,
-  X,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
@@ -79,17 +78,8 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-/**
- * Also rendered embedded (not just at the /leads/:leadId route) — the Enquiries
- * list's right-side panel passes `leadId` + `onClose` directly instead of this
- * reading the route param, so the exact same editing/timeline/WhatsApp UI works
- * both as a full page (deep-linkable) and inline over the list (no navigation
- * away, per Part 11 of the compact-layout redesign).
- */
-export function LeadProfile({ leadId: leadIdProp, onClose }: { leadId?: string; onClose?: () => void } = {}) {
-  const params = useParams<{ leadId: string }>();
-  const leadId = leadIdProp ?? params.leadId;
-  const embedded = onClose != null;
+export function LeadProfile() {
+  const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { user, role } = useAuth();
@@ -147,7 +137,7 @@ export function LeadProfile({ leadId: leadIdProp, onClose }: { leadId?: string; 
 
   if (lead === undefined) {
     return (
-      <div className={embedded ? "" : "max-w-5xl mx-auto"}>
+      <div className="max-w-5xl mx-auto">
         <Skeleton className="h-5 w-16 mb-4" />
         <Skeleton className="h-32 rounded-2xl mb-4" />
         <Skeleton className="h-48 rounded-2xl" />
@@ -175,16 +165,10 @@ export function LeadProfile({ leadId: leadIdProp, onClose }: { leadId?: string; 
   const recentFollowUps = activities.filter((a) => FOLLOW_UP_ACTIVITY_TYPES.includes(a.type)).slice(0, 3);
 
   return (
-    <div className={embedded ? "pb-8" : "max-w-5xl mx-auto pb-8"}>
-      {embedded ? (
-        <button onClick={onClose} className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-accent mb-4 transition-colors">
-          <X className="w-4 h-4" /> Close
-        </button>
-      ) : (
-        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-accent mb-4 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </button>
-      )}
+    <div className="max-w-5xl mx-auto pb-8">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-accent mb-4 transition-colors">
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
 
       {/* Header */}
       <Card className="mb-4">

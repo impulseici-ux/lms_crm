@@ -37,6 +37,9 @@ import {
   ShieldAlert,
   Columns3,
   MoreHorizontal,
+  Plus,
+  LayoutGrid,
+  CheckSquare,
 } from "lucide-react";
 
 const QUICK_VIEWS = ["All", "My Leads", "Follow-up Today", "Overdue", "Visits", "Converted", "Closed", "Needs Attention"] as const;
@@ -95,6 +98,12 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+const MOBILE_PAGE_SIZE = 30;
+
 interface ColumnFilters {
   name: string;
   course: string;
@@ -109,7 +118,7 @@ const EMPTY_COLUMN_FILTERS: ColumnFilters = { name: "", course: "", source: "", 
 export function Leads() {
   const { user, role } = useAuth();
   const { leads, loading } = useLeads();
-  const { programName, staffName, branches, programs, leadSources, campaigns, users } = useLookups();
+  const { programName, staffName, branchName, branches, programs, leadSources, campaigns, users } = useLookups();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusParam = searchParams.get("status");
   const staffIdParam = searchParams.get("staffId");
@@ -139,10 +148,21 @@ export function Leads() {
   }, [visibleColumns]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileViewMenuOpen, setMobileViewMenuOpen] = useState(false);
+  const [mobileVisibleCount, setMobileVisibleCount] = useState(MOBILE_PAGE_SIZE);
+  const [mobileSelectMode, setMobileSelectMode] = useState(false);
 
   const viewParam = searchParams.get("view");
   const initialView = viewParam === "attention" ? "Needs Attention" : QUICK_VIEWS.includes(viewParam as QuickView) ? (viewParam as QuickView) : "All";
   const [quickView, setQuickView] = useState<QuickView>(initialView);
+
+  // Reset the mobile incremental-load window whenever the underlying result set
+  // changes shape, so switching views/filters doesn't leave a stale "Load more"
+  // position (e.g. 60 loaded) applied to a totally different, possibly shorter, list.
+  useEffect(() => {
+    setMobileVisibleCount(MOBILE_PAGE_SIZE);
+  }, [quickView, filters, columnFilters]);
 
   // A link-only filter (e.g. from Dashboard's Needs Attention breakdown) that isn't one of
   // the 7 quick-view pills — doesn't touch the sticky bar, just narrows the table further.
@@ -174,6 +194,12 @@ export function Leads() {
 
   const selectedLeads = useMemo(() => visible.filter((l) => selected.has(l.id)), [visible, selected]);
   const allVisibleSelected = visible.length > 0 && visible.every((l) => selected.has(l.id));
+  const openLead = useMemo(() => leads.find((l) => l.id === openLeadId) ?? null, [leads, openLeadId]);
+  // Mobile list is windowed ("Load more") so it never mounts hundreds of rows at
+  // once — the desktop table instead relies on native row virtualization-free
+  // rendering inside its own scroll container, which measured fine at the sizes
+  // this CRM runs at; this is specifically for the no-virtualization mobile cards.
+  const mobileVisible = useMemo(() => visible.slice(0, mobileVisibleCount), [visible, mobileVisibleCount]);
 
   const toggleAll = () => {
     setSelected(allVisibleSelected ? new Set() : new Set(visible.map((l) => l.id)));
@@ -274,49 +300,160 @@ export function Leads() {
     tone: view === "Needs Attention" ? ("bad" as const) : ("accent" as const),
   }));
 
+  // One removable chip per active field (not just a count) — the committed
+  // FilterBar filters, plus the two link-only filters NewLead/Dashboard can
+  // arrive with (status-from-URL and the "invalid numbers" special filter).
+  const filterChips: { key: string; label: string; onRemove: () => void }[] = [];
+  if (filters.staffId === "__unassigned__") {
+    filterChips.push({ key: "staffId", label: "Unassigned", onRemove: () => setFilters((f) => ({ ...f, staffId: "" })) });
+  } else if (filters.staffId) {
+    filterChips.push({ key: "staffId", label: staffName(filters.staffId), onRemove: () => setFilters((f) => ({ ...f, staffId: "" })) });
+  }
+  if (filters.status) filterChips.push({ key: "status", label: filters.status, onRemove: () => setFilters((f) => ({ ...f, status: "" })) });
+  if (filters.sourceChannel) filterChips.push({ key: "sourceChannel", label: filters.sourceChannel, onRemove: () => setFilters((f) => ({ ...f, sourceChannel: "" })) });
+  if (filters.programId) filterChips.push({ key: "programId", label: programName(filters.programId), onRemove: () => setFilters((f) => ({ ...f, programId: "" })) });
+  if (filters.campaignId) {
+    filterChips.push({
+      key: "campaignId",
+      label: campaigns.find((c) => c.id === filters.campaignId)?.name ?? "Campaign",
+      onRemove: () => setFilters((f) => ({ ...f, campaignId: "" })),
+    });
+  }
+  if (filters.branchId) {
+    filterChips.push({
+      key: "branchId",
+      label: branches.find((b) => b.id === filters.branchId)?.name ?? "Branch",
+      onRemove: () => setFilters((f) => ({ ...f, branchId: "" })),
+    });
+  }
+  if (filters.dateFrom) filterChips.push({ key: "dateFrom", label: `Enquiry from ${filters.dateFrom}`, onRemove: () => setFilters((f) => ({ ...f, dateFrom: "" })) });
+  if (filters.dateTo) filterChips.push({ key: "dateTo", label: `Enquiry to ${filters.dateTo}`, onRemove: () => setFilters((f) => ({ ...f, dateTo: "" })) });
+  if (filters.followUpFrom) filterChips.push({ key: "followUpFrom", label: `Follow-up from ${filters.followUpFrom}`, onRemove: () => setFilters((f) => ({ ...f, followUpFrom: "" })) });
+  if (filters.followUpTo) filterChips.push({ key: "followUpTo", label: `Follow-up to ${filters.followUpTo}`, onRemove: () => setFilters((f) => ({ ...f, followUpTo: "" })) });
+  if (showInvalidOnly) {
+    filterChips.push({ key: "invalid", label: "Invalid mobile numbers", onRemove: () => setSearchParams((p) => { const next = new URLSearchParams(p); next.delete("special"); return next; }) });
+  }
+
   return (
     <div className="max-w-7xl mx-auto h-full flex flex-col">
       <div className="shrink-0">
-      <SectionHeading title="Enquiries" description="Manage and track all your student enquiries in one place." compact />
-
-      <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-2 border-b border-border-soft overflow-x-auto">
-        {TABS.map((t) => {
-          const active = tab === t.key;
-          return (
+      {/* Mobile-only compact heading — a dedicated layout, not the desktop
+          heading shrunk down: title + live lead count + a search toggle,
+          no description paragraph, and Stats/Analytics/Followups tucked into
+          a small menu instead of a tab row (mobile requirements B2/B5). */}
+      <div className="sm:hidden flex items-center justify-between gap-2 mb-2">
+        <div className="min-w-0">
+          <h1 className="font-display text-[20px] font-semibold text-ink leading-tight">{tab === "Data table" ? "Enquiries" : tab}</h1>
+          <div className="text-[11px] text-ink-faint mt-0.5">{leads.length} lead{leads.length === 1 ? "" : "s"}</div>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileSearchOpen((v) => !v)}
+            aria-label="Search"
+            aria-expanded={mobileSearchOpen}
+            className={`w-9 h-9 rounded-lg border flex items-center justify-center ${mobileSearchOpen ? "border-accent text-accent bg-accent-soft" : "border-border text-ink-soft"}`}
+          >
+            <Search className="w-4 h-4" />
+          </button>
+          <div className="relative">
             <button
-              key={t.key}
               type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(t.key)}
-              className={`relative inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 -mb-px border-b-2 whitespace-nowrap transition-colors ${
-                active ? "border-accent text-accent" : "border-transparent text-ink-soft hover:text-ink hover:border-ink-faint/30"
-              }`}
+              onClick={() => setMobileViewMenuOpen((v) => !v)}
+              aria-label="Switch view"
+              aria-expanded={mobileViewMenuOpen}
+              className={`w-9 h-9 rounded-lg border flex items-center justify-center ${tab !== "Data table" ? "border-accent text-accent bg-accent-soft" : "border-border text-ink-soft"}`}
             >
-              <t.icon className="w-3.5 h-3.5" />
-              {t.key}
+              <LayoutGrid className="w-4 h-4" />
             </button>
-          );
-        })}
+            {mobileViewMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMobileViewMenuOpen(false)} />
+                <div className="absolute right-0 mt-1 z-20 w-44 bg-surface border border-border rounded-xl shadow-elevated p-1.5">
+                  {TABS.map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => { setTab(t.key); setMobileViewMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${tab === t.key ? "text-accent bg-accent-soft font-semibold" : "text-ink-soft hover:bg-surface-2"}`}
+                    >
+                      <t.icon className="w-4 h-4" /> {t.key}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      {mobileSearchOpen && (
+        <div className="sm:hidden relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint pointer-events-none" />
+          <input
+            autoFocus
+            value={filters.search}
+            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+            placeholder="Search name, phone or lead ID"
+            className="w-full rounded-xl border border-border bg-surface pl-9 pr-8 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-[3px] focus:ring-accent/15 focus:border-accent"
+          />
+          {filters.search && (
+            <button
+              type="button"
+              onClick={() => setFilters((f) => ({ ...f, search: "" }))}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Desktop/tablet heading + tab row */}
+      <div className="hidden sm:block">
+        <SectionHeading title="Enquiries" description="Manage and track all your student enquiries in one place." compact />
+        <div role="tablist" aria-label="Enquiry views" className="flex flex-wrap gap-1 mb-2 border-b border-border-soft overflow-x-auto">
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(t.key)}
+                className={`relative inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 -mb-px border-b-2 whitespace-nowrap transition-colors ${
+                  active ? "border-accent text-accent" : "border-transparent text-ink-soft hover:text-ink hover:border-ink-faint/30"
+                }`}
+              >
+                <t.icon className="w-3.5 h-3.5" />
+                {t.key}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <FilterBar filters={filters} onApply={setFilters} />
 
-      {(filters.status || filters.staffId === "__unassigned__" || showInvalidOnly) && (
-        <div className="flex items-center gap-2 mb-2 text-xs">
-          <Badge tone="accent">
-            {showInvalidOnly
-              ? "Invalid mobile numbers"
-              : filters.staffId === "__unassigned__"
-              ? "Unassigned leads"
-              : `${filters.status}`}
-          </Badge>
+      {filterChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+          {filterChips.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={c.onRemove}
+              className="inline-flex items-center gap-1 rounded-full bg-accent-soft text-accent-strong text-[11px] font-semibold pl-2.5 pr-1.5 py-1 hover:bg-accent/15 max-w-full"
+            >
+              <span className="truncate">{c.label}</span> <X className="w-3 h-3 shrink-0" />
+            </button>
+          ))}
           <button
             type="button"
             onClick={() => { setFilters(EMPTY_FILTERS); setSearchParams({}); }}
-            className="inline-flex items-center gap-0.5 font-semibold text-ink-faint hover:text-accent-strong shrink-0"
+            className="text-[11px] font-semibold text-ink-faint hover:text-accent-strong ml-0.5 shrink-0"
           >
-            <X className="w-3 h-3" /> Clear
+            Clear all
           </button>
         </div>
       )}
@@ -423,6 +560,20 @@ export function Leads() {
                     <div className="absolute right-0 mt-1 z-20 w-56 bg-surface border border-border rounded-xl shadow-elevated p-1.5">
                       <button
                         type="button"
+                        onClick={() => {
+                          setMobileSelectMode((v) => {
+                            const next = !v;
+                            if (!next) setSelected(new Set());
+                            return next;
+                          });
+                          setMoreMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-ink-soft hover:bg-surface-2"
+                      >
+                        <CheckSquare className="w-4 h-4" /> {mobileSelectMode ? "Cancel select" : "Select leads"}
+                      </button>
+                      <button
+                        type="button"
                         disabled={selected.size === 0}
                         onClick={() => { setShowWhatsApp(true); setMoreMenuOpen(false); }}
                         className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-good hover:bg-good-soft disabled:opacity-40 disabled:hover:bg-transparent"
@@ -477,7 +628,7 @@ export function Leads() {
                   <X className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Clear Filters</span>
                 </Button>
               )}
-              <Link to="/leads/new">
+              <Link to="/leads/new" className="hidden sm:block">
                 <Button size="sm"><UserPlus className="w-3.5 h-3.5" /> Add Enquiry</Button>
               </Link>
             </div>
@@ -570,7 +721,9 @@ export function Leads() {
                               <span className="font-semibold text-[13.5px] text-ink group-hover:text-accent truncate">{lead.childName}</span>
                               {unseen && <Badge tone="warn">NEW</Badge>}
                             </div>
-                            <div className="text-ink-faint text-[11.5px] truncate">{lead.parentName}</div>
+                            {!sameName(lead.parentName, lead.childName) && (
+                              <div className="text-ink-faint text-[11.5px] truncate">{lead.parentName}</div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -632,7 +785,7 @@ export function Leads() {
               </table>
             </div>
 
-            {visible.length > 0 && (
+            {mobileSelectMode && visible.length > 0 && (
               <div className="lg:hidden flex items-center justify-between gap-2 px-3 py-2 border-b border-border-soft shrink-0 bg-surface-2">
                 <label className="flex items-center gap-2 text-sm font-medium text-ink-soft">
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleAll} className="rounded border-border" aria-label="Select all" />
@@ -646,9 +799,11 @@ export function Leads() {
               </div>
             )}
 
-            <div className="lg:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-border-soft">
-              {visible.map((lead) => {
+            <div className="lg:hidden flex-1 min-h-0 overflow-y-auto divide-y divide-border-soft pb-20">
+              {mobileVisible.map((lead) => {
                 const unseen = isLeadUnseen(lead);
+                const validPhone = isValidLeadPhone(lead.parentPhone);
+                const namesDiffer = !sameName(lead.parentName, lead.childName);
                 return (
                 <div
                   key={lead.id}
@@ -656,57 +811,67 @@ export function Leads() {
                   tabIndex={0}
                   onClick={() => setOpenLeadId(lead.id)}
                   onKeyDown={(e) => { if (e.key === "Enter") setOpenLeadId(lead.id); }}
-                  className={`p-3 active:bg-surface-2/60 ${unseen ? "lead-unseen-card" : ""}`}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 active:bg-surface-2/60 ${unseen ? "lead-unseen-card" : ""}`}
                 >
-                  <div className="flex items-start gap-2.5">
+                  {mobileSelectMode && (
                     <input
                       type="checkbox"
                       checked={selected.has(lead.id)}
                       onChange={() => toggleOne(lead.id)}
                       onClick={(e) => e.stopPropagation()}
-                      className="mt-1 rounded border-border shrink-0"
-                      aria-label={`Select ${lead.childName}`}
+                      className="rounded border-border shrink-0"
+                      aria-label={`Select ${lead.parentName}`}
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <div className="font-semibold text-[14px] text-ink truncate">{lead.childName}</div>
-                            {unseen && <Badge tone="warn">NEW</Badge>}
-                          </div>
-                          <div className="text-xs text-ink-soft mt-0.5 truncate">{lead.parentName}</div>
-                        </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-[14.5px] text-ink truncate">{lead.parentName}</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {unseen && <Badge tone="warn">NEW</Badge>}
                         <StatusPill status={lead.status} />
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        <PriorityPill priority={lead.priority} />
-                        <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
+                    </div>
+                    {(namesDiffer || validPhone) && (
+                      <div className="text-[11.5px] text-ink-faint truncate mt-0.5">
+                        {namesDiffer && lead.childName}
+                        {namesDiffer && validPhone && " · "}
+                        {validPhone ? lead.parentPhone : !namesDiffer && <span className="text-warn">Invalid number</span>}
                       </div>
-                      {lead.notes && <div className="text-[11px] text-ink-faint truncate mt-1.5">{lead.notes}</div>}
-                      <div className="flex items-center justify-between gap-2 mt-2">
-                        <div className="text-[11px] text-ink-faint truncate min-w-0">
-                          {programName(lead.interestedProgramId)} · {lead.sourceChannel}
-                        </div>
-                        {isValidLeadPhone(lead.parentPhone) ? (
-                          <a
-                            href={`tel:${lead.parentPhone}`}
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label="Call"
-                            className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-accent bg-accent-soft"
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                          </a>
-                        ) : (
-                          <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-warn">
-                            <ShieldAlert className="w-3.5 h-3.5" /> Invalid number
-                          </span>
-                        )}
-                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <PriorityPill priority={lead.priority} />
+                      <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
+                      <span className="text-[11px] text-ink-faint truncate">{lead.sourceChannel}</span>
                     </div>
                   </div>
+                  {validPhone ? (
+                    <a
+                      href={`tel:${lead.parentPhone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Call ${lead.parentName}`}
+                      className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-accent bg-accent-soft"
+                    >
+                      <Phone className="w-4 h-4" />
+                    </a>
+                  ) : (
+                    <span aria-hidden title="No valid number to call" className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-ink-faint/30">
+                      <Phone className="w-4 h-4" />
+                    </span>
+                  )}
                 </div>
                 );
               })}
+              {visible.length > mobileVisibleCount && (
+                <div className="p-3">
+                  <button
+                    type="button"
+                    onClick={() => setMobileVisibleCount((c) => c + MOBILE_PAGE_SIZE)}
+                    className="w-full rounded-xl border border-border py-2.5 text-sm font-semibold text-ink-soft hover:bg-surface-2"
+                  >
+                    Load more ({visible.length - mobileVisibleCount} remaining)
+                  </button>
+                </div>
+              )}
             </div>
 
             {visible.length === 0 && (
@@ -752,7 +917,21 @@ export function Leads() {
         <BulkSendWhatsAppModal leads={selectedLeads} staffId={user!.uid} onClose={() => setShowBulkSend(false)} />
       )}
 
-      {openLeadId && <LeadDrawer leadId={openLeadId} onClose={() => setOpenLeadId(null)} />}
+      {openLead && (
+        <LeadDrawer lead={openLead} onClose={() => setOpenLeadId(null)} programName={programName} branchName={branchName} staffName={staffName} />
+      )}
+
+      {/* Floating Add Enquiry — mobile only; the toolbar's own Add Enquiry button
+          (sm:hidden above) covers desktop, so the two are never shown together. */}
+      <Link
+        to="/leads/new"
+        aria-label="Add Enquiry"
+        className="sm:hidden fixed z-30 bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 px-5 inline-flex items-center gap-2 rounded-full bg-accent text-white font-semibold text-sm shadow-elevated active:scale-[0.97] transition-transform focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent/40"
+        style={{ height: "52px" }}
+      >
+        <Plus className="w-5 h-5" />
+        Add Enquiry
+      </Link>
     </div>
   );
 }
