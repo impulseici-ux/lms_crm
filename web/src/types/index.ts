@@ -7,6 +7,12 @@ export function isAdminRole(role: Role | null | undefined): boolean {
   return role === "admin" || role === "superadmin";
 }
 
+/** Bulk CSV export carries full parent/child PII — gate it to admin-level and management
+ * roles, not a counsellor's day-to-day lead work (Product Audit Part 10/17, P0 #2). */
+export function canExportData(role: Role | null | undefined): boolean {
+  return role === "admin" || role === "superadmin" || role === "management";
+}
+
 /**
  * Onboarding pipeline for a newly-invited user (Admin > Staff > Invite User).
  * Missing on any pre-existing account created before this flow existed —
@@ -45,6 +51,65 @@ export interface UserDoc {
   updatedAt: Timestamp | null;
 }
 
+/**
+ * System-wide audit trail — superadmin-only (Admin > Audit Log). Two write paths:
+ * the activation backend (backend/api/*, Admin SDK, for account/role events) and
+ * the client directly for `lead_deleted` (the one destructive action with no
+ * backend endpoint of its own — see firestore.rules' create rule on this collection).
+ * Append-only: no update/delete rule exists on this collection, by design.
+ */
+export type AuditLogType =
+  | "lead_deleted"
+  | "lead_updated"
+  | "user_invited"
+  | "user_activated"
+  | "user_deactivated"
+  | "user_deleted"
+  | "role_switch_used"
+  // Catch-all for an account edit made directly via the Admin SDK (console/support
+  // action) rather than through one of the typed flows above — e.g. a login ID or
+  // password reset, or granting canSwitchRoles. `details` carries the specifics.
+  | "user_updated"
+  // Admin > Lead Sources/Programs/Branches/Campaigns: added, activated, or
+  // deactivated. `details` carries what changed (this list is short-lived,
+  // low-cardinality config, not worth a dedicated schema per action).
+  | "config_changed";
+
+/** One changed field, for `lead_updated` entries. Values are pre-formatted strings
+ * (not raw Firestore values) so the Audit Log can render them without knowing each
+ * field's type. */
+export interface AuditFieldChange {
+  field: string;
+  from: string;
+  to: string;
+}
+
+export interface AuditLogDoc {
+  id: string;
+  type: AuditLogType;
+  byStaffId: string;
+  byDisplayName: string | null;
+  at: Timestamp | null;
+
+  // lead_deleted — a full snapshot, since deleting the lead doc removes every
+  // other trace of it (its activities subcollection included).
+  // lead_updated — identity only (the lead itself still exists); `changes` below
+  // carries what actually moved.
+  leadId?: string;
+  leadSnapshot?: { parentName: string; parentPhone: string; childName: string; status: string } | null;
+  changes?: AuditFieldChange[];
+
+  // user_invited / user_activated / user_deactivated / user_deleted
+  targetUserId?: string;
+  targetDisplayName?: string;
+
+  // role_switch_used
+  fromRole?: Role;
+  toRole?: Role;
+
+  details?: string | null;
+}
+
 /** `integrations`-style doc at `userActivations/{uid}` — written only by the activation backend (backend/api/*), read-only for admins in the CRM UI. */
 export interface UserActivationDoc {
   id: string; // == uid
@@ -70,7 +135,7 @@ export const OPEN_STATUSES = [
   "Admission Confirmed",
 ] as const;
 
-/** Section 5 — six closed statuses, reachable from any open stage. */
+/** Section 5 — closed statuses, reachable from any open stage. */
 export const CLOSED_STATUSES = [
   "Not Interested",
   "Not Reachable",
@@ -78,6 +143,8 @@ export const CLOSED_STATUSES = [
   "Future Requirement",
   "Lost to Competitor",
   "Duplicate",
+  "Visit No-Show",
+  "Out of Service Area",
 ] as const;
 
 export type OpenStatus = (typeof OPEN_STATUSES)[number];
@@ -92,10 +159,13 @@ export function isClosedStatus(status: string): status is ClosedStatus {
   return (CLOSED_STATUSES as readonly string[]).includes(status);
 }
 
-/** Closed statuses that represent a genuine loss vs. a nurture bucket (Section 5). */
+/** Closed statuses that represent a genuine loss vs. a nurture bucket (Section 5).
+ * A no-show is usually a scheduling miss, not a lost lead — reopenable so a
+ * staff member can bring it back to re-attempt the visit, same as the other two. */
 export const REOPENABLE_CLOSED_STATUSES: ClosedStatus[] = [
   "Not Reachable",
   "Future Requirement",
+  "Visit No-Show",
 ];
 
 export type Priority = "Urgent" | "High" | "Medium" | "Low";

@@ -97,7 +97,7 @@ export function Header() {
   };
 
   return (
-    <header className="hidden lg:flex h-[72px] shrink-0 items-center gap-4 bg-surface border-b border-border px-6">
+    <header className="hidden lg:flex h-14 shrink-0 items-center gap-3 bg-surface border-b border-border px-5">
       <div ref={searchRef} className="relative flex-1 max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint pointer-events-none" />
         <input
@@ -105,7 +105,7 @@ export function Header() {
           onChange={(e) => { setQuery(e.target.value); setSearchOpen(true); }}
           onFocus={() => setSearchOpen(true)}
           placeholder="Search by name, phone number, or lead ID…"
-          className="w-full rounded-xl border border-border bg-bg pl-9 pr-8 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-[3px] focus:ring-accent/15 focus:border-accent"
+          className="w-full rounded-lg border border-border bg-bg pl-9 pr-8 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-[3px] focus:ring-accent/15 focus:border-accent"
         />
         {query && (
           <button
@@ -141,13 +141,13 @@ export function Header() {
         )}
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <div ref={bellRef} className="relative">
           <button
             type="button"
             aria-label="Urgent items"
             onClick={() => setBellOpen((o) => !o)}
-            className="relative w-9 h-9 rounded-lg border border-border flex items-center justify-center text-ink-soft hover:bg-surface-2 hover:text-ink transition-colors"
+            className="relative w-8 h-8 rounded-lg border border-border flex items-center justify-center text-ink-soft hover:bg-surface-2 hover:text-ink transition-colors"
           >
             <Bell className="w-4 h-4" />
             {urgentCount > 0 && (
@@ -189,13 +189,13 @@ export function Header() {
           )}
         </div>
 
-        <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-medium text-ink-soft whitespace-nowrap">
+        <div className="hidden xl:flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-ink-soft whitespace-nowrap">
           {TODAY_FORMATTER.format(new Date())}
         </div>
 
         <div ref={accountRef} className="relative">
-          <button type="button" onClick={() => setAccountOpen((o) => !o)} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2 transition-colors">
-            <div className="w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center text-[12px] font-bold shrink-0">
+          <button type="button" onClick={() => setAccountOpen((o) => !o)} className="flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-surface-2 transition-colors">
+            <div className="w-7 h-7 rounded-full bg-accent text-white flex items-center justify-center text-[11px] font-bold shrink-0">
               {initials(displayName)}
             </div>
             <span className="hidden xl:block text-left">

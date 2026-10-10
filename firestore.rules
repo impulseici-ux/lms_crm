@@ -91,8 +91,13 @@ service cloud.firestore {
 
     // ---- Leads (the hub) ----
     match /leads/{leadId} {
-      allow read: if isAdmin() || isManagement() ||
-        (isCounsellor() && resource.data.assignedStaffId == request.auth.uid);
+      // Every role can read every lead (the Leads/Dashboard pages fetch the whole
+      // collection with one unfiltered query — a counsellor-only where-filtered read
+      // rule here would reject that query outright, since Firestore denies a list
+      // request whenever a conditional rule branch isn't matched by the query's own
+      // filters, rather than silently narrowing the results). Write access below stays
+      // restricted to admin/management or a counsellor's own assigned leads.
+      allow read: if isStaff();
 
       allow create: if isStaff() &&
         request.resource.data.createdByStaffId == request.auth.uid &&
@@ -100,7 +105,8 @@ service cloud.firestore {
         // next follow-up date, unless it is already in a closed status.
         (request.resource.data.status in
           ['Not Interested', 'Not Reachable', 'Wrong/Invalid Number',
-           'Future Requirement', 'Lost to Competitor', 'Duplicate'] ||
+           'Future Requirement', 'Lost to Competitor', 'Duplicate', 'Visit No-Show',
+           'Out of Service Area'] ||
          (request.resource.data.nextFollowUpAt != null));
 
       allow update: if (isAdmin() ||
@@ -109,7 +115,8 @@ service cloud.firestore {
         (request.resource.data.assignedStaffId == resource.data.assignedStaffId || isAdmin()) &&
         (request.resource.data.status in
           ['Not Interested', 'Not Reachable', 'Wrong/Invalid Number',
-           'Future Requirement', 'Lost to Competitor', 'Duplicate'] ||
+           'Future Requirement', 'Lost to Competitor', 'Duplicate', 'Visit No-Show',
+           'Out of Service Area'] ||
          (request.resource.data.nextFollowUpAt != null));
 
       allow delete: if isAdmin();
@@ -251,6 +258,28 @@ service cloud.firestore {
     match /userActivations/{uid} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+
+    // ---- System-wide audit trail (Admin > Audit Log) ----
+    // Most account/role entries (user invited/activated/deactivated/deleted,
+    // role-switch usage) come from the activation backend via the Admin SDK, which
+    // bypasses this rule entirely. `lead_deleted`, `lead_updated`, and
+    // `config_changed` are the exceptions: those writes stay direct client writes
+    // (see leads/{leadId}'s own allow delete/update, and the leadSources/programs/
+    // branches/campaigns rules above), so the audit entry for each is too — written
+    // in the same batch as the underlying write, by whoever did it. Read is
+    // superadmin-only: this trail is for oversight across every staff member's
+    // edits, not just what a counsellor or admin can already see on a lead's own
+    // timeline (that's leads/{id}/activities, also superadmin-readable via the
+    // collection-group rule below).
+    match /auditLog/{entryId} {
+      allow read: if isSuperAdmin();
+      allow create: if request.resource.data.byStaffId == request.auth.uid && (
+        (isAdmin() && request.resource.data.type == 'lead_deleted') ||
+        (isStaff() && request.resource.data.type == 'lead_updated') ||
+        (isAdmin() && request.resource.data.type == 'config_changed')
+      );
+      allow update, delete: if false;
     }
 
     // Deny everything else by default.

@@ -5,6 +5,7 @@ import { requireAdmin, HttpError } from "../lib/requireAdmin";
 import { auth, db } from "../lib/firebaseAdmin";
 import { normalizeMobile, isValidMobile, isValidLoginId, loginIdToEmail } from "../lib/activation";
 import { issueActivationCode } from "../lib/issueCode";
+import { logAudit } from "../lib/auditLog";
 
 const VALID_ROLES = ["admin", "counsellor", "management"];
 
@@ -92,6 +93,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const result = await issueActivationCode(userRecord.uid, normalizedMobile, fullName.trim());
+    await logAudit({
+      type: "user_invited",
+      byStaffId: callerUid,
+      targetUserId: userRecord.uid,
+      targetDisplayName: fullName.trim(),
+      details: `Invited as ${role}`,
+    });
     return res.status(200).json({
       ok: true,
       uid: userRecord.uid,

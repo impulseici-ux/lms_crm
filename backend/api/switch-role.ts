@@ -3,6 +3,7 @@ import { applyCors } from "../lib/cors";
 import { HttpError } from "../lib/requireAdmin";
 import { auth, db } from "../lib/firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
+import { logAudit } from "../lib/auditLog";
 
 const VALID_ROLES = ["admin", "counsellor", "management", "superadmin"] as const;
 type Role = (typeof VALID_ROLES)[number];
@@ -45,6 +46,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .collection("users")
       .doc(decoded.uid)
       .set({ role, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await logAudit({
+      type: "role_switch_used",
+      byStaffId: decoded.uid,
+      targetDisplayName: userData?.displayName,
+      fromRole: userData?.role,
+      toRole: role,
+    });
 
     return res.status(200).json({ ok: true, role });
   } catch (err) {

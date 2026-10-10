@@ -34,13 +34,28 @@ export function SectionHeading({
   description,
   action,
   className = "",
+  compact = false,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
   className?: string;
+  /** Tight variant for data-dense pages (e.g. the Enquiries list) where the full-size
+   * heading eats too much vertical space above the actual content. */
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5 ${className}`}>
+        <div className="min-w-0">
+          <h1 className="font-display text-[17px] sm:text-[19px] font-semibold leading-tight text-ink">{title}</h1>
+          {description && <p className="text-xs text-ink-faint mt-0.5 truncate">{description}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+    );
+  }
   return (
     <div className={`flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6 ${className}`}>
       <div className="min-w-0">
