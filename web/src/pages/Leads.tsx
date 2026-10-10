@@ -109,7 +109,7 @@ const EMPTY_COLUMN_FILTERS: ColumnFilters = { name: "", course: "", source: "", 
 export function Leads() {
   const { user, role } = useAuth();
   const { leads, loading } = useLeads();
-  const { programName, staffName, branchName, branches, programs, leadSources, campaigns, users } = useLookups();
+  const { programName, staffName, branches, programs, leadSources, campaigns, users } = useLookups();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusParam = searchParams.get("status");
   const staffIdParam = searchParams.get("staffId");
@@ -174,7 +174,6 @@ export function Leads() {
 
   const selectedLeads = useMemo(() => visible.filter((l) => selected.has(l.id)), [visible, selected]);
   const allVisibleSelected = visible.length > 0 && visible.every((l) => selected.has(l.id));
-  const openLead = useMemo(() => leads.find((l) => l.id === openLeadId) ?? null, [leads, openLeadId]);
 
   const toggleAll = () => {
     setSelected(allVisibleSelected ? new Set() : new Set(visible.map((l) => l.id)));
@@ -683,6 +682,7 @@ export function Leads() {
                         <PriorityPill priority={lead.priority} />
                         <FollowUpPill nextFollowUpAt={lead.nextFollowUpAt} />
                       </div>
+                      {lead.notes && <div className="text-[11px] text-ink-faint truncate mt-1.5">{lead.notes}</div>}
                       <div className="flex items-center justify-between gap-2 mt-2">
                         <div className="text-[11px] text-ink-faint truncate min-w-0">
                           {programName(lead.interestedProgramId)} · {lead.sourceChannel}
@@ -752,9 +752,7 @@ export function Leads() {
         <BulkSendWhatsAppModal leads={selectedLeads} staffId={user!.uid} onClose={() => setShowBulkSend(false)} />
       )}
 
-      {openLead && (
-        <LeadDrawer lead={openLead} onClose={() => setOpenLeadId(null)} programName={programName} branchName={branchName} staffName={staffName} />
-      )}
+      {openLeadId && <LeadDrawer leadId={openLeadId} onClose={() => setOpenLeadId(null)} />}
     </div>
   );
 }
