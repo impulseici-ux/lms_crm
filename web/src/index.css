@@ -85,6 +85,12 @@ input[type="date"], input[type="datetime-local"] { color-scheme: light; }
 }
 .animate-fade-in-up { animation: fade-in-up 0.25s ease-out; }
 
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-right { animation: slide-in-right 0.18s ease-out; }
+
 /* Lead blink — rows for leads nobody has opened yet flash until viewed.
    Uses the existing --color-warn/-soft tokens (same "needs attention" tone
    as Medium priority / Due Today), not a new color. */

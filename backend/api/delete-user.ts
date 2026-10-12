@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { applyCors } from "../lib/cors";
 import { requireSuperAdmin, HttpError } from "../lib/requireAdmin";
 import { auth, db } from "../lib/firebaseAdmin";
+import { logAudit } from "../lib/auditLog";
 
 // Superadmin-only (stricter than the rest of this backend, which only requires admin/superadmin).
 // Permanently removes the Firebase Auth credential and every Firestore trace of the account —
@@ -27,10 +28,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (err?.code !== "auth/user-not-found") throw err;
       });
 
+    const targetDisplayName = userSnap.data()!.displayName ?? uid;
+
     const batch = db().batch();
     batch.delete(db().collection("users").doc(uid));
     batch.delete(db().collection("userActivations").doc(uid));
     await batch.commit();
+    await logAudit({ type: "user_deleted", byStaffId: callerUid, targetUserId: uid, targetDisplayName });
 
     return res.status(200).json({ ok: true });
   } catch (err) {

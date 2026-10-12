@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { LeadDoc } from "@/types";
-import { isClosedStatus } from "@/types";
+import { isClosedStatus, canExportData } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import { useLeads } from "@/hooks/useLeads";
 import { useLookups } from "@/hooks/useLookups";
 import { FilterBar, EMPTY_FILTERS, applyFilters } from "@/components/FilterBar";
@@ -26,6 +27,8 @@ type ReportName = (typeof REPORTS)[number]["key"];
 
 export function Reports() {
   const { leads, loading } = useLeads();
+  const { role } = useAuth();
+  const canExport = canExportData(role);
   const { programName, staffName, campaignName } = useLookups();
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [report, setReport] = useState<ReportName>("Lead report");
@@ -58,14 +61,14 @@ export function Reports() {
         })}
       </div>
 
-      {report === "Lead report" && <LeadReport rows={rows} programName={programName} staffName={staffName} />}
-      {report === "Source-wise report" && <BreakdownReport title="Source" data={breakdownBySource(rows)} labelFor={(k) => k} />}
-      {report === "Campaign report" && <CampaignReport rows={rows} campaignName={campaignName} />}
-      {report === "Staff performance" && <BreakdownReport title="Staff" data={breakdownByStaff(rows)} labelFor={(k) => staffName(k === "—" ? null : k)} />}
+      {report === "Lead report" && <LeadReport rows={rows} programName={programName} staffName={staffName} canExport={canExport} />}
+      {report === "Source-wise report" && <BreakdownReport title="Source" data={breakdownBySource(rows)} labelFor={(k) => k} canExport={canExport} />}
+      {report === "Campaign report" && <CampaignReport rows={rows} campaignName={campaignName} canExport={canExport} />}
+      {report === "Staff performance" && <BreakdownReport title="Staff" data={breakdownByStaff(rows)} labelFor={(k) => staffName(k === "—" ? null : k)} canExport={canExport} />}
       {report === "Follow-up report" && <FollowUpReport rows={rows} />}
       {report === "Visit report" && <VisitReport rows={rows} />}
       {report === "Admission conversion report" && <ConversionReport rows={rows} />}
-      {report === "Lost lead report" && <BreakdownReport title="Closed reason" data={lostLeadBreakdown(rows)} labelFor={(k) => k} />}
+      {report === "Lost lead report" && <BreakdownReport title="Closed reason" data={lostLeadBreakdown(rows)} labelFor={(k) => k} canExport={canExport} />}
     </div>
   );
 }
@@ -85,7 +88,7 @@ function ReportCard({ icon: Icon, title, subtitle, action, children }: { icon: C
   );
 }
 
-function LeadReport({ rows, programName, staffName }: { rows: LeadDoc[]; programName: (id: string | null) => string; staffName: (id: string | null) => string }) {
+function LeadReport({ rows, programName, staffName, canExport }: { rows: LeadDoc[]; programName: (id: string | null) => string; staffName: (id: string | null) => string; canExport: boolean }) {
   const [q, setQ] = useState("");
   const exportCsv = () =>
     downloadCsv("lead-report.csv", rows.map((l) => ({
@@ -103,7 +106,7 @@ function LeadReport({ rows, programName, staffName }: { rows: LeadDoc[]; program
       icon={ClipboardList}
       title="Every lead and its current state"
       subtitle={`${shown.length} of ${rows.length} leads in this filtered view`}
-      action={<Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export CSV</Button>}
+      action={canExport ? <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export CSV</Button> : undefined}
     >
       <div className="px-5 pb-3">
         <div className="relative max-w-xs">
@@ -127,7 +130,7 @@ function LeadReport({ rows, programName, staffName }: { rows: LeadDoc[]; program
   );
 }
 
-function BreakdownReport({ title, data, labelFor }: { title: string; data: GroupBreakdown[]; labelFor: (key: string) => string }) {
+function BreakdownReport({ title, data, labelFor, canExport }: { title: string; data: GroupBreakdown[]; labelFor: (key: string) => string; canExport: boolean }) {
   const exportCsv = () => downloadCsv(`${title.toLowerCase()}-report.csv`, data.map((d) => ({ [title]: labelFor(d.key), ...d })));
   const icon = title === "Staff" ? UserCog : title === "Campaign" ? Megaphone : title === "Closed reason" ? UserX : Radio;
   return (
@@ -135,7 +138,7 @@ function BreakdownReport({ title, data, labelFor }: { title: string; data: Group
       icon={icon}
       title={`${title} breakdown`}
       subtitle={`${data.length} ${title.toLowerCase()}${data.length === 1 ? "" : "s"} in this view`}
-      action={<Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export CSV</Button>}
+      action={canExport ? <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="w-3.5 h-3.5" /> Export CSV</Button> : undefined}
     >
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[680px]">
@@ -170,8 +173,8 @@ function BreakdownReport({ title, data, labelFor }: { title: string; data: Group
   );
 }
 
-function CampaignReport({ rows, campaignName }: { rows: LeadDoc[]; campaignName: (id: string | null) => string }) {
-  return <BreakdownReport title="Campaign" data={breakdownByCampaign(rows.filter((l) => l.campaignId))} labelFor={(k) => campaignName(k === "—" ? null : k)} />;
+function CampaignReport({ rows, campaignName, canExport }: { rows: LeadDoc[]; campaignName: (id: string | null) => string; canExport: boolean }) {
+  return <BreakdownReport title="Campaign" data={breakdownByCampaign(rows.filter((l) => l.campaignId))} labelFor={(k) => campaignName(k === "—" ? null : k)} canExport={canExport} />;
 }
 
 function FollowUpReport({ rows }: { rows: LeadDoc[] }) {
