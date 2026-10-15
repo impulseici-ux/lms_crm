@@ -16,6 +16,7 @@ export interface FinanceEntry {
   paymentMode: PaymentMode;
   reference?: string;
   notes?: string;
+  paidBy?: string;
   createdBy: string;
   createdAt?: unknown;
   status: "posted" | "voided";
