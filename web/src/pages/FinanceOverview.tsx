@@ -28,8 +28,8 @@ export function FinanceOverview() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [i,e,p] = await Promise.all([listFinanceEntries("income"),listFinanceEntries("expense"),listPayrollPayments()]);
-      setIncome(i); setExpenses(e); setPayroll(p);
+      const [i,e,p,s] = await Promise.all([listFinanceEntries("income"),listFinanceEntries("expense"),listPayrollPayments(),listExpenseSettlements()]);
+      setIncome(i); setExpenses(e); setPayroll(p); setSettlements(s);
     } catch (error) { showToast(error instanceof Error ? error.message : "Could not load finance summary.", "error"); }
     finally { setLoading(false); }
   }, [showToast]);
