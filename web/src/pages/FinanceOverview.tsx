@@ -16,7 +16,14 @@ export function FinanceOverview() {
   const [income, setIncome] = useState<FinanceEntry[]>([]);
   const [expenses, setExpenses] = useState<FinanceEntry[]>([]);
   const [payroll, setPayroll] = useState<PayrollPayment[]>([]);
-  const [loading, setLoading] = useState(true);\n  const [closing, setClosing] = useState<FinanceClosing | null>(null);\n  const [openingCash, setOpeningCash] = useState("0");\n  const [openingBank, setOpeningBank] = useState("0");\n  const [countedCash, setCountedCash] = useState("");\n  const [countedBank, setCountedBank] = useState("");\n  const [closingNotes, setClosingNotes] = useState("");\n  const [closingSaving, setClosingSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [closing, setClosing] = useState<FinanceClosing | null>(null);
+  const [openingCash, setOpeningCash] = useState("0");
+  const [openingBank, setOpeningBank] = useState("0");
+  const [countedCash, setCountedCash] = useState("");
+  const [countedBank, setCountedBank] = useState("");
+  const [closingNotes, setClosingNotes] = useState("");
+  const [closingSaving, setClosingSaving] = useState(false);
   async function refresh() {
     setLoading(true);
     try {
@@ -25,10 +32,19 @@ export function FinanceOverview() {
     } catch (error) { showToast(error instanceof Error ? error.message : "Could not load finance summary.", "error"); }
     finally { setLoading(false); }
   }
-  useEffect(()=>{void refresh();},[]);\n  useEffect(()=>{let active=true; void getFinanceClosing(month).then(result=>{if(active){setClosing(result);if(result){setOpeningCash(String(result.openingCash));setOpeningBank(String(result.openingBank));setCountedCash(String(result.countedCash));setCountedBank(String(result.countedBank));setClosingNotes(result.notes);}}}).catch(error=>showToast(error instanceof Error?error.message:"Could not load month closing.","error")); return ()=>{active=false;};},[month,showToast]);
+  useEffect(()=>{void refresh();},[]);
+  useEffect(()=>{let active=true; void getFinanceClosing(month).then(result=>{if(active){setClosing(result);if(result){setOpeningCash(String(result.openingCash));setOpeningBank(String(result.openingBank));setCountedCash(String(result.countedCash));setCountedBank(String(result.countedBank));setClosingNotes(result.notes);}}}).catch(error=>showToast(error instanceof Error?error.message:"Could not load month closing.","error")); return ()=>{active=false;};},[month,showToast]);
   const monthIncome = useMemo(()=>income.filter(x=>x.status==="posted"&&x.accountingMonth===month).reduce((s,x)=>s+x.amount,0),[income,month]);
-  const monthExpenses = useMemo(()=>expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month).reduce((s,x)=>s+x.amount,0),[expenses,month]);
-  const monthPayroll = useMemo(()=>payroll.filter(x=>x.accountingMonth===month).reduce((s,x)=>s+x.netAmount,0),[payroll,month]);\n  const monthExpenseEntries = expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month);\n  const operatingExpenses = monthExpenseEntries.filter(x=>!x.linkedPayrollPaymentId).reduce((s,x)=>s+x.amount,0);\n  const cashIncome = income.filter(x=>x.status==="posted"&&x.accountingMonth===month&&x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);\n  const cashExpenses = monthExpenseEntries.filter(x=>x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);\n  const bankModes = ["UPI","Bank Transfer","Card","Cheque"];\n  const bankIncome = income.filter(x=>x.status==="posted"&&x.accountingMonth===month&&bankModes.includes(x.paymentMode)).reduce((s,x)=>s+x.amount,0);\n  const bankExpenses = monthExpenseEntries.filter(x=>bankModes.includes(x.paymentMode)).reduce((s,x)=>s+x.amount,0);\n  const expectedCash = (Number(openingCash)||0)+cashIncome-cashExpenses;\n  const expectedBank = (Number(openingBank)||0)+bankIncome-bankExpenses;
+  const monthPayroll = useMemo(()=>payroll.filter(x=>x.accountingMonth===month).reduce((s,x)=>s+x.netAmount,0),[payroll,month]);
+  const monthExpenseEntries = expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month);
+  const operatingExpenses = monthExpenseEntries.filter(x=>!x.linkedPayrollPaymentId).reduce((s,x)=>s+x.amount,0);
+  const cashIncome = income.filter(x=>x.status==="posted"&&x.accountingMonth===month&&x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);
+  const cashExpenses = monthExpenseEntries.filter(x=>x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);
+  const bankModes = ["UPI","Bank Transfer","Card","Cheque"];
+  const bankIncome = income.filter(x=>x.status==="posted"&&x.accountingMonth===month&&bankModes.includes(x.paymentMode)).reduce((s,x)=>s+x.amount,0);
+  const bankExpenses = monthExpenseEntries.filter(x=>bankModes.includes(x.paymentMode)).reduce((s,x)=>s+x.amount,0);
+  const expectedCash = (Number(openingCash)||0)+cashIncome-cashExpenses;
+  const expectedBank = (Number(openingBank)||0)+bankIncome-bankExpenses;
   const canManage = role==="admin"||role==="superadmin"||role==="management";
   const recent = [...income.map(x=>({...x,kind:"income" as const})),...expenses.map(x=>({...x,kind:"expense" as const}))].filter(x=>x.status==="posted"&&x.accountingMonth===month).sort((a,b)=>b.transactionDate.localeCompare(a.transactionDate)).slice(0,8);
   return <div className="mx-auto max-w-[1440px] space-y-5 pb-8">
