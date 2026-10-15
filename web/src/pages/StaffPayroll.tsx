@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { Download, Plus, RefreshCw, Users, WalletCards } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { addSchoolStaff, listPayrollPayments, listSchoolStaff, payStaffMonth, type PaymentMode, type PayrollPayment, type SchoolStaff } from "@/lib/data/schoolFinance";
+import { addSchoolStaff, createSalaryAdvance, listPayrollPayments, listSalaryAdvances, listSchoolStaff, payStaffMonth, type PaymentMode, type PayrollPayment, type SalaryAdvance, type SchoolStaff } from "@/lib/data/schoolFinance";
 import { Button, Card, SectionHeading } from "@/components/ui";
 import { downloadCsv } from "@/utils/csv";
 
@@ -17,10 +17,10 @@ export function StaffPayroll() {
   const { showToast } = useToast();
   const canWrite = role === "admin" || role === "superadmin" || role === "management";
   const [staff, setStaff] = useState<SchoolStaff[]>([]);
-  const [payments, setPayments] = useState<PayrollPayment[]>([]);
+  const [payments, setPayments] = useState<PayrollPayment[]>([]);\n  const [advances, setAdvances] = useState<SalaryAdvance[]>([]);
   const [loading, setLoading] = useState(true);
   const [showStaffForm, setShowStaffForm] = useState(false);
-  const [showPayrollForm, setShowPayrollForm] = useState(false);
+  const [showPayrollForm, setShowPayrollForm] = useState(false);\n  const [showAdvanceForm, setShowAdvanceForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -33,7 +33,7 @@ export function StaffPayroll() {
   const [deductions, setDeductions] = useState("0");
   const [recovery, setRecovery] = useState("0");
   const [payDate, setPayDate] = useState(today());
-  const [mode, setMode] = useState<PaymentMode>("Bank Transfer");
+  const [mode, setMode] = useState<PaymentMode>("Bank Transfer");\n  const [advanceAmount, setAdvanceAmount] = useState("");\n  const [advanceReason, setAdvanceReason] = useState("");\n  const [advanceDate, setAdvanceDate] = useState(today());\n  const [advanceMode, setAdvanceMode] = useState<PaymentMode>("Bank Transfer");\n  const [advanceId, setAdvanceId] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -47,7 +47,7 @@ export function StaffPayroll() {
 
   useEffect(() => { void refresh(); }, [refresh]);
   const activeStaff = staff.filter(person => person.active);
-  const selectedStaff = activeStaff.find(person => person.id === staffId);
+  const selectedStaff = activeStaff.find(person => person.id === staffId);\n  const selectedAdvance = advances.find(advance => advance.id === advanceId && advance.staffId === staffId && advance.status === "open");\n  const availableAdvances = advances.filter(advance => advance.staffId === staffId && advance.status === "open" && advance.outstandingAmount > 0);
   const alreadyPaid = useMemo(() => new Set(payments.map(p => `${p.accountingMonth}:${p.staffId}`)), [payments]);
   const paidThisMonth = payments.filter(p => p.accountingMonth === month);
   const totalPayroll = paidThisMonth.reduce((sum, p) => sum + p.netAmount, 0);
@@ -66,13 +66,13 @@ export function StaffPayroll() {
     finally { setSaving(false); }
   }
 
-  async function paySalary(event: FormEvent) {
+  async function createAdvance(event: FormEvent) {\n    event.preventDefault();\n    if (!user || !canWrite || !selectedStaff) { showToast("Select an active staff member first.", "error"); return; }\n    setSaving(true);\n    try { await createSalaryAdvance({ staff: selectedStaff, amount: Number(advanceAmount), issueDate: advanceDate, reason: advanceReason.trim(), paymentMode: advanceMode, uid: user.uid }); showToast("Salary advance recorded and linked to expenses.", "success"); setAdvanceAmount(""); setAdvanceReason(""); setShowAdvanceForm(false); await refresh(); }\n    catch (error) { showToast(error instanceof Error ? error.message : "Could not record salary advance.", "error"); }\n    finally { setSaving(false); }\n  }\n\n  async function paySalary(event: FormEvent) {
     event.preventDefault();
     if (!user || !canWrite || !selectedStaff) return;
     if (alreadyPaid.has(`${month}:${selectedStaff.id}`)) { showToast("Payroll already exists for this staff member and month.", "error"); return; }
     setSaving(true);
     try {
-      const id = await payStaffMonth({ staff: selectedStaff, accountingMonth: month, salaryAmount: Number(gross), deductions: Number(deductions), advanceRecovery: Number(recovery), paymentMode: mode, transactionDate: payDate, uid: user.uid });
+      const id = await payStaffMonth({ staff: selectedStaff, accountingMonth: month, salaryAmount: Number(gross), deductions: Number(deductions), advanceRecovery: Number(recovery), advanceId: Number(recovery) > 0 ? advanceId : null, paymentMode: mode, transactionDate: payDate, uid: user.uid });
       showToast(`Salary payment posted · ${id}`, "success");
       setShowPayrollForm(false); setDeductions("0"); setRecovery("0");
       await refresh();
@@ -90,7 +90,7 @@ export function StaffPayroll() {
     <Card padded={false} className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 className="text-sm font-semibold">Staff directory</h2><p className="mt-1 text-xs text-ink-faint">Employee data is not stored in the CRM authentication users collection.</p></div>
-        <div className="flex flex-wrap gap-2">{canWrite&&<Button size="sm" onClick={()=>setShowStaffForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>Add staff</Button>}<Button variant="secondary" size="sm" onClick={()=>void refresh()}><RefreshCw className="h-3.5 w-3.5"/>Refresh</Button></div>
+        <div className="flex flex-wrap gap-2">{canWrite&&<Button size="sm" onClick={()=>setShowStaffForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>Add staff</Button><Button variant="secondary" size="sm" onClick={()=>setShowAdvanceForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>Issue advance</Button>}<Button variant="secondary" size="sm" onClick={()=>void refresh()}><RefreshCw className="h-3.5 w-3.5"/>Refresh</Button></div>
       </div>
       {showStaffForm&&canWrite&&<form onSubmit={createStaff} className="grid gap-3 border-b border-border bg-bg/60 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-xs font-medium text-ink-soft">Full name<input required value={name} onChange={e=>setName(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
@@ -109,15 +109,15 @@ export function StaffPayroll() {
         <label className="text-xs font-medium text-ink-soft">Accounting month<input required type="month" value={month} onChange={e=>setMonth(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
         <label className="text-xs font-medium text-ink-soft">Gross salary (₹)<input required type="number" min="0.01" step="0.01" value={gross} onChange={e=>setGross(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
         <label className="text-xs font-medium text-ink-soft">Approved deductions (₹)<input required type="number" min="0" step="0.01" value={deductions} onChange={e=>setDeductions(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
-        <label className="text-xs font-medium text-ink-soft">Advance recovery (₹)<input required type="number" min="0" step="0.01" value={recovery} onChange={e=>setRecovery(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
+        <label className="text-xs font-medium text-ink-soft">Recover from advance<select value={advanceId} onChange={e=>{setAdvanceId(e.target.value);setRecovery(e.target.value?"0":"0");}} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"><option value="">No advance recovery</option>{availableAdvances.map(a=><option key={a.id} value={a.id}>{a.reason} · outstanding {money(a.outstandingAmount)}</option>)}</select></label>\n        <label className="text-xs font-medium text-ink-soft">Advance recovery (₹)<input required type="number" min="0" max={selectedAdvance?.outstandingAmount??0} step="0.01" value={recovery} onChange={e=>setRecovery(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/>{selectedAdvance&&<span className="mt-1 block text-[10px] text-ink-faint">Outstanding: {money(selectedAdvance.outstandingAmount)}</span>}</label>
         <label className="text-xs font-medium text-ink-soft">Net payable (₹)<input readOnly value={money((Number(gross)||0)-(Number(deductions)||0)-(Number(recovery)||0))} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm font-semibold text-ink"/></label>
         <label className="text-xs font-medium text-ink-soft">Payment date<input required type="date" value={payDate} onChange={e=>setPayDate(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
         <label className="text-xs font-medium text-ink-soft">Payment mode<select value={mode} onChange={e=>setMode(e.target.value as PaymentMode)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink">{modes.map(m=><option key={m}>{m}</option>)}</select></label>
-        <div className="flex items-end gap-2"><Button type="submit" disabled={saving||!selectedStaff||Number(gross)<=0||Number(gross)<=Number(deductions)+Number(recovery)||alreadyPaid.has(`${month}:${staffId}`)}>{saving?"Posting…":"Post salary payment"}</Button><Button type="button" variant="secondary" onClick={()=>setShowPayrollForm(false)}>Cancel</Button></div>
+        <div className="flex items-end gap-2"><Button type="submit" disabled={saving||!selectedStaff||Number(gross)<=0||Number(gross)<=Number(deductions)+Number(recovery)||alreadyPaid.has(`${month}:${staffId}`)||(Number(recovery)>0&&!advanceId)||(Number(recovery)>0&&(!selectedAdvance||Number(recovery)>selectedAdvance.outstandingAmount))}>{saving?"Posting…":"Post salary payment"}</Button><Button type="button" variant="secondary" onClick={()=>setShowPayrollForm(false)}>Cancel</Button></div>
         {alreadyPaid.has(`${month}:${staffId}`)&&<p className="text-xs text-bad sm:col-span-2 lg:col-span-3">A payroll record already exists for this staff member and month.</p>}
       </form>}
       <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-bg text-[10px] uppercase tracking-[0.12em] text-ink-faint"><tr><th className="px-4 py-3">Paid on</th><th className="px-4 py-3">Staff</th><th className="px-4 py-3">Month</th><th className="px-4 py-3 text-right">Gross</th><th className="px-4 py-3 text-right">Deductions</th><th className="px-4 py-3 text-right">Net paid</th><th className="px-4 py-3">Payment ID</th></tr></thead><tbody>{payments.filter(p=>p.accountingMonth===month).map(p=><tr key={p.id} className="border-t border-border-soft hover:bg-bg/60"><td className="px-4 py-3 text-xs text-ink-soft">{p.transactionDate}</td><td className="px-4 py-3 font-medium">{p.staffName}</td><td className="px-4 py-3">{p.accountingMonth}</td><td className="px-4 py-3 text-right tabular-nums">{money(p.salaryAmount)}</td><td className="px-4 py-3 text-right tabular-nums">{money(p.deductions+p.advanceRecovery)}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{money(p.netAmount)}</td><td className="px-4 py-3 font-mono text-[10px] text-ink-faint">{p.id}</td></tr>)}{!loading&&paidThisMonth.length===0&&<tr><td colSpan={7} className="px-4 py-12 text-center text-ink-faint">No payroll payments for {month}.</td></tr>}</tbody></table></div>
     </Card>
-    <p className="text-xs leading-5 text-ink-faint">Payroll is a fixed-salary first version. Attendance stays in its existing separate process; approved deductions and advance recovery are entered explicitly. Payment history is append-only in this first increment.</p>
+    <p className="text-xs leading-5 text-ink-faint">Payroll uses fixed salary with explicit approved deductions. Attendance remains in its existing separate process. Salary advance recovery is linked to an open advance and updates its outstanding balance atomically with the payroll payment.</p>
   </div>;
 }
