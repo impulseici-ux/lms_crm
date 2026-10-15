@@ -1,5 +1,5 @@
 import {
-  addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, writeBatch,
+  addDoc, collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, setDoc, writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -21,6 +21,7 @@ export interface FinanceEntry {
   status: "posted" | "voided";
   linkedLeadId?: string | null;
   linkedPayrollPaymentId?: string | null;
+  linkedSalaryAdvanceId?: string | null;
 }
 
 export interface SchoolStaff {
@@ -47,6 +48,7 @@ export interface PayrollPayment {
   paymentMode: PaymentMode;
   transactionDate: string;
   expenseId: string;
+  advanceId?: string | null;
   createdBy: string;
   createdAt?: unknown;
   status: "paid";
@@ -85,12 +87,66 @@ export async function addSchoolStaff(input: Omit<SchoolStaff, "id" | "createdAt"
  * makes a second submission for the same staff/month fail instead of double-paying.
  * Expense is linked to that one canonical payroll payment ID.
  */
+export interface SalaryAdvance {
+  id: string;
+  staffId: string;
+  staffName: string;
+  amount: number;
+  recoveredAmount: number;
+  outstandingAmount: number;
+  issueDate: string;
+  accountingMonth: string;
+  reason: string;
+  paymentMode: PaymentMode;
+  expenseId: string;
+  createdBy: string;
+  createdAt?: unknown;
+  status: "open" | "repaid";
+  lastRecoveredPaymentId?: string | null;
+}
+
+export async function listSalaryAdvances(): Promise<SalaryAdvance[]> {
+  const snap = await getDocs(query(collection(db, "salaryAdvances"), orderBy("issueDate", "desc")));
+  return snap.docs.map((item) => ({ id: item.id, ...item.data() } as SalaryAdvance));
+}
+
+export async function createSalaryAdvance(input: {
+  staff: SchoolStaff; amount: number; issueDate: string; reason: string; paymentMode: PaymentMode; uid: string;
+}) {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error("Advance amount must be greater than zero.");
+  const advanceRef = doc(collection(db, "salaryAdvances"));
+  const expenseRef = doc(expenseCollection, `advance_${advanceRef.id}`);
+  const batch = writeBatch(db);
+  batch.set(advanceRef, {
+    staffId: input.staff.id, staffName: input.staff.name, amount: input.amount,
+    recoveredAmount: 0, outstandingAmount: input.amount, issueDate: input.issueDate,
+    accountingMonth: input.issueDate.slice(0, 7), reason: input.reason,
+    paymentMode: input.paymentMode, expenseId: expenseRef.id, createdBy: input.uid,
+    createdAt: serverTimestamp(), status: "open", lastRecoveredPaymentId: null,
+  });
+  batch.set(expenseRef, {
+    title: `Salary advance — ${input.staff.name}`, category: "Salary Advance",
+    amount: input.amount, transactionDate: input.issueDate, accountingMonth: input.issueDate.slice(0, 7),
+    paymentMode: input.paymentMode, reference: advanceRef.id, notes: input.reason,
+    createdBy: input.uid, createdAt: serverTimestamp(), status: "posted",
+    linkedLeadId: null, linkedPayrollPaymentId: null, linkedSalaryAdvanceId: advanceRef.id,
+  });
+  await batch.commit();
+  return advanceRef.id;
+}
+
+/**
+ * Posts payroll and its expense as one atomic transaction. A deterministic payment ID
+ * prevents duplicate staff/month payments. Optional advance recovery updates the chosen
+ * advance balance in the same transaction and cannot exceed its outstanding amount.
+ */
 export async function payStaffMonth(input: {
   staff: SchoolStaff;
   accountingMonth: string;
   salaryAmount: number;
   deductions: number;
   advanceRecovery: number;
+  advanceId?: string | null;
   paymentMode: PaymentMode;
   transactionDate: string;
   uid: string;
@@ -98,44 +154,53 @@ export async function payStaffMonth(input: {
   const netAmount = input.salaryAmount - input.deductions - input.advanceRecovery;
   if (!Number.isFinite(netAmount) || netAmount <= 0) throw new Error("Net salary must be greater than zero.");
   if (input.deductions < 0 || input.advanceRecovery < 0) throw new Error("Deductions and advance recovery cannot be negative.");
+  if (input.advanceRecovery > 0 && !input.advanceId) throw new Error("Select a salary advance to recover from.");
+  if (input.advanceRecovery === 0 && input.advanceId) throw new Error("Enter an advance recovery amount or clear the advance selection.");
 
   const safeStaffId = input.staff.id.replace(/[^a-zA-Z0-9_-]/g, "_");
   const paymentId = `${input.accountingMonth}_${safeStaffId}`;
   const paymentRef = doc(payrollCollection, paymentId);
   const expenseRef = doc(expenseCollection, `payroll_${paymentId}`);
-  const batch = writeBatch(db);
+  const advanceRef = input.advanceId ? doc(db, "salaryAdvances", input.advanceId) : null;
 
-  batch.set(paymentRef, {
-    staffId: input.staff.id,
-    staffName: input.staff.name,
-    accountingMonth: input.accountingMonth,
-    salaryAmount: input.salaryAmount,
-    deductions: input.deductions,
-    advanceRecovery: input.advanceRecovery,
-    netAmount,
-    paymentMode: input.paymentMode,
-    transactionDate: input.transactionDate,
-    expenseId: expenseRef.id,
-    createdBy: input.uid,
-    createdAt: serverTimestamp(),
-    status: "paid",
+  await runTransaction(db, async (transaction) => {
+    const existingPayment = await transaction.get(paymentRef);
+    if (existingPayment.exists()) throw new Error("Payroll already exists for this staff member and month.");
+    const advanceSnap = advanceRef ? await transaction.get(advanceRef) : null;
+    if (input.advanceRecovery > 0) {
+      if (!advanceSnap?.exists()) throw new Error("Selected salary advance was not found.");
+      const advance = advanceSnap.data() as SalaryAdvance;
+      if (advance.staffId !== input.staff.id) throw new Error("Selected advance belongs to another staff member.");
+      if (input.advanceRecovery > advance.outstandingAmount) throw new Error("Advance recovery cannot exceed the outstanding balance.");
+    }
+
+    transaction.set(paymentRef, {
+      staffId: input.staff.id, staffName: input.staff.name, accountingMonth: input.accountingMonth,
+      salaryAmount: input.salaryAmount, deductions: input.deductions, advanceRecovery: input.advanceRecovery,
+      advanceId: input.advanceId ?? null, netAmount, paymentMode: input.paymentMode,
+      transactionDate: input.transactionDate, expenseId: expenseRef.id, createdBy: input.uid,
+      createdAt: serverTimestamp(), status: "paid",
+    });
+    transaction.set(expenseRef, {
+      title: `Salary — ${input.staff.name}`, category: "Staff Salary", amount: netAmount,
+      transactionDate: input.transactionDate, accountingMonth: input.accountingMonth,
+      paymentMode: input.paymentMode, reference: paymentId,
+      notes: `Payroll ${input.accountingMonth}; gross ₹${input.salaryAmount}; deductions ₹${input.deductions}; advance recovery ₹${input.advanceRecovery}`,
+      createdBy: input.uid, createdAt: serverTimestamp(), status: "posted",
+      linkedLeadId: null, linkedPayrollPaymentId: paymentId, linkedSalaryAdvanceId: null,
+    });
+    if (advanceRef && advanceSnap?.exists() && input.advanceRecovery > 0) {
+      const advance = advanceSnap.data() as SalaryAdvance;
+      const outstandingAmount = advance.outstandingAmount - input.advanceRecovery;
+      transaction.update(advanceRef, {
+        recoveredAmount: advance.recoveredAmount + input.advanceRecovery,
+        outstandingAmount,
+        status: outstandingAmount === 0 ? "repaid" : "open",
+        lastRecoveredPaymentId: paymentId,
+        updatedAt: serverTimestamp(),
+      });
+    }
   });
-  batch.set(expenseRef, {
-    title: `Salary — ${input.staff.name}`,
-    category: "Staff Salary",
-    amount: netAmount,
-    transactionDate: input.transactionDate,
-    accountingMonth: input.accountingMonth,
-    paymentMode: input.paymentMode,
-    reference: paymentId,
-    notes: `Payroll ${input.accountingMonth}; gross ₹${input.salaryAmount}; deductions ₹${input.deductions}; advance recovery ₹${input.advanceRecovery}`,
-    createdBy: input.uid,
-    createdAt: serverTimestamp(),
-    status: "posted",
-    linkedLeadId: null,
-    linkedPayrollPaymentId: paymentId,
-  });
-  await batch.commit();
   return paymentId;
 }
 
