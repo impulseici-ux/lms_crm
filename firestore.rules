@@ -295,7 +295,8 @@ service cloud.firestore {
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
         request.resource.data.status == 'posted' &&
-        request.resource.data.linkedPayrollPaymentId == null;
+        request.resource.data.linkedPayrollPaymentId == null &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth));
       allow update, delete: if false;
     }
 
@@ -306,6 +307,7 @@ service cloud.firestore {
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
         request.resource.data.status == 'posted' &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         (request.resource.data.linkedPayrollPaymentId == null ||
           (getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.expenseId == entryId &&
            getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.netAmount == request.resource.data.amount));
@@ -325,11 +327,25 @@ service cloud.firestore {
       allow create: if canManageFinance() &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.status == 'paid' &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         request.resource.data.netAmount is number && request.resource.data.netAmount > 0 &&
         request.resource.data.salaryAmount is number && request.resource.data.deductions is number && request.resource.data.advanceRecovery is number &&
         request.resource.data.netAmount == request.resource.data.salaryAmount - request.resource.data.deductions - request.resource.data.advanceRecovery &&
         getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedPayrollPaymentId == paymentId &&
         getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.amount == request.resource.data.netAmount;
+      allow update, delete: if false;
+    }
+
+
+    match /financeClosings/{monthId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.accountingMonth == monthId &&
+        request.resource.data.expectedCash is number &&
+        request.resource.data.expectedBank is number &&
+        request.resource.data.countedCash is number &&
+        request.resource.data.countedBank is number;
       allow update, delete: if false;
     }
 
