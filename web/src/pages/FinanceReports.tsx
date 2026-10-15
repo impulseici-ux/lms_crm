@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FileBarChart, RefreshCw } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { listFinanceEntries, listPayrollPayments, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
@@ -15,15 +15,15 @@ export function FinanceReports() {
   const [expenses, setExpenses] = useState<FinanceEntry[]>([]);
   const [payroll, setPayroll] = useState<PayrollPayment[]>([]);
   const [loading, setLoading] = useState(true);
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const [i, e, p] = await Promise.all([listFinanceEntries("income"), listFinanceEntries("expense"), listPayrollPayments()]);
       setIncome(i); setExpenses(e); setPayroll(p);
     } catch (error) { showToast(error instanceof Error ? error.message : "Could not load finance reports.", "error"); }
     finally { setLoading(false); }
-  }
-  useEffect(() => { void refresh(); }, []);
+  }, [showToast]);
+  useEffect(() => { void refresh(); }, [refresh]);
   const monthIncome = income.filter(x => x.status === "posted" && x.accountingMonth === month);
   const monthExpenses = expenses.filter(x => x.status === "posted" && x.accountingMonth === month);
   const totalIncome = monthIncome.reduce((sum, x) => sum + x.amount, 0);
@@ -31,12 +31,12 @@ export function FinanceReports() {
   const payrollTotal = payroll.filter(x => x.accountingMonth === month).reduce((sum, x) => sum + x.netAmount, 0);
   const expenseByCategory = useMemo(() => {
     const totals = new Map<string, number>();
-    monthExpenses.forEach(x => totals.set(x.category, (totals.get(x.category) ?? 0) + x.amount));
+    expenses.filter(x => x.status === "posted" && x.accountingMonth === month).forEach(x => totals.set(x.category, (totals.get(x.category) ?? 0) + x.amount));
     return [...totals.entries()].sort((a, b) => b[1] - a[1]);
   }, [expenses, month]);
   const incomeByCategory = useMemo(() => {
     const totals = new Map<string, number>();
-    monthIncome.forEach(x => totals.set(x.category, (totals.get(x.category) ?? 0) + x.amount));
+    income.filter(x => x.status === "posted" && x.accountingMonth === month).forEach(x => totals.set(x.category, (totals.get(x.category) ?? 0) + x.amount));
     return [...totals.entries()].sort((a, b) => b[1] - a[1]);
   }, [income, month]);
   const byMode = useMemo(() => {
