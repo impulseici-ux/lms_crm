@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, FileBarChart, RefreshCw } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
-import { listFinanceEntries, listPayrollPayments, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
+import { listExpenseSettlements, listFinanceEntries, listPayrollPayments, type ExpenseSettlement, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
 import { Button, Card, SectionHeading } from "@/components/ui";
 import { downloadCsv } from "@/utils/csv";
 
@@ -14,6 +14,7 @@ export function FinanceReports() {
   const [income, setIncome] = useState<FinanceEntry[]>([]);
   const [expenses, setExpenses] = useState<FinanceEntry[]>([]);
   const [payroll, setPayroll] = useState<PayrollPayment[]>([]);
+  const [settlements, setSettlements] = useState<ExpenseSettlement[]>([]);
   const [loading, setLoading] = useState(true);
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -42,12 +43,14 @@ export function FinanceReports() {
   const byMode = useMemo(() => {
     const totals = new Map<string, { income: number; expense: number }>();
     income.filter(x => x.status === "posted" && x.accountingMonth === month).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.income += x.amount; totals.set(x.paymentMode, row); });
-    expenses.filter(x => x.status === "posted" && x.accountingMonth === month).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.expense += x.amount; totals.set(x.paymentMode, row); });
+    expenses.filter(x => x.status === "posted" && x.accountingMonth === month && !(x.category === "Reimbursement" && x.paidBy)).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.expense += x.amount; totals.set(x.paymentMode, row); });
+    settlements.filter(x => x.accountingMonth === month).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.expense += x.amount; totals.set(x.paymentMode, row); });
     return [...totals.entries()].sort((a, b) => (b[1].income + b[1].expense) - (a[1].income + a[1].expense));
   }, [income, expenses, month]);
   const reportRows = [
     ...monthIncome.map(x => ({ type: "Income", date: x.transactionDate, accountingMonth: x.accountingMonth, description: x.title, category: x.category, amount: x.amount, paymentMode: x.paymentMode, reference: x.reference ?? "", paidBy: x.paidBy ?? "" })),
     ...monthExpenses.map(x => ({ type: "Expense", date: x.transactionDate, accountingMonth: x.accountingMonth, description: x.title, category: x.category, amount: x.amount, paymentMode: x.paymentMode, reference: x.reference ?? "", paidBy: x.paidBy ?? "" })),
+    ...settlements.filter(x => x.accountingMonth === month).map(x => ({ type: "Reimbursement settlement", date: x.settlementDate, accountingMonth: x.accountingMonth, description: `Settlement for ${expenses.find(e => e.id === x.expenseId)?.title ?? x.expenseId}`, category: "Reimbursement Settlement", amount: x.amount, paymentMode: x.paymentMode, reference: x.reference ?? "", paidBy: "" })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   return <div className="mx-auto max-w-[1440px] space-y-5 pb-8">
     <SectionHeading eyebrow="Finance / Insights" title="Finance reports" description="Month-wise income, expense categories, payroll and payment-mode summaries for management review."/>
