@@ -81,8 +81,13 @@ export function FinanceRegister({ kind }: { kind: FinanceKind }) {
       await addFinanceEntry(kind, {
         title: title.trim(), category, amount: parsed, transactionDate: date,
         accountingMonth: entryMonth, paymentMode: mode,
-        reference: reference.trim() || undefined, notes: notes.trim() || undefined,
-        linkedLeadId: isIncome ? (linkedLeadId || null) : null, linkedPayrollPaymentId: null, linkedSalaryAdvanceId: null, paidBy: isIncome ? undefined : (paidBy.trim() || undefined),
+        // Firestore's addDoc() rejects a literal `undefined` field value outright
+        // (distinct from omitting the key) — these are optional fields, so omit
+        // them entirely rather than passing `undefined` when left blank.
+        ...(reference.trim() && { reference: reference.trim() }),
+        ...(notes.trim() && { notes: notes.trim() }),
+        linkedLeadId: isIncome ? (linkedLeadId || null) : null, linkedPayrollPaymentId: null, linkedSalaryAdvanceId: null,
+        ...(!isIncome && paidBy.trim() && { paidBy: paidBy.trim() }),
       }, user.uid);
       showToast(isIncome ? "Income entry saved." : "Expense entry saved.", "success");
       setTitle(""); setAmount(""); setReference(""); setNotes(""); setShowForm(false);
