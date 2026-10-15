@@ -308,9 +308,13 @@ service cloud.firestore {
         request.resource.data.amount > 0 &&
         request.resource.data.status == 'posted' &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
-        (request.resource.data.linkedPayrollPaymentId == null ||
-          (getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.expenseId == entryId &&
-           getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.netAmount == request.resource.data.amount));
+        ((request.resource.data.get('linkedPayrollPaymentId', null) == null && request.resource.data.get('linkedSalaryAdvanceId', null) == null) ||
+          (request.resource.data.get('linkedPayrollPaymentId', null) != null &&
+           getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.expenseId == entryId &&
+           getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.netAmount == request.resource.data.amount) ||
+          (request.resource.data.get('linkedSalaryAdvanceId', null) != null &&
+           getAfter(/databases/$(database)/documents/salaryAdvances/$(request.resource.data.linkedSalaryAdvanceId)).data.expenseId == entryId &&
+           getAfter(/databases/$(database)/documents/salaryAdvances/$(request.resource.data.linkedSalaryAdvanceId)).data.amount == request.resource.data.amount));
       allow update, delete: if false;
     }
 
@@ -320,6 +324,27 @@ service cloud.firestore {
         request.resource.data.name is string && request.resource.data.name.size() > 0 &&
         request.resource.data.monthlySalary is number && request.resource.data.monthlySalary > 0;
       allow update, delete: if false;
+    }
+
+    match /salaryAdvances/{advanceId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.amount is number && request.resource.data.amount > 0 &&
+        request.resource.data.recoveredAmount == 0 &&
+        request.resource.data.outstandingAmount == request.resource.data.amount &&
+        request.resource.data.status == 'open' &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedSalaryAdvanceId == advanceId &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.amount == request.resource.data.amount;
+      allow update: if canManageFinance() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recoveredAmount', 'outstandingAmount', 'status', 'lastRecoveredPaymentId', 'updatedAt']) &&
+        request.resource.data.recoveredAmount > resource.data.recoveredAmount &&
+        request.resource.data.outstandingAmount == resource.data.outstandingAmount - (request.resource.data.recoveredAmount - resource.data.recoveredAmount) &&
+        getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.advanceId == advanceId &&
+        getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.advanceRecovery == request.resource.data.recoveredAmount - resource.data.recoveredAmount &&
+        getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.staffId == resource.data.staffId;
+      allow delete: if false;
     }
 
     match /payrollPayments/{paymentId} {
