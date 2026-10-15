@@ -368,6 +368,20 @@ service cloud.firestore {
     }
 
 
+    match /expenseSettlements/{expenseId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.expenseId == expenseId &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
+        get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.category == 'Reimbursement' &&
+        get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.paidBy is string &&
+        get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.amount == request.resource.data.amount;
+      allow update, delete: if false;
+    }
+
     match /financeClosings/{monthId} {
       allow read: if canManageFinance();
       allow create: if canManageFinance() &&
