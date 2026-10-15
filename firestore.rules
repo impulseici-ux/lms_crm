@@ -340,7 +340,9 @@ service cloud.firestore {
       allow update: if canManageFinance() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recoveredAmount', 'outstandingAmount', 'status', 'lastRecoveredPaymentId', 'updatedAt']) &&
         request.resource.data.recoveredAmount > resource.data.recoveredAmount &&
+        request.resource.data.outstandingAmount >= 0 &&
         request.resource.data.outstandingAmount == resource.data.outstandingAmount - (request.resource.data.recoveredAmount - resource.data.recoveredAmount) &&
+        request.resource.data.status == (request.resource.data.outstandingAmount == 0 ? 'repaid' : 'open') &&
         getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.advanceId == advanceId &&
         getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.advanceRecovery == request.resource.data.recoveredAmount - resource.data.recoveredAmount &&
         getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.staffId == resource.data.staffId;
