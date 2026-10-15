@@ -20,7 +20,10 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install web dependencies
         run: npm ci --prefix web
-      - name: TypeScript and production build
-        run: npm --prefix web run build
+      - name: TypeScript and CI-only build
+        env:
+          VITE_FIREBASE_PROJECT_ID: ci-placeholder-not-a-real-project
+          VITE_USE_EMULATORS: "false"
+        run: npm --prefix web run build -- --mode dev
       - name: Lint
         run: npm --prefix web run lint
