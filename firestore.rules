@@ -296,6 +296,7 @@ service cloud.firestore {
         request.resource.data.amount > 0 &&
         request.resource.data.status == 'posted' &&
         request.resource.data.linkedPayrollPaymentId == null &&
+        (request.resource.data.get('linkedLeadId', null) == null || exists(/databases/$(database)/documents/leads/$(request.resource.data.linkedLeadId))) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth));
       allow update, delete: if false;
     }
