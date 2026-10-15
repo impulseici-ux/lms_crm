@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, FileBarChart, Printer, RefreshCw } from "lucide-react";
+import { Download, Printer, RefreshCw } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { listExpenseSettlements, listFinanceEntries, listPayrollPayments, type ExpenseSettlement, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
-import { Button, Card, SectionHeading } from "@/components/ui";
+import { Button, SectionHeading } from "@/components/ui";
 import { downloadCsv } from "@/utils/csv";
 
 const monthNow = () => {
