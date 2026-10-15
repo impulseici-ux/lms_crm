@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, FileBarChart, RefreshCw } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { listFinanceEntries, listPayrollPayments, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
@@ -39,10 +39,10 @@ export function FinanceReports() {
     monthIncome.forEach(x => totals.set(x.category, (totals.get(x.category) ?? 0) + x.amount));
     return [...totals.entries()].sort((a, b) => b[1] - a[1]);
   }, [income, month]);
-  const byMode = (() => {
+  const byMode = useMemo(() => {
     const totals = new Map<string, { income: number; expense: number }>();
-    monthIncome.forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.income += x.amount; totals.set(x.paymentMode, row); });
-    monthExpenses.forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.expense += x.amount; totals.set(x.paymentMode, row); });
+    income.filter(x => x.status === "posted" && x.accountingMonth === month).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.income += x.amount; totals.set(x.paymentMode, row); });
+    expenses.filter(x => x.status === "posted" && x.accountingMonth === month).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.expense += x.amount; totals.set(x.paymentMode, row); });
     return [...totals.entries()].sort((a, b) => (b[1].income + b[1].expense) - (a[1].income + a[1].expense));
   }, [income, expenses, month]);
   const reportRows = [
