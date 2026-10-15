@@ -12,6 +12,9 @@ import { LeadProfile } from "@/pages/LeadProfile";
 import { Reports } from "@/pages/Reports";
 import { Admin } from "@/pages/Admin";
 import { WhatsAppAutomation } from "@/pages/WhatsAppAutomation";
+import { FinanceOverview } from "@/pages/FinanceOverview";
+import { FinanceRegister } from "@/pages/FinanceRegister";
+import { StaffPayroll } from "@/pages/StaffPayroll";
 
 export default function App() {
   return (
@@ -41,6 +44,10 @@ export default function App() {
               <Route path="/leads/:leadId" element={<LeadProfile />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/whatsapp" element={<WhatsAppAutomation />} />
+              <Route path="/finance" element={<ProtectedRoute roles={["admin", "superadmin", "management"]}><FinanceOverview /></ProtectedRoute>} />
+              <Route path="/finance/income" element={<ProtectedRoute roles={["admin", "superadmin", "management"]}><FinanceRegister kind="income" /></ProtectedRoute>} />
+              <Route path="/finance/expenses" element={<ProtectedRoute roles={["admin", "superadmin", "management"]}><FinanceRegister kind="expense" /></ProtectedRoute>} />
+              <Route path="/finance/payroll" element={<ProtectedRoute roles={["admin", "superadmin", "management"]}><StaffPayroll /></ProtectedRoute>} />
               <Route
                 path="/admin"
                 element={
