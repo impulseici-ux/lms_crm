@@ -238,3 +238,43 @@ export async function closeFinanceMonth(input: Omit<FinanceClosing, "id" | "clos
     closedAt: serverTimestamp(),
   });
 }
+
+export interface ExpenseSettlement {
+  id: string;
+  expenseId: string;
+  amount: number;
+  settlementDate: string;
+  accountingMonth: string;
+  paymentMode: PaymentMode;
+  reference?: string;
+  createdBy: string;
+  createdAt?: unknown;
+}
+
+export async function listExpenseSettlements(): Promise<ExpenseSettlement[]> {
+  const snap = await getDocs(query(collection(db, "expenseSettlements"), orderBy("settlementDate", "desc")));
+  return snap.docs.map((item) => ({ id: item.id, ...item.data() } as ExpenseSettlement));
+}
+
+/** Settles a management-paid reimbursement without recording the underlying expense twice. */
+export async function settleReimbursement(input: {
+  entry: FinanceEntry;
+  settlementDate: string;
+  paymentMode: PaymentMode;
+  reference?: string;
+  uid: string;
+}) {
+  if (input.entry.category !== "Reimbursement" || !input.entry.paidBy) {
+    throw new Error("Only reimbursements paid personally by management can be settled here.");
+  }
+  await setDoc(doc(db, "expenseSettlements", input.entry.id), {
+    expenseId: input.entry.id,
+    amount: input.entry.amount,
+    settlementDate: input.settlementDate,
+    accountingMonth: input.settlementDate.slice(0, 7),
+    paymentMode: input.paymentMode,
+    reference: input.reference?.trim() || null,
+    createdBy: input.uid,
+    createdAt: serverTimestamp(),
+  });
+}
