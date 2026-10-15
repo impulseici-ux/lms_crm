@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut, MessageCircle, GraduationCap, Wallet, ArrowDownLeft, ArrowUpRight, UsersRound } from "lucide-react";
+import { LayoutDashboard, Users, UserPlus, BarChart3, Settings, Menu, X, LogOut, MessageCircle, GraduationCap, Wallet, ArrowDownLeft, ArrowUpRight, UsersRound, FileBarChart } from "lucide-react";
 import type { ComponentType } from "react";
 import logo from "@/assets/brand/lm-singanallur-logo.webp";
 import { Header } from "@/components/Header";
@@ -16,6 +16,7 @@ const navItems: { to: string; label: string; roles: string[]; icon: ComponentTyp
   { to: "/finance/income", label: "Income register", roles: ["admin", "superadmin", "management"], icon: ArrowDownLeft },
   { to: "/finance/expenses", label: "Expense register", roles: ["admin", "superadmin", "management"], icon: ArrowUpRight },
   { to: "/finance/payroll", label: "Staff & payroll", roles: ["admin", "superadmin", "management"], icon: UsersRound },
+  { to: "/finance/reports", label: "Finance reports", roles: ["admin", "superadmin", "management"], icon: FileBarChart },
   { to: "/admin", label: "Admin", roles: ["admin", "superadmin"], icon: Settings },
 ];
 
