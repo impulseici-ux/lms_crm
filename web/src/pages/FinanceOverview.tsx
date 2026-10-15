@@ -4,10 +4,11 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { closeFinanceMonth, getFinanceClosing, listExpenseSettlements, listFinanceEntries, listPayrollPayments, type ExpenseSettlement, type FinanceClosing, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
+import { formatCurrency } from "@/lib/currency";
 import { Button, Card, SectionHeading } from "@/components/ui";
 
 const monthNow = () => new Date().toLocaleDateString("en-CA").slice(0, 7);
-const money = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+const money = formatCurrency;
 
 export function FinanceOverview() {
   const { role, user, profile } = useAuth();
@@ -56,9 +57,9 @@ export function FinanceOverview() {
     <div className="flex flex-wrap items-center justify-between gap-3"><label className="flex items-center gap-2 text-xs font-medium text-ink-soft"><CalendarDays className="h-4 w-4"/><span>Accounting month</span><input type="month" value={month} onChange={e=>setMonth(e.target.value)} className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label><Button variant="secondary" size="sm" onClick={()=>void refresh()}><RefreshCw className="h-3.5 w-3.5"/>Refresh data</Button></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Income received</span><span className="rounded-lg bg-good-soft p-2 text-good"><ArrowDownLeft className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthIncome)}</div><div className="mt-1 text-xs text-ink-faint">{month}</div></Card>
-      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Operating expenses</span><span className="rounded-lg bg-bad-soft p-2 text-bad"><ArrowUpRight className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(operatingExpenses)}</div><div className="mt-1 text-xs text-ink-faint">Excluding linked payroll expenses</div></Card>
-      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Payroll paid</span><span className="rounded-lg bg-accent-soft p-2 text-accent"><Wallet className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthPayroll)}</div><div className="mt-1 text-xs text-ink-faint">{payroll.filter(x=>x.accountingMonth===month).length} salary payments</div></Card>
-      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Net cash movement</span><span className="rounded-lg bg-bg p-2 text-ink-soft"><ReceiptText className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthIncome-cashflowExpenseTotal)}</div><div className="mt-1 text-xs text-ink-faint">Income less posted expenses</div></Card>
+      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Operating expenses</span><span className="rounded-lg bg-bad-soft p-2 text-bad"><ArrowUpRight className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(operatingExpenses)}</div><div className="mt-1 text-xs text-ink-faint">Accrual basis. Includes salary advances paid out this month; excludes payroll salary (shown separately as "Payroll paid")</div></Card>
+      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Payroll paid</span><span className="rounded-lg bg-accent-soft p-2 text-accent"><Wallet className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthPayroll)}</div><div className="mt-1 text-xs text-ink-faint">{payroll.filter(x=>x.accountingMonth===month).length} salary payments, net of deductions and advance recovery</div></Card>
+      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Net cash movement</span><span className="rounded-lg bg-bg p-2 text-ink-soft"><ReceiptText className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthIncome-cashflowExpenseTotal)}</div><div className="mt-1 text-xs text-ink-faint">Cash basis. Income less all posted expenses (incl. payroll), plus settled reimbursements; excludes unsettled management-paid reimbursements</div></Card>
     </div>
     <Card>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

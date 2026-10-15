@@ -20,7 +20,7 @@ import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, connectAuthEmulator, signInWithCustomToken, signOut } from "firebase/auth";
 import {
   getFirestore, connectFirestoreEmulator, collection, doc, setDoc, updateDoc,
-  getDoc, writeBatch, serverTimestamp, Timestamp,
+  getDoc, getDocs, query, where, writeBatch, serverTimestamp, Timestamp,
 } from "firebase/firestore";
 
 const PROJECT_ID = "lms-crm-dev";
@@ -433,6 +433,76 @@ await expectAllow("admin can read financeIncome (nonexistent doc resolves, not d
 await expectAllow("admin can create a finance income entry", () =>
   setDoc(doc(collection(admin.db, "financeIncome")), { ...baseIncome, amount: 250, createdBy: admin.uid, accountingMonth: "2026-10" })
 );
+
+// ---------------------------------------------------------------------------
+// 10. Dashboard calculation rules: advances as operating expenses (no duplicate
+//     expense on recovery), and reimbursement reconciliation (no double-count).
+//     Replicates FinanceOverview.tsx's own formulas against real persisted data
+//     from sections 6 and 7 above, independently of the app code.
+// ---------------------------------------------------------------------------
+console.log("\n== 10. Dashboard totals: advances, payroll, reimbursement reconciliation ==");
+
+async function count(colName, field, value) {
+  const snap = await getDocs(query(collection(management.db, colName), where(field, "==", value)));
+  return snap.docs;
+}
+
+// Rule: a salary advance is an operating expense when paid — exactly one
+// financeExpenses doc is created at issuance (section 6's 5000 advance).
+const advanceExpenseDocs = await count("financeExpenses", "linkedSalaryAdvanceId", advanceRef.id);
+if (advanceExpenseDocs.length === 1 && advanceExpenseDocs[0].data().amount === 5000 && advanceExpenseDocs[0].data().category === "Salary Advance") {
+  report("salary advance recorded as exactly one operating-expense doc at issuance (amount 5000)", "PASS"); passed++;
+} else {
+  report(`expected exactly 1 advance-linked expense of 5000, got ${JSON.stringify(advanceExpenseDocs.map(d => d.data()))}`, "FAIL"); failed++;
+}
+
+// Rule: recovery (the two payroll payments in section 6 that recovered 2000 then
+// 3000 against this advance) must not create any additional expense doc — the
+// advance's own expense from issuance is the only one; recovery only updates the
+// advance's outstandingAmount/recoveredAmount fields.
+const advanceExpenseDocsAfterRecovery = await count("financeExpenses", "linkedSalaryAdvanceId", advanceRef.id);
+if (advanceExpenseDocsAfterRecovery.length === 1) {
+  report("advance recovery (partial + final) created zero duplicate expense docs", "PASS"); passed++;
+} else {
+  report(`advance recovery created duplicate expense docs: ${advanceExpenseDocsAfterRecovery.length} found`, "FAIL"); failed++;
+}
+
+// Rule: FinanceOverview.tsx's "Operating expenses" tile = posted expenses excluding
+// linkedPayrollPaymentId only (so it includes salary advances, per the approved rule).
+// The advance was issued in accountingMonth 2026-11 with no payroll expense that
+// month, so operating expenses for 2026-11 must equal exactly the advance amount.
+const novemberExpenses = (await getDocs(query(collection(management.db, "financeExpenses"), where("accountingMonth", "==", "2026-11")))).docs.map(d => d.data());
+const novemberOperatingExpenses = novemberExpenses.filter(x => x.status === "posted" && !x.linkedPayrollPaymentId).reduce((s, x) => s + x.amount, 0);
+if (novemberOperatingExpenses === 5000) {
+  report("operating-expenses formula includes the salary advance (2026-11 total = 5000)", "PASS"); passed++;
+} else {
+  report(`expected November operating expenses to be 5000 (advance only), got ${novemberOperatingExpenses}`, "FAIL"); failed++;
+}
+
+// Rule: the payroll expense itself is booked net of the recovered advance amount
+// (gross - deductions - advanceRecovery), so the advance is never counted twice —
+// once as its own operating expense at issuance, and again inside a larger payroll
+// expense at recovery time.
+const decPaymentExpense = (await getDocs(query(collection(management.db, "financeExpenses"), where("linkedPayrollPaymentId", "==", `2026-12_${staffId.replace(/[^a-zA-Z0-9_-]/g, "_")}`)))).docs[0]?.data();
+if (decPaymentExpense?.amount === 18000) {
+  report("payroll expense booked net of advance recovery (20000 - 0 - 2000 = 18000), not double-counting the advance", "PASS"); passed++;
+} else {
+  report(`expected December payroll expense amount 18000, got ${JSON.stringify(decPaymentExpense)}`, "FAIL"); failed++;
+}
+
+// Rule: FinanceOverview.tsx's cash-basis total excludes a management-paid
+// Reimbursement expense (paidBy set) from the expense list, and instead adds its
+// settlement once — so the same 800 is never summed twice across the two sources.
+const octExpenses = (await getDocs(query(collection(management.db, "financeExpenses"), where("accountingMonth", "==", "2026-10")))).docs.map(d => d.data());
+const octCashflowExpenseDocs = octExpenses.filter(x => x.status === "posted" && !(x.category === "Reimbursement" && x.paidBy));
+const octSettlements = (await getDocs(query(collection(management.db, "expenseSettlements"), where("accountingMonth", "==", "2026-10")))).docs.map(d => d.data());
+const octSettlementTotal = octSettlements.reduce((s, x) => s + x.amount, 0);
+const reimbExpenseIncludedInCashflow = octCashflowExpenseDocs.some(x => x.title === "Management paid for stationery" && x.amount === 800);
+if (!reimbExpenseIncludedInCashflow && octSettlementTotal === 800) {
+  report("reimbursement reconciliation: the 800 settlement is counted exactly once (excluded from the expense list, present once in settlements)", "PASS"); passed++;
+} else {
+  report(`reimbursement double-count check failed: cashflow expenses excluded reimb? ${!reimbExpenseIncludedInCashflow}, settlement total ${octSettlementTotal}`, "FAIL"); failed++;
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 for (const r of results) if (r.status === "FAIL") console.log(`  FAILED: ${r.label} (${r.detail})`);

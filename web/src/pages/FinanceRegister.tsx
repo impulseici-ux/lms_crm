@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useLeads } from "@/hooks/useLeads";
 import { addFinanceEntry, listExpenseSettlements, listFinanceEntries, settleReimbursement, type ExpenseSettlement, type FinanceEntry, type FinanceKind, type PaymentMode } from "@/lib/data/schoolFinance";
+import { formatAmountForCsv, formatCurrency } from "@/lib/currency";
 import { Button, Card, SectionHeading } from "@/components/ui";
 import { downloadCsv } from "@/utils/csv";
 
@@ -13,7 +14,7 @@ const EXPENSE_CATEGORIES = ["Rent", "Milk & Snacks", "Meta Ads", "Justdial", "St
 const MODES: PaymentMode[] = ["Cash", "UPI", "Bank Transfer", "Card", "Cheque"];
 const today = () => new Date().toLocaleDateString("en-CA");
 const monthOf = (date: string) => date.slice(0, 7);
-const rupees = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amount);
+const rupees = formatCurrency;
 
 export function FinanceRegister({ kind }: { kind: FinanceKind }) {
   const { user, role } = useAuth();
@@ -113,7 +114,7 @@ export function FinanceRegister({ kind }: { kind: FinanceKind }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={()=>void refresh()}><RefreshCw className="h-3.5 w-3.5"/> Refresh</Button>
-          <Button variant="secondary" size="sm" onClick={()=>downloadCsv(`${kind}-${month}.csv`,filtered.map(x=>({date:x.transactionDate,accountingMonth:x.accountingMonth,title:x.title,category:x.category,amount:x.amount,paymentMode:x.paymentMode,paidBy:x.paidBy??"",reference:x.reference??"",linkedLeadId:x.linkedLeadId??"",notes:x.notes??""})))}><Download className="h-3.5 w-3.5"/> Export CSV</Button>
+          <Button variant="secondary" size="sm" onClick={()=>downloadCsv(`${kind}-${month}.csv`,filtered.map(x=>({date:x.transactionDate,accountingMonth:x.accountingMonth,title:x.title,category:x.category,amount:formatAmountForCsv(x.amount),paymentMode:x.paymentMode,paidBy:x.paidBy??"",reference:x.reference??"",linkedLeadId:x.linkedLeadId??"",notes:x.notes??""})))}><Download className="h-3.5 w-3.5"/> Export CSV</Button>
           {canWrite && <Button size="sm" onClick={()=>setShowForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>{isIncome?"Add income":"Add expense"}</Button>}
         </div>
       </div>

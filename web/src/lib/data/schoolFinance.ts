@@ -2,6 +2,7 @@ import {
   addDoc, collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, setDoc, writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { formatAmountForCsv } from "@/lib/currency";
 
 export type PaymentMode = "Cash" | "UPI" | "Bank Transfer" | "Card" | "Cheque";
 export type FinanceKind = "income" | "expense";
@@ -186,7 +187,7 @@ export async function payStaffMonth(input: {
       title: `Salary — ${input.staff.name}`, category: "Staff Salary", amount: netAmount,
       transactionDate: input.transactionDate, accountingMonth: input.accountingMonth,
       paymentMode: input.paymentMode, reference: paymentId,
-      notes: `Payroll ${input.accountingMonth}; gross ₹${input.salaryAmount}; deductions ₹${input.deductions}; advance recovery ₹${input.advanceRecovery}`,
+      notes: `Payroll ${input.accountingMonth}; gross ₹${formatAmountForCsv(input.salaryAmount)}; deductions ₹${formatAmountForCsv(input.deductions)}; advance recovery ₹${formatAmountForCsv(input.advanceRecovery)}`,
       createdBy: input.uid, createdAt: serverTimestamp(), status: "posted",
       linkedLeadId: null, linkedPayrollPaymentId: paymentId, linkedSalaryAdvanceId: null,
     });
