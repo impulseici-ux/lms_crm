@@ -34,7 +34,7 @@ export function FinanceOverview() {
     finally { setLoading(false); }
   }, [showToast]);
   useEffect(()=>{void refresh();},[refresh]);
-  useEffect(()=>{let active=true; void getFinanceClosing(month).then(result=>{if(active){setClosing(result);if(result){setOpeningCash(String(result.openingCash));setOpeningBank(String(result.openingBank));setCountedCash(String(result.countedCash));setCountedBank(String(result.countedBank));setClosingNotes(result.notes);}}}).catch(error=>showToast(error instanceof Error?error.message:"Could not load month closing.","error")); return ()=>{active=false;};},[month,showToast]);
+  useEffect(()=>{let active=true; void getFinanceClosing(month).then(result=>{if(active){setClosing(result);if(result){setOpeningCash(String(result.openingCash));setOpeningBank(String(result.openingBank));setCountedCash(String(result.countedCash));setCountedBank(String(result.countedBank));setClosingNotes(result.notes);}else{setOpeningCash("0");setOpeningBank("0");setCountedCash("");setCountedBank("");setClosingNotes("");}}}).catch(error=>showToast(error instanceof Error?error.message:"Could not load month closing.","error")); return ()=>{active=false;};},[month,showToast]);
   const monthIncome = useMemo(()=>income.filter(x=>x.status==="posted"&&x.accountingMonth===month).reduce((s,x)=>s+x.amount,0),[income,month]);
   const monthPayroll = useMemo(()=>payroll.filter(x=>x.accountingMonth===month).reduce((s,x)=>s+x.netAmount,0),[payroll,month]);
   const monthExpenseEntries = expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month);
@@ -74,7 +74,7 @@ export function FinanceOverview() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-bg p-3"><div className="text-xs text-ink-faint">Expected cash balance</div><div className="mt-1 text-lg font-semibold tabular-nums">{money(expectedCash)}</div></div><div className="rounded-xl bg-bg p-3"><div className="text-xs text-ink-faint">Expected bank balance</div><div className="mt-1 text-lg font-semibold tabular-nums">{money(expectedBank)}</div></div></div>
         <label className="block text-xs font-medium text-ink-soft">Closing notes<input value={closingNotes} onChange={e=>setClosingNotes(e.target.value)} placeholder="Statement reference, differences or notes" className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
-        {canManage&&<Button type="submit" disabled={closingSaving||!countedCash||!countedBank}>{closingSaving?"Closing month…":"Reconcile & close month"}</Button>}
+        {canManage&&<Button type="submit" disabled={loading||closingSaving||!countedCash||!countedBank}>{closingSaving?"Closing month…":"Reconcile & close month"}</Button>}
         <p className="text-xs leading-5 text-warn">Closing is permanent in this first version. Verify all receipts, expenses and payroll before confirming; reopen/adjustment flow is not yet implemented.</p>
       </form>}
     </Card>
