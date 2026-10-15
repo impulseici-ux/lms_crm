@@ -146,6 +146,7 @@ export async function listPayrollPayments(): Promise<PayrollPayment[]> {
 
 export interface FinanceClosing {
   id: string;
+  createdBy: string;
   accountingMonth: string;
   openingCash: number;
   openingBank: number;
