@@ -19,8 +19,8 @@ export function FinanceReports() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [i, e, p] = await Promise.all([listFinanceEntries("income"), listFinanceEntries("expense"), listPayrollPayments()]);
-      setIncome(i); setExpenses(e); setPayroll(p);
+      const [i, e, p, s] = await Promise.all([listFinanceEntries("income"), listFinanceEntries("expense"), listPayrollPayments(), listExpenseSettlements()]);
+      setIncome(i); setExpenses(e); setPayroll(p); setSettlements(s);
     } catch (error) { showToast(error instanceof Error ? error.message : "Could not load finance reports.", "error"); }
     finally { setLoading(false); }
   }, [showToast]);
@@ -28,7 +28,8 @@ export function FinanceReports() {
   const monthIncome = income.filter(x => x.status === "posted" && x.accountingMonth === month);
   const monthExpenses = expenses.filter(x => x.status === "posted" && x.accountingMonth === month);
   const totalIncome = monthIncome.reduce((sum, x) => sum + x.amount, 0);
-  const totalExpense = monthExpenses.reduce((sum, x) => sum + x.amount, 0);\n  const cashflowExpense = monthExpenses.filter(x => !(x.category === "Reimbursement" && x.paidBy)).reduce((sum, x) => sum + x.amount, 0) + settlements.filter(x => x.accountingMonth === month).reduce((sum, x) => sum + x.amount, 0);
+  const totalExpense = monthExpenses.reduce((sum, x) => sum + x.amount, 0);
+  const cashflowExpense = monthExpenses.filter(x => !(x.category === "Reimbursement" && x.paidBy)).reduce((sum, x) => sum + x.amount, 0) + settlements.filter(x => x.accountingMonth === month).reduce((sum, x) => sum + x.amount, 0);
   const payrollTotal = payroll.filter(x => x.accountingMonth === month).reduce((sum, x) => sum + x.netAmount, 0);
   const expenseByCategory = useMemo(() => {
     const totals = new Map<string, number>();
