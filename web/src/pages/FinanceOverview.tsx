@@ -3,7 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, CalendarDays, ReceiptText, RefreshCw, Wall
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { closeFinanceMonth, getFinanceClosing, listFinanceEntries, listPayrollPayments, type FinanceClosing, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
+import { closeFinanceMonth, getFinanceClosing, listExpenseSettlements, listFinanceEntries, listPayrollPayments, type ExpenseSettlement, type FinanceClosing, type FinanceEntry, type PayrollPayment } from "@/lib/data/schoolFinance";
 import { Button, Card, SectionHeading } from "@/components/ui";
 
 const monthNow = () => new Date().toLocaleDateString("en-CA").slice(0, 7);
@@ -16,6 +16,7 @@ export function FinanceOverview() {
   const [income, setIncome] = useState<FinanceEntry[]>([]);
   const [expenses, setExpenses] = useState<FinanceEntry[]>([]);
   const [payroll, setPayroll] = useState<PayrollPayment[]>([]);
+  const [settlements, setSettlements] = useState<ExpenseSettlement[]>([]);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState<FinanceClosing | null>(null);
   const [openingCash, setOpeningCash] = useState("0");
@@ -40,12 +41,14 @@ export function FinanceOverview() {
   const monthExpenseEntries = expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month);
   const operatingExpenses = monthExpenseEntries.filter(x=>!x.linkedPayrollPaymentId).reduce((s,x)=>s+x.amount,0);
   const cashIncome = income.filter(x=>x.status==="posted"&&x.accountingMonth===month&&x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);
-  const cashExpenses = monthExpenseEntries.filter(x=>x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);
+  const cashExpenses = monthExpenseEntries.filter(x=>x.paymentMode==="Cash" && !(x.category==="Reimbursement"&&x.paidBy)).reduce((s,x)=>s+x.amount,0);
+  const cashSettlements = settlements.filter(x=>x.accountingMonth===month&&x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);
   const bankModes = ["UPI","Bank Transfer","Card","Cheque"];
   const bankIncome = income.filter(x=>x.status==="posted"&&x.accountingMonth===month&&bankModes.includes(x.paymentMode)).reduce((s,x)=>s+x.amount,0);
-  const bankExpenses = monthExpenseEntries.filter(x=>bankModes.includes(x.paymentMode)).reduce((s,x)=>s+x.amount,0);
-  const expectedCash = (Number(openingCash)||0)+cashIncome-cashExpenses;
-  const expectedBank = (Number(openingBank)||0)+bankIncome-bankExpenses;
+  const bankExpenses = monthExpenseEntries.filter(x=>bankModes.includes(x.paymentMode) && !(x.category==="Reimbursement"&&x.paidBy)).reduce((s,x)=>s+x.amount,0);
+  const bankSettlements = settlements.filter(x=>x.accountingMonth===month&&bankModes.includes(x.paymentMode)).reduce((s,x)=>s+x.amount,0);
+  const expectedCash = (Number(openingCash)||0)+cashIncome-cashExpenses-cashSettlements;
+  const expectedBank = (Number(openingBank)||0)+bankIncome-bankExpenses-bankSettlements;
   const canManage = role==="admin"||role==="superadmin"||role==="management";
   const recent = [...income.map(x=>({...x,kind:"income" as const})),...expenses.map(x=>({...x,kind:"expense" as const}))].filter(x=>x.status==="posted"&&x.accountingMonth===month).sort((a,b)=>b.transactionDate.localeCompare(a.transactionDate)).slice(0,8);
   return <div className="mx-auto max-w-[1440px] space-y-5 pb-8">
