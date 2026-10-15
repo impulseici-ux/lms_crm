@@ -130,7 +130,7 @@ export async function createSalaryAdvance(input: {
     amount: input.amount, transactionDate: input.issueDate, accountingMonth: input.issueDate.slice(0, 7),
     paymentMode: input.paymentMode, reference: advanceRef.id, notes: input.reason,
     createdBy: input.uid, createdAt: serverTimestamp(), status: "posted",
-    linkedLeadId: null, linkedPayrollPaymentId: null, linkedSalaryAdvanceId: null, linkedSalaryAdvanceId: advanceRef.id,
+    linkedLeadId: null, linkedPayrollPaymentId: null, linkedSalaryAdvanceId: advanceRef.id,
   });
   await batch.commit();
   return advanceRef.id;
