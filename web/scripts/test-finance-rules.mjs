@@ -504,6 +504,44 @@ if (!reimbExpenseIncludedInCashflow && octSettlementTotal === 800) {
   report(`reimbursement double-count check failed: cashflow expenses excluded reimb? ${!reimbExpenseIncludedInCashflow}, settlement total ${octSettlementTotal}`, "FAIL"); failed++;
 }
 
+// ---------------------------------------------------------------------------
+// 11. Concurrent monthly-close race condition
+//     financeClosings/{accountingMonth} uses a deterministic doc ID with
+//     `allow create` only and `allow update, delete: if false` (same pattern
+//     already proven for payrollPayments' duplicate-payment protection).
+//     Firestore serializes writes to a single document, so the loser of a
+//     race sees the doc already exists and is evaluated as an `update`,
+//     which the rules always deny — this should make a true concurrent
+//     double-close impossible without any additional code.
+// ---------------------------------------------------------------------------
+console.log("\n== 11. Concurrent monthly-close race condition ==");
+
+const raceMonth = "2026-08";
+const closeAttempt = (identity, countedCash) => setDoc(doc(identity.db, "financeClosings", raceMonth), {
+  createdBy: identity.uid, accountingMonth: raceMonth, expectedCash: 0, expectedBank: 0,
+  countedCash, countedBank: 0, closedBy: identity.uid, notes: `attempt by ${identity.role}`, closedAt: serverTimestamp(),
+});
+const raceResults = await Promise.allSettled([
+  closeAttempt(management, 111),
+  closeAttempt(admin, 222),
+]);
+const raceFulfilled = raceResults.filter(r => r.status === "fulfilled").length;
+const raceDenied = raceResults.filter(r => r.status === "rejected" && (r.reason?.code === "permission-denied" || /permission/i.test(r.reason?.message ?? ""))).length;
+if (raceFulfilled === 1 && raceDenied === 1) {
+  report("concurrent close: exactly one of two simultaneous close attempts for the same month succeeds, the other is denied", "PASS"); passed++;
+} else {
+  report(`concurrent close race NOT safely serialized: ${raceFulfilled} fulfilled, ${raceDenied} denied (expected 1 and 1) -> ${JSON.stringify(raceResults.map(r => r.status))}`, "FAIL"); failed++;
+}
+const raceDoc = await getDoc(doc(management.db, "financeClosings", raceMonth));
+if (raceDoc.exists() && (raceDoc.data().countedCash === 111 || raceDoc.data().countedCash === 222)) {
+  report("concurrent close: the surviving document is a clean, single, uncorrupted write (not a merge of both attempts)", "PASS"); passed++;
+} else {
+  report(`concurrent close left a corrupted/missing document: ${JSON.stringify(raceDoc.data())}`, "FAIL"); failed++;
+}
+await expectDeny("concurrent close: a third close attempt for the same now-closed month is also denied", () =>
+  closeAttempt(management, 333)
+);
+
 console.log(`\n${passed} passed, ${failed} failed`);
 for (const r of results) if (r.status === "FAIL") console.log(`  FAILED: ${r.label} (${r.detail})`);
 
