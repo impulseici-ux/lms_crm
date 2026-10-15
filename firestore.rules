@@ -358,6 +358,9 @@ service cloud.firestore {
         request.resource.data.netAmount is number && request.resource.data.netAmount > 0 &&
         request.resource.data.salaryAmount is number && request.resource.data.deductions is number && request.resource.data.advanceRecovery is number &&
         request.resource.data.netAmount == request.resource.data.salaryAmount - request.resource.data.deductions - request.resource.data.advanceRecovery &&
+        ((request.resource.data.advanceRecovery == 0 && request.resource.data.get('advanceId', null) == null) ||
+          (request.resource.data.advanceRecovery > 0 && request.resource.data.get('advanceId', null) != null &&
+           getAfter(/databases/$(database)/documents/salaryAdvances/$(request.resource.data.advanceId)).data.lastRecoveredPaymentId == paymentId)) &&
         getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedPayrollPaymentId == paymentId &&
         getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.amount == request.resource.data.netAmount;
       allow update, delete: if false;
