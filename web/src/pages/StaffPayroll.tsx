@@ -108,7 +108,7 @@ export function StaffPayroll() {
     <Card padded={false} className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
         <div><h2 className="text-sm font-semibold">Staff directory</h2><p className="mt-1 text-xs text-ink-faint">Employee data is not stored in the CRM authentication users collection.</p></div>
-        <div className="flex flex-wrap gap-2">{canWrite&&<Button size="sm" onClick={()=>setShowStaffForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>Add staff</Button><Button variant="secondary" size="sm" onClick={()=>setShowAdvanceForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>Issue advance</Button>}<Button variant="secondary" size="sm" onClick={()=>void refresh()}><RefreshCw className="h-3.5 w-3.5"/>Refresh</Button></div>
+        <div className="flex flex-wrap gap-2">{canWrite&&<><Button size="sm" onClick={()=>setShowStaffForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>Add staff</Button><Button variant="secondary" size="sm" onClick={()=>setShowAdvanceForm(v=>!v)}><Plus className="h-3.5 w-3.5"/>Issue advance</Button></>}<Button variant="secondary" size="sm" onClick={()=>void refresh()}><RefreshCw className="h-3.5 w-3.5"/>Refresh</Button></div>
       </div>
       {showStaffForm&&canWrite&&<form onSubmit={createStaff} className="grid gap-3 border-b border-border bg-bg/60 p-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-xs font-medium text-ink-soft">Full name<input required value={name} onChange={e=>setName(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
