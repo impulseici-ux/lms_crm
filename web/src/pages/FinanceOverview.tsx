@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, CalendarDays, ReceiptText, RefreshCw, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -24,15 +24,15 @@ export function FinanceOverview() {
   const [countedBank, setCountedBank] = useState("");
   const [closingNotes, setClosingNotes] = useState("");
   const [closingSaving, setClosingSaving] = useState(false);
-  async function refresh() {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const [i,e,p] = await Promise.all([listFinanceEntries("income"),listFinanceEntries("expense"),listPayrollPayments()]);
       setIncome(i); setExpenses(e); setPayroll(p);
     } catch (error) { showToast(error instanceof Error ? error.message : "Could not load finance summary.", "error"); }
     finally { setLoading(false); }
-  }
-  useEffect(()=>{void refresh();},[]);
+  }, [showToast]);
+  useEffect(()=>{void refresh();},[refresh]);
   useEffect(()=>{let active=true; void getFinanceClosing(month).then(result=>{if(active){setClosing(result);if(result){setOpeningCash(String(result.openingCash));setOpeningBank(String(result.openingBank));setCountedCash(String(result.countedCash));setCountedBank(String(result.countedBank));setClosingNotes(result.notes);}}}).catch(error=>showToast(error instanceof Error?error.message:"Could not load month closing.","error")); return ()=>{active=false;};},[month,showToast]);
   const monthIncome = useMemo(()=>income.filter(x=>x.status==="posted"&&x.accountingMonth===month).reduce((s,x)=>s+x.amount,0),[income,month]);
   const monthExpenses = useMemo(()=>expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month).reduce((s,x)=>s+x.amount,0),[expenses,month]);
