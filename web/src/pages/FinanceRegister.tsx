@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";\nimport type { FormEvent } from "react";
 import { ArrowDownLeft, ArrowUpRight, Download, Plus, RefreshCw, Search, Wallet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
@@ -7,7 +7,7 @@ import { Button, Card, SectionHeading } from "@/components/ui";
 import { downloadCsv } from "@/utils/csv";
 
 const INCOME_CATEGORIES = ["School Fees", "Admission Fee", "Activity Fee", "Transport", "Other Income"];
-const EXPENSE_CATEGORIES = ["Rent", "Staff Salary", "Milk & Snacks", "Meta Ads", "Justdial", "Stationery", "Pamphlets", "Field Trips", "Utilities", "Repairs & Maintenance", "Reimbursement", "Other Expense"];
+const EXPENSE_CATEGORIES = ["Rent", "Milk & Snacks", "Meta Ads", "Justdial", "Stationery", "Pamphlets", "Field Trips", "Utilities", "Repairs & Maintenance", "Reimbursement", "Other Expense"];
 const MODES: PaymentMode[] = ["Cash", "UPI", "Bank Transfer", "Card", "Cheque"];
 const today = () => new Date().toLocaleDateString("en-CA");
 const monthOf = (date: string) => date.slice(0, 7);
