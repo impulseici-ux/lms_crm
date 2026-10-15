@@ -45,8 +45,8 @@ export function StaffPayroll() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [people, paid] = await Promise.all([listSchoolStaff(), listPayrollPayments()]);
-      setStaff(people); setPayments(paid);
+      const [people, paid, advanceRows] = await Promise.all([listSchoolStaff(), listPayrollPayments(), listSalaryAdvances()]);
+      setStaff(people); setPayments(paid); setAdvances(advanceRows);
       if (!staffId && people.length) { setStaffId(people[0].id); setGross(String(people[0].monthlySalary)); }
     } catch (error) { showToast(error instanceof Error ? error.message : "Could not load payroll.", "error"); }
     finally { setLoading(false); }
