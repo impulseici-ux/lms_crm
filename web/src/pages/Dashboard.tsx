@@ -94,17 +94,19 @@ function StatTile({
   trend: number;
   href: string;
 }) {
-  const { bg, fg } = STAT_TINTS[tint];
+  const { fg } = STAT_TINTS[tint];
   return (
-    <Link to={href} className="block rounded-2xl p-5 transition-transform hover:-translate-y-0.5" style={{ backgroundColor: bg }}>
+    <Link to={href} className="group relative block overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
+      <div className="absolute inset-x-0 top-0 h-[2px] opacity-70 transition-opacity group-hover:opacity-100" style={{ backgroundColor: fg }} />
       <div className="flex items-start justify-between gap-2">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "white", color: fg }}>
-          <Icon className="w-5 h-5" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border-soft bg-bg" style={{ color: fg }}>
+          <Icon className="h-[18px] w-[18px]" />
         </div>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Overview</span>
       </div>
-      <div className="font-display text-[28px] leading-none font-semibold mt-3" style={{ color: fg }}>{value}</div>
-      <div className="text-[13px] text-ink-soft mt-2">{label}</div>
-      <div className="mt-1.5"><TrendBadge pct={trend} /></div>
+      <div className="mt-4 font-display text-[30px] font-semibold leading-none tracking-tight text-ink tabular-nums">{value.toLocaleString("en-IN")}</div>
+      <div className="mt-2 text-[13px] font-medium text-ink-soft">{label}</div>
+      <div className="mt-2"><TrendBadge pct={trend} /></div>
     </Link>
   );
 }
