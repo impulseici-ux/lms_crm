@@ -288,6 +288,24 @@ service cloud.firestore {
       return isAdmin() || isManagement();
     }
 
+    // Monthly closing (financeClosings/{accountingMonth}) blocks a write only when
+    // that write's own `accountingMonth` field string-matches an already-closed
+    // month's document ID. `accountingMonth` is deliberately independent of each
+    // record's own date field (transactionDate/issueDate/settlementDate) — the app's
+    // UI lets staff enter, say, a December cash expense discovered and recorded only
+    // after December is closed, booking it into the current open month instead, same
+    // as a payroll pay-date landing a few days after the month it's paid for — so an
+    // exact match to the date field would reject legitimate entries. What's still
+    // unvalidated without this check: a missing/malformed accountingMonth (empty
+    // string, wrong format, whitespace) can never string-match any real
+    // financeClosings doc ID, so it would never be swept into monthly closing or
+    // report correctly grouped by month, permanently and silently. This only
+    // enforces that the value is a real "YYYY-MM" — the field truly meant to gate
+    // closing and group reports — not that it equals the date field's month.
+    function isAccountingMonth(value) {
+      return value is string && value.size() == 7 && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])$');
+    }
+
     match /financeIncome/{entryId} {
       allow read: if canManageFinance();
       allow create: if canManageFinance() &&
@@ -297,6 +315,7 @@ service cloud.firestore {
         request.resource.data.status == 'posted' &&
         request.resource.data.linkedPayrollPaymentId == null &&
         (request.resource.data.get('linkedLeadId', null) == null || exists(/databases/$(database)/documents/leads/$(request.resource.data.linkedLeadId))) &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth));
       allow update, delete: if false;
     }
@@ -308,6 +327,7 @@ service cloud.firestore {
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
         request.resource.data.status == 'posted' &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         ((request.resource.data.get('linkedPayrollPaymentId', null) == null && request.resource.data.get('linkedSalaryAdvanceId', null) == null) ||
           (request.resource.data.get('linkedPayrollPaymentId', null) != null &&
@@ -335,6 +355,7 @@ service cloud.firestore {
         request.resource.data.recoveredAmount == 0 &&
         request.resource.data.outstandingAmount == request.resource.data.amount &&
         request.resource.data.status == 'open' &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedSalaryAdvanceId == advanceId &&
         getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.amount == request.resource.data.amount;
@@ -355,6 +376,7 @@ service cloud.firestore {
       allow create: if canManageFinance() &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.status == 'paid' &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         request.resource.data.netAmount is number && request.resource.data.netAmount > 0 &&
         request.resource.data.salaryAmount is number && request.resource.data.deductions is number && request.resource.data.advanceRecovery is number &&
@@ -375,6 +397,7 @@ service cloud.firestore {
         request.resource.data.expenseId == expenseId &&
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.category == 'Reimbursement' &&
         get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.paidBy is string &&
@@ -387,6 +410,7 @@ service cloud.firestore {
       allow create: if canManageFinance() &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.accountingMonth == monthId &&
+        isAccountingMonth(monthId) &&
         request.resource.data.expectedCash is number &&
         request.resource.data.expectedBank is number &&
         request.resource.data.countedCash is number &&

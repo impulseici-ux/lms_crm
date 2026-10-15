@@ -47,7 +47,7 @@ export function FinanceReports() {
     expenses.filter(x => x.status === "posted" && x.accountingMonth === month && !(x.category === "Reimbursement" && x.paidBy)).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.expense += x.amount; totals.set(x.paymentMode, row); });
     settlements.filter(x => x.accountingMonth === month).forEach(x => { const row = totals.get(x.paymentMode) ?? { income: 0, expense: 0 }; row.expense += x.amount; totals.set(x.paymentMode, row); });
     return [...totals.entries()].sort((a, b) => (b[1].income + b[1].expense) - (a[1].income + a[1].expense));
-  }, [income, expenses, month]);
+  }, [income, expenses, settlements, month]);
   const reportRows = [
     ...monthIncome.map(x => ({ type: "Income", date: x.transactionDate, accountingMonth: x.accountingMonth, description: x.title, category: x.category, amount: x.amount, paymentMode: x.paymentMode, reference: x.reference ?? "", paidBy: x.paidBy ?? "" })),
     ...monthExpenses.map(x => ({ type: "Expense", date: x.transactionDate, accountingMonth: x.accountingMonth, description: x.title, category: x.category, amount: x.amount, paymentMode: x.paymentMode, reference: x.reference ?? "", paidBy: x.paidBy ?? "" })),
