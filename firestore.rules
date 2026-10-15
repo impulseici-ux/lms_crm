@@ -282,6 +282,57 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---- School finance and payroll ----
+    // Financial records are restricted to admin/superadmin and management.
+    function canManageFinance() {
+      return isAdmin() || isManagement();
+    }
+
+    match /financeIncome/{entryId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.status == 'posted' &&
+        request.resource.data.linkedPayrollPaymentId == null;
+      allow update, delete: if false;
+    }
+
+    match /financeExpenses/{entryId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.status == 'posted' &&
+        (request.resource.data.linkedPayrollPaymentId == null ||
+          (getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.expenseId == entryId &&
+           getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.netAmount == request.resource.data.amount));
+      allow update, delete: if false;
+    }
+
+    match /schoolStaff/{staffId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+        request.resource.data.monthlySalary is number && request.resource.data.monthlySalary > 0;
+      allow update, delete: if false;
+    }
+
+    match /payrollPayments/{paymentId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.status == 'paid' &&
+        request.resource.data.netAmount is number && request.resource.data.netAmount > 0 &&
+        request.resource.data.salaryAmount is number && request.resource.data.deductions is number && request.resource.data.advanceRecovery is number &&
+        request.resource.data.netAmount == request.resource.data.salaryAmount - request.resource.data.deductions - request.resource.data.advanceRecovery &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedPayrollPaymentId == paymentId &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.amount == request.resource.data.netAmount;
+      allow update, delete: if false;
+    }
+
     // Deny everything else by default.
     match /{document=**} {
       allow read, write: if false;
