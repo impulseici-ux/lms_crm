@@ -1,5 +1,5 @@
 import {
-  addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, writeBatch,
+  addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -142,4 +142,32 @@ export async function payStaffMonth(input: {
 export async function listPayrollPayments(): Promise<PayrollPayment[]> {
   const snap = await getDocs(query(payrollCollection, orderBy("transactionDate", "desc")));
   return snap.docs.map((item) => ({ id: item.id, ...item.data() } as PayrollPayment));
+}
+
+export interface FinanceClosing {
+  id: string;
+  accountingMonth: string;
+  openingCash: number;
+  openingBank: number;
+  countedCash: number;
+  countedBank: number;
+  expectedCash: number;
+  expectedBank: number;
+  cashDifference: number;
+  bankDifference: number;
+  notes: string;
+  closedBy: string;
+  closedAt?: unknown;
+}
+
+export async function getFinanceClosing(month: string): Promise<FinanceClosing | null> {
+  const snap = await getDoc(doc(db, "financeClosings", month));
+  return snap.exists() ? ({ id: snap.id, ...snap.data() } as FinanceClosing) : null;
+}
+
+export async function closeFinanceMonth(input: Omit<FinanceClosing, "id" | "closedAt">) {
+  await setDoc(doc(db, "financeClosings", input.accountingMonth), {
+    ...input,
+    closedAt: serverTimestamp(),
+  });
 }
