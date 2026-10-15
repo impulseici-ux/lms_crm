@@ -36,10 +36,10 @@ export function FinanceOverview() {
   useEffect(()=>{void refresh();},[refresh]);
   useEffect(()=>{let active=true; void getFinanceClosing(month).then(result=>{if(active){setClosing(result);if(result){setOpeningCash(String(result.openingCash));setOpeningBank(String(result.openingBank));setCountedCash(String(result.countedCash));setCountedBank(String(result.countedBank));setClosingNotes(result.notes);}}}).catch(error=>showToast(error instanceof Error?error.message:"Could not load month closing.","error")); return ()=>{active=false;};},[month,showToast]);
   const monthIncome = useMemo(()=>income.filter(x=>x.status==="posted"&&x.accountingMonth===month).reduce((s,x)=>s+x.amount,0),[income,month]);
-  const monthExpenses = useMemo(()=>expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month).reduce((s,x)=>s+x.amount,0),[expenses,month]);
   const monthPayroll = useMemo(()=>payroll.filter(x=>x.accountingMonth===month).reduce((s,x)=>s+x.netAmount,0),[payroll,month]);
   const monthExpenseEntries = expenses.filter(x=>x.status==="posted"&&x.accountingMonth===month);
   const operatingExpenses = monthExpenseEntries.filter(x=>!x.linkedPayrollPaymentId).reduce((s,x)=>s+x.amount,0);
+  const cashflowExpenseTotal = monthExpenseEntries.filter(x=>!(x.category==="Reimbursement"&&x.paidBy)).reduce((s,x)=>s+x.amount,0)+settlements.filter(x=>x.accountingMonth===month).reduce((s,x)=>s+x.amount,0);
   const cashIncome = income.filter(x=>x.status==="posted"&&x.accountingMonth===month&&x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);
   const cashExpenses = monthExpenseEntries.filter(x=>x.paymentMode==="Cash" && !(x.category==="Reimbursement"&&x.paidBy)).reduce((s,x)=>s+x.amount,0);
   const cashSettlements = settlements.filter(x=>x.accountingMonth===month&&x.paymentMode==="Cash").reduce((s,x)=>s+x.amount,0);
@@ -58,7 +58,7 @@ export function FinanceOverview() {
       <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Income received</span><span className="rounded-lg bg-good-soft p-2 text-good"><ArrowDownLeft className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthIncome)}</div><div className="mt-1 text-xs text-ink-faint">{month}</div></Card>
       <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Operating expenses</span><span className="rounded-lg bg-bad-soft p-2 text-bad"><ArrowUpRight className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(operatingExpenses)}</div><div className="mt-1 text-xs text-ink-faint">Excluding linked payroll expenses</div></Card>
       <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Payroll paid</span><span className="rounded-lg bg-accent-soft p-2 text-accent"><Wallet className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthPayroll)}</div><div className="mt-1 text-xs text-ink-faint">{payroll.filter(x=>x.accountingMonth===month).length} salary payments</div></Card>
-      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Net cash movement</span><span className="rounded-lg bg-bg p-2 text-ink-soft"><ReceiptText className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthIncome-monthExpenses)}</div><div className="mt-1 text-xs text-ink-faint">Income less posted expenses</div></Card>
+      <Card><div className="flex items-center justify-between text-xs text-ink-soft"><span>Net cash movement</span><span className="rounded-lg bg-bg p-2 text-ink-soft"><ReceiptText className="h-4 w-4"/></span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{loading?"—":money(monthIncome-cashflowExpenseTotal)}</div><div className="mt-1 text-xs text-ink-faint">Income less posted expenses</div></Card>
     </div>
     <Card>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
