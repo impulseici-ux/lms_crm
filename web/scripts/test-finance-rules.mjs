@@ -165,6 +165,28 @@ await expectDeny("schoolStaff with empty name", () =>
   setDoc(doc(collection(management.db, "schoolStaff")), { name: "", roleTitle: "Teacher", mobile: "+919999999999", monthlySalary: 15000, joiningDate: "2026-01-01", active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
 );
 
+// Dashboard/report totals split Cash vs. Bank by string-matching `paymentMode`
+// against a fixed 5-value set (FinanceOverview.tsx's `bankModes` + "Cash"). A value
+// outside that set — or a missing one — would silently drop out of BOTH buckets
+// while still counting toward the overall month total, breaking reconciliation.
+// These prove a direct Firestore write (bypassing the UI's fixed dropdown) can't
+// smuggle one in.
+await expectDeny("invalid paymentMode string", () =>
+  setDoc(doc(collection(management.db, "financeIncome")), { ...baseIncome, amount: 500, paymentMode: "Crypto" })
+);
+await expectDeny("missing paymentMode", () => {
+  const rest = { ...baseIncome };
+  delete rest.paymentMode;
+  return setDoc(doc(collection(management.db, "financeIncome")), { ...rest, amount: 500 });
+});
+await expectDeny("invalid paymentMode on financeExpenses", () =>
+  setDoc(doc(collection(management.db, "financeExpenses")), {
+    title: "Office supplies", category: "Operations", amount: 500, paymentMode: "Crypto", status: "posted",
+    createdBy: management.uid, linkedPayrollPaymentId: null, linkedSalaryAdvanceId: null, linkedLeadId: null,
+    transactionDate: "2026-10-13", accountingMonth: "2026-10", createdAt: serverTimestamp(),
+  })
+);
+
 // A real staff member for the payroll/advance tests below.
 const staffRef = doc(collection(management.db, "schoolStaff"));
 await setDoc(staffRef, { name: "Priya Teacher", roleTitle: "Teacher", mobile: "+919999999999", monthlySalary: 20000, joiningDate: "2026-01-01", active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });

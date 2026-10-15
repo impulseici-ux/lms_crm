@@ -306,6 +306,16 @@ service cloud.firestore {
       return value is string && value.size() == 7 && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])$');
     }
 
+    // Every finance record carries a `paymentMode` used to split dashboard/report
+    // totals into Cash vs. Bank (see FinanceOverview.tsx's `bankModes` list). A value
+    // outside this set — or a missing one — can't be matched by either the Cash check
+    // or the bankModes.includes() check, so it would silently vanish from the Cash/Bank
+    // reconciliation while still counting toward the overall month total. This keeps a
+    // direct Firestore write (bypassing the UI's fixed dropdown) from desyncing the two.
+    function isPaymentMode(value) {
+      return value in ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Cheque'];
+    }
+
     match /financeIncome/{entryId} {
       allow read: if canManageFinance();
       allow create: if canManageFinance() &&
@@ -314,6 +324,7 @@ service cloud.firestore {
         request.resource.data.amount > 0 &&
         request.resource.data.status == 'posted' &&
         request.resource.data.linkedPayrollPaymentId == null &&
+        isPaymentMode(request.resource.data.paymentMode) &&
         (request.resource.data.get('linkedLeadId', null) == null || exists(/databases/$(database)/documents/leads/$(request.resource.data.linkedLeadId))) &&
         isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth));
@@ -327,6 +338,7 @@ service cloud.firestore {
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
         request.resource.data.status == 'posted' &&
+        isPaymentMode(request.resource.data.paymentMode) &&
         isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         ((request.resource.data.get('linkedPayrollPaymentId', null) == null && request.resource.data.get('linkedSalaryAdvanceId', null) == null) ||
@@ -355,6 +367,7 @@ service cloud.firestore {
         request.resource.data.recoveredAmount == 0 &&
         request.resource.data.outstandingAmount == request.resource.data.amount &&
         request.resource.data.status == 'open' &&
+        isPaymentMode(request.resource.data.paymentMode) &&
         isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedSalaryAdvanceId == advanceId &&
@@ -376,6 +389,7 @@ service cloud.firestore {
       allow create: if canManageFinance() &&
         request.resource.data.createdBy == request.auth.uid &&
         request.resource.data.status == 'paid' &&
+        isPaymentMode(request.resource.data.paymentMode) &&
         isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         request.resource.data.netAmount is number && request.resource.data.netAmount > 0 &&
@@ -397,6 +411,7 @@ service cloud.firestore {
         request.resource.data.expenseId == expenseId &&
         request.resource.data.amount is number &&
         request.resource.data.amount > 0 &&
+        isPaymentMode(request.resource.data.paymentMode) &&
         isAccountingMonth(request.resource.data.accountingMonth) &&
         !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
         get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.category == 'Reimbursement' &&
