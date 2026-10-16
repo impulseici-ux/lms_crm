@@ -23,6 +23,17 @@ export default defineConfig(({ command, mode }) => {
           `(they pass --mode dev / --mode prod, which load .env.dev.local / .env.prod.local).`
       );
     }
+    // Non-fatal: the activation backend (invite/resend/verify/set-password/
+    // set-active/delete/switch-role) degrades to a clear in-app error when
+    // this is unset (see onboarding.ts's callBackend) rather than breaking
+    // the rest of the app, so this warns instead of failing the build.
+    if (!env.VITE_BACKEND_URL) {
+      console.warn(
+        `\n⚠  VITE_BACKEND_URL is unset in this "${mode}" build — the user ` +
+          `activation flow (invite, verify code, set password, activate/deactivate, ` +
+          `delete, switch-role) will fail at runtime until it's set.\n`
+      );
+    }
   }
   return {
     plugins: [react(), tailwindcss()],
