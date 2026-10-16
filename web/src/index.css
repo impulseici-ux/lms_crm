@@ -6,45 +6,43 @@
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Premium neutral surface system — cool slate, not warm/beige. */
-  --color-bg: #F7F8FA;
+  /* Quiet, premium cool-neutral surfaces. */
+  --color-bg: #F5F7F8;
   --color-surface: #FFFFFF;
-  --color-surface-2: #F1F3F7;
-  --color-surface-hover: #EAEDF3;
+  --color-surface-2: #F1F4F6;
+  --color-surface-hover: #E9EFF1;
 
-  --color-ink: #0F172A;
-  --color-ink-soft: #4B5768;
-  --color-ink-faint: #8D97A8;
+  --color-ink: #172635;
+  --color-ink-soft: #536373;
+  --color-ink-faint: #8593A0;
 
-  /* Indigo accent — reads as modern SaaS, distinct from the neutrals. */
-  --color-accent: #4338CA;
-  --color-accent-strong: #312E81;
-  --color-accent-soft: #EEF0FC;
-  --color-accent-hover: #352DA3;
-  --color-focus-ring: #4338CA;
+  /* Restrained deep-teal accent; stage colours in the Admission Pipeline remain page-owned. */
+  --color-accent: #176B5B;
+  --color-accent-strong: #104A43;
+  --color-accent-soft: #E8F3F0;
+  --color-accent-hover: #12584C;
+  --color-focus-ring: #176B5B;
 
-  --color-border: #E2E5EB;
-  --color-border-soft: #EDEFF3;
+  --color-border: #DDE5E8;
+  --color-border-soft: #EBF0F2;
 
-  /* Status text darkened a step from the brand ramp for safer contrast
-     against the soft badge backgrounds below (design-system refinement). */
-  --color-good: #0B6943;
-  --color-good-soft: #E9F7EF;
-  --color-warn: #8A4607;
-  --color-warn-soft: #FDF2E3;
-  --color-bad: #972A22;
-  --color-bad-soft: #FBEAE8;
+  --color-good: #176B50;
+  --color-good-soft: #E9F5EF;
+  --color-warn: #89551D;
+  --color-warn-soft: #FAF1E5;
+  --color-bad: #9B3A36;
+  --color-bad-soft: #F9ECEB;
 
-  /* Dark sidebar / app shell — distinct from the light content surfaces. */
-  --color-sidebar-bg: #0B1220;
-  --color-sidebar-bg-raised: #121B2E;
-  --color-sidebar-ink: #E7EBF5;
-  --color-sidebar-ink-soft: #8891A8;
-  --color-sidebar-border: #1E2A42;
-  --color-sidebar-active-bg: #1B2A4A;
+  /* Deep ink sidebar, softened contrast and a clear active state. */
+  --color-sidebar-bg: #101C2B;
+  --color-sidebar-bg-raised: #19283A;
+  --color-sidebar-ink: #F1F5F8;
+  --color-sidebar-ink-soft: #9AA9B9;
+  --color-sidebar-border: #28384A;
+  --color-sidebar-active-bg: #203B4A;
 
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.03);
-  --shadow-elevated: 0 4px 10px -4px rgba(15, 23, 42, 0.10), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 1px 2px rgba(18, 38, 52, 0.035), 0 3px 10px rgba(18, 38, 52, 0.025);
+  --shadow-elevated: 0 10px 26px -12px rgba(18, 38, 52, 0.18), 0 3px 8px -4px rgba(18, 38, 52, 0.08);
 }
 
 html { scroll-behavior: smooth; }
@@ -56,10 +54,10 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  letter-spacing: -0.006em;
+  letter-spacing: -0.008em;
 }
 
-h1, h2, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+h1, h2, .font-display { font-family: var(--font-display); letter-spacing: -0.018em; }
 code, .font-mono { font-family: var(--font-mono); }
 
 ::selection { background: var(--color-accent-soft); color: var(--color-accent-strong); }
@@ -76,8 +74,8 @@ input[type="date"], input[type="datetime-local"] { color-scheme: light; }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #C7CCD6; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: #AFB6C4; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: #C7D0D5; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #AEBCC4; background-clip: padding-box; }
 
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(4px); }
@@ -91,9 +89,7 @@ input[type="date"], input[type="datetime-local"] { color-scheme: light; }
 }
 .animate-slide-in-right { animation: slide-in-right 0.18s ease-out; }
 
-/* Lead blink — rows for leads nobody has opened yet flash until viewed.
-   Uses the existing --color-warn/-soft tokens (same "needs attention" tone
-   as Medium priority / Due Today), not a new color. */
+/* Lead blink — preserve the existing high-attention behaviour and accessible reduced-motion state. */
 @keyframes lead-blink {
   0%, 49% { background-color: var(--color-warn-soft); }
   50%, 100% { background-color: transparent; }
