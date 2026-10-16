@@ -335,7 +335,7 @@ export function Leads() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto h-full flex flex-col">
+    <div className="lm-leads-page max-w-7xl mx-auto h-full flex flex-col">
       <div className="shrink-0">
       {/* Mobile-only compact heading — a dedicated layout, not the desktop
           heading shrunk down: title + live lead count + a search toggle,
