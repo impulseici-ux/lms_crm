@@ -32,8 +32,8 @@ export function Layout() {
   const displayName = profile?.displayName ?? user?.email ?? "";
 
   const brand = (
-    <Link to="/" onClick={() => setMobileOpen(false)} className="group flex h-[76px] shrink-0 items-center gap-3 border-b border-sidebar-border px-4 transition-colors hover:bg-sidebar-bg-raised">
-      <span className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-sm">
+    <Link to="/" onClick={() => setMobileOpen(false)} className="lm-brand group flex h-[76px] shrink-0 items-center gap-3 border-b border-sidebar-border px-4 transition-colors hover:bg-sidebar-bg-raised">
+      <span className="lm-brand-mark inline-flex shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-sm">
         <img src={logo} alt="Little Millennium Singanallur" className="h-10 w-auto object-contain" />
       </span>
       <span className="min-w-0">
@@ -44,7 +44,7 @@ export function Layout() {
   );
 
   const navigation = (
-    <nav aria-label="Main navigation" className="px-3 py-4">
+    <nav aria-label="Main navigation" className="lm-nav px-3 py-4">
       <div className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-sidebar-ink-soft/75">Workspace</div>
       <div className="space-y-1">
         {visibleNav.map((item) => (
@@ -110,8 +110,8 @@ export function Layout() {
   // Keep the existing independent page/table scroll contexts intact. Leads.tsx owns
   // its table scroll; the shell owns the single page-level scroll context.
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-bg text-ink">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar-bg px-3 lg:hidden">
+    <div className="lm-shell flex h-screen flex-col overflow-hidden bg-bg text-ink">
+      <header className="lm-mobilebar flex h-12 shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar-bg px-3 lg:hidden">
         <Link to="/" onClick={() => setMobileOpen(false)} className="inline-flex rounded-lg bg-white p-1.5">
           <img src={logo} alt="Little Millennium Singanallur" className="h-7 w-auto object-contain" />
         </Link>
@@ -130,7 +130,7 @@ export function Layout() {
       {mobileOpen && (
         <div className="fixed inset-0 z-30 bg-black/45 backdrop-blur-[2px] lg:hidden" onClick={() => setMobileOpen(false)}>
           <aside
-            className="animate-slide-in-right absolute bottom-0 right-0 top-12 flex w-[min(19rem,90vw)] flex-col border-l border-sidebar-border bg-sidebar-bg shadow-2xl"
+            className="lm-sidebar animate-slide-in-right absolute bottom-0 right-0 top-12 flex w-[min(19rem,90vw)] flex-col border-l border-sidebar-border bg-sidebar-bg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex-1 overflow-y-auto">{brand}{navigation}</div>
@@ -140,14 +140,14 @@ export function Layout() {
       )}
 
       <div className="flex min-h-0 flex-1 lg:flex">
-        <aside className="hidden h-full w-[224px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar-bg lg:flex">
+        <aside className="lm-sidebar hidden h-full w-[224px] shrink-0 flex-col border-r border-sidebar-border bg-sidebar-bg lg:flex">
           {brand}
           <div className="flex-1 overflow-y-auto">{navigation}</div>
           {account}
         </aside>
         <div className="flex h-full min-w-0 flex-1 flex-col">
           <Header />
-          <main className="min-w-0 flex-1 overflow-auto p-3 sm:p-4 lg:p-6 xl:p-7">
+          <main className="lm-main min-w-0 flex-1 overflow-auto p-3 sm:p-4 lg:p-6 xl:p-7">
             <Outlet />
           </main>
         </div>
