@@ -276,7 +276,7 @@ export async function recordVisit(
 export interface AdmissionPaymentInput {
   programId: string | null; // the confirmed class — may differ from interestedProgramId
   fees: number | null; // quoted/agreed total fee at admission
-  amountPaid: number | null; // paid now, at confirmation
+  amountPaid: number; // paid now, at confirmation — required, must be > 0
   paymentMode: LeadDoc["admissionPaymentMode"];
   balanceDueDate: Timestamp | null; // when the remaining balance is expected
 }
@@ -297,17 +297,23 @@ export async function confirmAdmission(
   payment: AdmissionPaymentInput,
   byStaffId: string
 ) {
+  if (!Number.isFinite(payment.amountPaid) || payment.amountPaid <= 0) {
+    throw new Error("Enter an amount paid to confirm admission.");
+  }
   await updateDoc(leadDoc(lead.id), {
     status: "Admission Confirmed",
     admissionNumber,
     admissionFeePlan,
     admissionConfirmedAt: serverTimestamp(),
-    interestedProgramId: payment.programId ?? lead.interestedProgramId,
-    fees: payment.fees ?? lead.fees,
+    // updateDoc() rejects a literal `undefined` outright (distinct from omitting the
+    // key) — `a ?? b` still comes out undefined when BOTH sides are, e.g. a lead whose
+    // `fees`/`interestedProgramId` predate those fields existing, so pin the fallback.
+    interestedProgramId: payment.programId ?? lead.interestedProgramId ?? null,
+    fees: payment.fees ?? lead.fees ?? null,
     admissionAmountPaid: payment.amountPaid,
     admissionPaymentMode: payment.paymentMode,
     admissionPaymentDate: payment.amountPaid ? serverTimestamp() : null,
-    admissionBalanceDueDate: payment.balanceDueDate,
+    admissionBalanceDueDate: payment.balanceDueDate ?? null,
     admissionIncomePosted: false,
     admissionIncomeEntryId: null,
     lastActivityAt: serverTimestamp(),

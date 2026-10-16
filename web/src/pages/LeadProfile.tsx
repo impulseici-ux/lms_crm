@@ -514,7 +514,7 @@ export function LeadProfile() {
                       <Input type="number" min="0" value={admissionFeesQuoted || (lead.fees != null ? String(lead.fees) : "")} onChange={(e) => setAdmissionFeesQuoted(e.target.value)} />
                     </Field>
                     <Field label="Amount paid now (₹)">
-                      <Input type="number" min="0" value={admissionAmountPaid} onChange={(e) => setAdmissionAmountPaid(e.target.value)} placeholder="0.00" />
+                      <Input required type="number" min="0.01" step="0.01" value={admissionAmountPaid} onChange={(e) => setAdmissionAmountPaid(e.target.value)} placeholder="0.00" />
                     </Field>
                     <Field label="Payment mode">
                       <Select value={admissionPaymentMode ?? "Cash"} onChange={(e) => setAdmissionPaymentMode(e.target.value as LeadDoc["admissionPaymentMode"])}>
@@ -525,13 +525,15 @@ export function LeadProfile() {
                       <Input type="date" value={admissionBalanceDueDate} onChange={(e) => setAdmissionBalanceDueDate(e.target.value)} />
                     </Field>
                   </div>
-                  <p className="mt-2 text-[11px] text-ink-faint">The amount paid now is recorded here and shows up as "Pending from admissions" on the Income register for admin/management to post — counsellors can't post income entries directly.</p>
+                  <p className="mt-2 text-[11px] text-ink-faint">An amount paid is required to confirm admission — it's recorded here and shows up as "Pending from admissions" on the Income register for admin/management to post, since counsellors can't post income entries directly.</p>
                   <Button
                     size="sm"
                     className="mt-2"
+                    disabled={!admissionNumber || !(Number(admissionAmountPaid) > 0)}
                     onClick={() =>
                       user &&
                       admissionNumber &&
+                      Number(admissionAmountPaid) > 0 &&
                       doAction(() =>
                         confirmAdmission(
                           lead,
@@ -540,7 +542,7 @@ export function LeadProfile() {
                           {
                             programId: admissionProgramId || lead.interestedProgramId || null,
                             fees: admissionFeesQuoted.trim() ? Number(admissionFeesQuoted) : lead.fees,
-                            amountPaid: admissionAmountPaid.trim() ? Number(admissionAmountPaid) : null,
+                            amountPaid: Number(admissionAmountPaid),
                             paymentMode: admissionPaymentMode ?? "Cash",
                             balanceDueDate: admissionBalanceDueDate ? Timestamp.fromDate(new Date(admissionBalanceDueDate)) : null,
                           },
