@@ -102,7 +102,7 @@ export function Header() {
   };
 
   return (
-    <header className="hidden lg:flex h-14 shrink-0 items-center gap-3 bg-surface border-b border-border px-5">
+    <header className="lm-topbar hidden lg:flex h-14 shrink-0 items-center gap-3 bg-surface border-b border-border px-5">
       <div ref={searchRef} className="relative flex-1 max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-faint pointer-events-none" />
         <input
