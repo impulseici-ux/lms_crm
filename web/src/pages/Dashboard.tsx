@@ -111,7 +111,7 @@ function StatTile({
   );
 }
 
-const STAGE_COLORS = ["#1F3A6D", "#29466F", "#355783", "#3E5B7B", "#526D25", "#456B39", "#35552E"];
+const STAGE_COLORS = ["#60A5FA", "#3B82F6", "#8B5CF6", "#A855F7", "#EC4899", "#F97316", "#10B981"];
 const STAGE_SHORT: Record<string, string> = {
   "New Lead": "New Lead",
   Contacted: "Contacted",
