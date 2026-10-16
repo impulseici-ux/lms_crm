@@ -1,30 +1,37 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@import "./styles/lm-signature.css";
 
 @theme {
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* Premium neutral surface system — cool slate, not warm/beige. */
-  --color-bg: #F7F8FA;
-  --color-surface: #FFFFFF;
-  --color-surface-2: #F1F3F7;
-  --color-surface-hover: #EAEDF3;
+  --color-brand-leaf: #A6CE39;
+  --color-brand-leaf-soft: #F1F7DF;
+  --color-brand-forest: #456B39;
+  --color-brand-gold: #B49A62;
+  --color-brand-paper: #FFFEFB;
 
-  --color-ink: #0F172A;
-  --color-ink-soft: #4B5768;
-  --color-ink-faint: #8D97A8;
+  /* Pearl surfaces tuned to the Little Millennium Singanallur identity. */
+  --color-bg: #F5F6F2;
+  --color-surface: #FFFEFB;
+  --color-surface-2: #F0F2ED;
+  --color-surface-hover: #E8ECE5;
 
-  /* Indigo accent — reads as modern SaaS, distinct from the neutrals. */
-  --color-accent: #4338CA;
-  --color-accent-strong: #312E81;
-  --color-accent-soft: #EEF0FC;
-  --color-accent-hover: #352DA3;
-  --color-focus-ring: #4338CA;
+  --color-ink: #18283F;
+  --color-ink-soft: #506075;
+  --color-ink-faint: #8691A1;
 
-  --color-border: #E2E5EB;
-  --color-border-soft: #EDEFF3;
+  /* Navy is the primary SaaS action colour; botanical lime is a restrained signature accent. */
+  --color-accent: #244675;
+  --color-accent-strong: #1F3A6D;
+  --color-accent-soft: #EAF0F8;
+  --color-accent-hover: #1C365D;
+  --color-focus-ring: #244675;
+
+  --color-border: #E0E5DE;
+  --color-border-soft: #E9EDE6;
 
   /* Status text darkened a step from the brand ramp for safer contrast
      against the soft badge backgrounds below (design-system refinement). */
@@ -35,16 +42,16 @@
   --color-bad: #972A22;
   --color-bad-soft: #FBEAE8;
 
-  /* Dark sidebar / app shell — distinct from the light content surfaces. */
-  --color-sidebar-bg: #0B1220;
-  --color-sidebar-bg-raised: #121B2E;
-  --color-sidebar-ink: #E7EBF5;
-  --color-sidebar-ink-soft: #8891A8;
-  --color-sidebar-border: #1E2A42;
-  --color-sidebar-active-bg: #1B2A4A;
+  /* Midnight-navy workspace shell. */
+  --color-sidebar-bg: #142744;
+  --color-sidebar-bg-raised: #1A2D48;
+  --color-sidebar-ink: #F0F3F8;
+  --color-sidebar-ink-soft: #A2ADBE;
+  --color-sidebar-border: #2B3B54;
+  --color-sidebar-active-bg: #223B5D;
 
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.03);
-  --shadow-elevated: 0 4px 10px -4px rgba(15, 23, 42, 0.10), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 2px 4px rgba(18,34,58,.025), 0 12px 34px rgba(18,34,58,.045);
+  --shadow-elevated: 0 16px 38px rgba(18,34,58,.09);
 }
 
 html { scroll-behavior: smooth; }
