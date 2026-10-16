@@ -4,7 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, Download, Plus, RefreshCw, Search, Wallet 
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useLeads } from "@/hooks/useLeads";
-import { addFinanceEntry, listExpenseSettlements, listFinanceEntries, settleReimbursement, type ExpenseSettlement, type FinanceEntry, type FinanceKind, type PaymentMode } from "@/lib/data/schoolFinance";
+import { addFinanceEntry, listExpenseSettlements, listFinanceEntries, postAdmissionIncome, settleReimbursement, type ExpenseSettlement, type FinanceEntry, type FinanceKind, type PaymentMode } from "@/lib/data/schoolFinance";
 import { formatAmountForCsv, formatCurrency } from "@/lib/currency";
 import { Button, Card, SectionHeading } from "@/components/ui";
 import { downloadCsv } from "@/utils/csv";
@@ -42,6 +42,32 @@ export function FinanceRegister({ kind }: { kind: FinanceKind }) {
   const [mode, setMode] = useState<PaymentMode>("UPI");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
+  const [posting, setPosting] = useState<string | null>(null);
+
+  // Only leads actually confirmed as admitted — this is the point real fee payments
+  // start, so it's the only stage worth offering in the link-to-enquiry dropdown.
+  const admittedLeads = useMemo(() => leads.filter((lead) => lead.status === "Admission Confirmed"), [leads]);
+  // Admission payments a counsellor captured on the lead (see LeadProfile.tsx's
+  // confirmAdmission) but that still need an admin/management user to post as an
+  // actual financeIncome entry — counsellors can't write financeIncome directly.
+  const pendingAdmissions = useMemo(
+    () => admittedLeads.filter((lead) => (lead.admissionAmountPaid ?? 0) > 0 && !lead.admissionIncomePosted),
+    [admittedLeads]
+  );
+
+  async function postPendingAdmission(lead: (typeof pendingAdmissions)[number]) {
+    if (!user || !canWrite) return;
+    setPosting(lead.id);
+    try {
+      await postAdmissionIncome(lead, { transactionDate: today(), accountingMonth: monthOf(today()) }, user.uid);
+      showToast(`Posted ₹${lead.admissionAmountPaid?.toLocaleString("en-IN")} admission fee for ${lead.childName} to Income.`, "success");
+      await refresh();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not post this admission payment.", "error");
+    } finally {
+      setPosting(null);
+    }
+  }
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -106,6 +132,12 @@ export function FinanceRegister({ kind }: { kind: FinanceKind }) {
       <Card><div className="flex items-center justify-between"><span className="text-xs font-medium text-ink-soft">Transactions</span><span className="text-xs text-ink-faint">Count</span></div><div className="mt-3 text-2xl font-semibold tracking-tight">{filtered.length}</div><div className="mt-1 text-xs text-ink-faint">Filtered to selected accounting month</div></Card>
       <Card><div className="flex items-center justify-between"><span className="text-xs font-medium text-ink-soft">Payment modes</span><Wallet className="h-4 w-4 text-ink-faint"/></div><div className="mt-3 text-sm font-semibold">{[...new Set(filtered.map(x => x.paymentMode))].join(" · ") || "No entries yet"}</div><div className="mt-1 text-xs text-ink-faint">Cash, UPI and bank reconciliation support</div></Card>
     </div>
+    {isIncome && canWrite && pendingAdmissions.length > 0 && (
+      <Card padded={false} className="overflow-hidden border-warn/30">
+        <div className="border-b border-border p-4"><h2 className="text-sm font-semibold">Pending from admissions</h2><p className="mt-1 text-xs text-ink-faint">Admission payments a counsellor recorded on the lead but hasn't been posted as income yet — review the amount, then post it.</p></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-bg text-[10px] uppercase tracking-[0.12em] text-ink-faint"><tr><th className="px-4 py-3">Child / parent</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3">Balance due</th><th className="px-4 py-3 text-right">Amount</th><th className="px-4 py-3"></th></tr></thead><tbody>{pendingAdmissions.map(lead=><tr key={lead.id} className="border-t border-border-soft"><td className="px-4 py-3"><div className="font-medium text-ink">{lead.childName}</div><div className="mt-0.5 text-xs text-ink-faint">{lead.parentName}</div></td><td className="px-4 py-3 text-ink-soft">{lead.admissionPaymentMode}</td><td className="px-4 py-3 text-ink-soft">{lead.admissionBalanceDueDate?.toDate().toLocaleDateString() ?? "—"}</td><td className="px-4 py-3 text-right font-semibold tabular-nums">{rupees(lead.admissionAmountPaid ?? 0)}</td><td className="px-4 py-3 text-right"><Button size="sm" disabled={posting===lead.id} onClick={()=>postPendingAdmission(lead)}>{posting===lead.id?"Posting…":"Post to income"}</Button></td></tr>)}</tbody></table></div>
+      </Card>
+    )}
     <Card padded={false} className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
@@ -126,7 +158,7 @@ export function FinanceRegister({ kind }: { kind: FinanceKind }) {
         <label className="space-y-1 text-xs font-medium text-ink-soft">Accounting month<input required type="month" value={entryMonth} onChange={e=>setEntryMonth(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
         <label className="space-y-1 text-xs font-medium text-ink-soft">Payment mode<select value={mode} onChange={e=>setMode(e.target.value as PaymentMode)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink">{MODES.map(m=><option key={m}>{m}</option>)}</select></label>
         <label className="space-y-1 text-xs font-medium text-ink-soft">Reference (optional)<input value={reference} onChange={e=>setReference(e.target.value)} placeholder="Receipt / UTR / voucher no." className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
-        {isIncome&&<label className="space-y-1 text-xs font-medium text-ink-soft">Link to existing enquiry / child (optional)<select value={linkedLeadId} onChange={e=>setLinkedLeadId(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"><option value="">Not linked</option>{leads.map(lead=><option key={lead.id} value={lead.id}>{lead.parentName} · {lead.childName} · {lead.parentPhone}</option>)}</select></label>}
+        {isIncome&&<label className="space-y-1 text-xs font-medium text-ink-soft">Link to existing enquiry / child (optional)<select value={linkedLeadId} onChange={e=>setLinkedLeadId(e.target.value)} className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"><option value="">Not linked</option>{admittedLeads.map(lead=><option key={lead.id} value={lead.id}>{lead.parentName} · {lead.childName} · {lead.parentPhone}</option>)}</select></label>}
         {!isIncome&&<label className="space-y-1 text-xs font-medium text-ink-soft">Paid by (optional)<input value={paidBy} onChange={e=>setPaidBy(e.target.value)} placeholder="Management / staff name" className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>}
         <label className="space-y-1 text-xs font-medium text-ink-soft sm:col-span-2 lg:col-span-3">Notes (optional)<input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Additional details" className="mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-ink"/></label>
         <div className="flex gap-2 sm:col-span-2 lg:col-span-3"><Button type="submit" disabled={saving}>{saving?"Saving…":"Save entry"}</Button><Button type="button" variant="secondary" onClick={()=>setShowForm(false)}>Cancel</Button></div>

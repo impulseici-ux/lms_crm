@@ -110,7 +110,14 @@ service cloud.firestore {
          (request.resource.data.nextFollowUpAt != null));
 
       allow update: if (isAdmin() ||
-          (isCounsellor() && resource.data.assignedStaffId == request.auth.uid)) &&
+          (isCounsellor() && resource.data.assignedStaffId == request.auth.uid) ||
+          // Management can't otherwise edit leads, but posting an admission payment to
+          // the Income register (schoolFinance.ts's postAdmissionIncome) needs one write
+          // to flip admissionIncomePosted/admissionIncomeEntryId so it can't double-post —
+          // scoped narrowly to just those two fields plus updatedAt.
+          (isManagement() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+              ['admissionIncomePosted', 'admissionIncomeEntryId', 'updatedAt']))) &&
         // Reassignment (assignedStaffId change) is admin-only.
         (request.resource.data.assignedStaffId == resource.data.assignedStaffId || isAdmin()) &&
         (request.resource.data.status in

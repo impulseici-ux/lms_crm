@@ -3,6 +3,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { formatAmountForCsv } from "@/lib/currency";
+import type { LeadDoc } from "@/types";
 
 export type PaymentMode = "Cash" | "UPI" | "Bank Transfer" | "Card" | "Cheque";
 export type FinanceKind = "income" | "expense";
@@ -73,6 +74,49 @@ export async function addFinanceEntry(kind: FinanceKind, input: Omit<FinanceEntr
     status: "posted",
     createdAt: serverTimestamp(),
   });
+}
+
+/**
+ * Posts the financeIncome entry for an admission payment a counsellor already
+ * captured on the lead (see leads.ts's confirmAdmission) — the one step in this
+ * flow that actually needs canManageFinance() (admin/superadmin/management),
+ * since a counsellor can't write financeIncome directly. Batched with the lead
+ * update that marks it posted, so a page refresh mid-flow can't double-post.
+ */
+export async function postAdmissionIncome(
+  lead: LeadDoc,
+  input: { transactionDate: string; accountingMonth: string },
+  uid: string
+) {
+  if (!lead.admissionAmountPaid || lead.admissionAmountPaid <= 0) {
+    throw new Error("This lead has no admission payment amount recorded.");
+  }
+  if (lead.admissionIncomePosted) {
+    throw new Error("This admission payment has already been posted to the Income register.");
+  }
+  const batch = writeBatch(db);
+  const incomeRef = doc(incomeCollection);
+  batch.set(incomeRef, {
+    title: `Admission fee — ${lead.childName}`,
+    category: "Admission Fee",
+    amount: lead.admissionAmountPaid,
+    transactionDate: input.transactionDate,
+    accountingMonth: input.accountingMonth,
+    paymentMode: lead.admissionPaymentMode ?? "Cash",
+    linkedLeadId: lead.id,
+    linkedPayrollPaymentId: null,
+    linkedSalaryAdvanceId: null,
+    createdBy: uid,
+    status: "posted",
+    createdAt: serverTimestamp(),
+  });
+  batch.update(doc(db, "leads", lead.id), {
+    admissionIncomePosted: true,
+    admissionIncomeEntryId: incomeRef.id,
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
+  return incomeRef.id;
 }
 
 export async function listSchoolStaff(): Promise<SchoolStaff[]> {

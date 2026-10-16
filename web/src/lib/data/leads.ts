@@ -273,10 +273,28 @@ export async function recordVisit(
   );
 }
 
+export interface AdmissionPaymentInput {
+  programId: string | null; // the confirmed class — may differ from interestedProgramId
+  fees: number | null; // quoted/agreed total fee at admission
+  amountPaid: number | null; // paid now, at confirmation
+  paymentMode: LeadDoc["admissionPaymentMode"];
+  balanceDueDate: Timestamp | null; // when the remaining balance is expected
+}
+
+/**
+ * Captures what was paid at admission on the lead itself rather than writing a
+ * financeIncome doc directly — this is usually called by a counsellor, and
+ * firestore.rules' canManageFinance() gate (admin/superadmin/management only)
+ * would reject a direct financeIncome write from them. Admin/management posts
+ * the actual income entry from the "Pending from admissions" list on the Income
+ * register (see schoolFinance.ts's postAdmissionIncome), which is the one write
+ * that actually creates the financeIncome document.
+ */
 export async function confirmAdmission(
   lead: LeadDoc,
   admissionNumber: string,
   admissionFeePlan: string | null,
+  payment: AdmissionPaymentInput,
   byStaffId: string
 ) {
   await updateDoc(leadDoc(lead.id), {
@@ -284,6 +302,14 @@ export async function confirmAdmission(
     admissionNumber,
     admissionFeePlan,
     admissionConfirmedAt: serverTimestamp(),
+    interestedProgramId: payment.programId ?? lead.interestedProgramId,
+    fees: payment.fees ?? lead.fees,
+    admissionAmountPaid: payment.amountPaid,
+    admissionPaymentMode: payment.paymentMode,
+    admissionPaymentDate: payment.amountPaid ? serverTimestamp() : null,
+    admissionBalanceDueDate: payment.balanceDueDate,
+    admissionIncomePosted: false,
+    admissionIncomeEntryId: null,
     lastActivityAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
