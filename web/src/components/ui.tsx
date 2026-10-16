@@ -21,7 +21,7 @@ export function Card({
   return (
     <div
       id={id}
-      className={`bg-surface border border-border rounded-2xl shadow-[var(--shadow-card)] ${padded ? "p-5 sm:p-6" : ""} ${className}`}
+      className={`lm-card bg-surface border border-border rounded-2xl shadow-[var(--shadow-card)] ${padded ? "p-5 sm:p-6" : ""} ${className}`}
     >
       {children}
     </div>
@@ -47,7 +47,7 @@ export function SectionHeading({
 }) {
   if (compact) {
     return (
-      <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5 ${className}`}>
+      <div className={`lm-section-heading flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5 ${className}`}>
         <div className="min-w-0">
           <h1 className="font-display text-[17px] sm:text-[19px] font-semibold leading-tight text-ink">{title}</h1>
           {description && <p className="text-xs text-ink-faint mt-0.5 truncate">{description}</p>}
@@ -57,7 +57,7 @@ export function SectionHeading({
     );
   }
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6 ${className}`}>
+    <div className={`lm-section-heading flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6 ${className}`}>
       <div className="min-w-0">
         {eyebrow && (
           <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-accent mb-1.5">{eyebrow}</div>
@@ -81,7 +81,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 const inputCls =
-  "w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-ink-faint shadow-[var(--shadow-card)] transition-colors focus:outline-none focus:ring-[3px] focus:ring-accent/15 focus:border-accent disabled:bg-surface-2 disabled:text-ink-faint";
+  "lm-control w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-ink-faint shadow-[var(--shadow-card)] transition-colors focus:outline-none focus:ring-[3px] focus:ring-accent/15 focus:border-accent disabled:bg-surface-2 disabled:text-ink-faint";
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputCls} ${props.className ?? ""}`} />;
@@ -127,7 +127,7 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`inline-flex items-center justify-center font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
+      className={`lm-button inline-flex items-center justify-center font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
     >
       {children}
     </button>
@@ -154,7 +154,7 @@ export function IconButton({
     <button
       {...rest}
       aria-label={ariaLabel}
-      className={`inline-flex items-center justify-center w-9 h-9 rounded-lg transition-colors active:scale-[0.96] ${variants[variant]} ${className}`}
+      className={`lm-icon-button inline-flex items-center justify-center w-9 h-9 rounded-lg transition-colors active:scale-[0.96] ${variants[variant]} ${className}`}
     >
       {children}
     </button>
@@ -182,7 +182,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap ${badgeTones[tone]} ${className}`}
+      className={`lm-badge inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold whitespace-nowrap ${badgeTones[tone]} ${className}`}
     >
       {icon}
       {children}
@@ -207,7 +207,7 @@ export function IconTile({
     neutral: "bg-surface-2 text-ink-soft",
   };
   const sizes: Record<string, string> = { sm: "w-8 h-8 rounded-lg [&>svg]:w-4 [&>svg]:h-4", md: "w-10 h-10 rounded-xl [&>svg]:w-5 [&>svg]:h-5", lg: "w-12 h-12 rounded-xl [&>svg]:w-6 [&>svg]:h-6" };
-  return <div className={`flex items-center justify-center shrink-0 ${tones[tone]} ${sizes[size]}`}>{children}</div>;
+  return <div className={`lm-icon-tile flex items-center justify-center shrink-0 ${tones[tone]} ${sizes[size]}`}>{children}</div>;
 }
 
 export function BigStat({
@@ -285,7 +285,7 @@ export function SegmentedControl<T extends string>({
   className?: string;
 }) {
   return (
-    <div className={`flex items-center gap-1 overflow-x-auto pb-1 -mb-1 ${className}`} role="tablist">
+    <div className={`lm-segmented-control flex items-center gap-1 overflow-x-auto pb-1 -mb-1 ${className}`} role="tablist">
       {options.map((opt) => {
         const active = opt.value === value;
         const activeTone = opt.tone === "bad" ? "bg-bad-soft text-bad" : "bg-accent-soft text-accent-strong";
@@ -323,7 +323,7 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-14 px-6">
+    <div className="lm-empty-state flex flex-col items-center justify-center text-center py-14 px-6">
       {icon && (
         <div className="w-12 h-12 rounded-2xl bg-surface-2 text-ink-faint flex items-center justify-center mb-4 [&>svg]:w-6 [&>svg]:h-6">
           {icon}
