@@ -47,6 +47,11 @@ export function Header() {
     try {
       await switchRole(target);
       await refreshRole();
+      // The new role may not have access to whatever route is currently open (e.g.
+      // switching to Counsellor while on /admin) — ProtectedRoute would otherwise show
+      // a "no permission" wall right after a successful switch. Dashboard is accessible
+      // to every switchable role, so land there instead of leaving the user stuck.
+      navigate("/");
       showToast(`Now testing as ${target}.`, "success");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Could not switch role.", "error");
