@@ -62,10 +62,10 @@ function timeOf(d: Date): string {
 }
 
 const STAT_TINTS = {
-  blue: { bg: "#EFF6FF", fg: "#2563EB" },
-  purple: { bg: "#F5F3FF", fg: "#7C3AED" },
-  orange: { bg: "#FFF7ED", fg: "#C2410C" },
-  green: { bg: "#ECFDF5", fg: "#0D9488" },
+  blue: { bg: "#EDF3F6", fg: "#54758C" },
+  purple: { bg: "#F1F0F6", fg: "#77708E" },
+  orange: { bg: "#F7F0E8", fg: "#9B754F" },
+  green: { bg: "#EAF3EF", fg: "#4E8272" },
 } as const;
 
 function TrendBadge({ pct }: { pct: number }) {
@@ -300,20 +300,22 @@ export function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto pb-8">
-      <div className="relative overflow-hidden rounded-2xl bg-accent-strong text-white p-6 sm:p-8 mb-6">
-        <div className="absolute -right-16 -top-20 w-56 h-56 rounded-full border-[36px] border-white/[0.07]" />
-        <div className="absolute right-32 -bottom-28 w-56 h-56 rounded-full border-[40px] border-white/[0.05]" />
-        <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
+      <section className="relative mb-6 overflow-hidden rounded-[20px] border border-[#26394C] bg-[#14263A] p-6 text-white shadow-[0_12px_28px_rgba(15,35,54,0.10)] sm:p-8">
+        <div className="absolute inset-y-0 right-0 hidden w-1/3 border-l border-white/[0.06] bg-white/[0.025] lg:block" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/60 mb-2">Admissions control centre</div>
-            <h1 className="font-display text-[30px] sm:text-[36px] font-semibold tracking-tight leading-[1.1]">Here's your pipeline today.</h1>
-            <p className="text-[14.5px] text-white/70 mt-2.5 max-w-lg">Every enquiry, follow-up, visit and admission — in one view.</p>
+            <div className="mb-2.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#A7C7C0]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#8BB9AC]" />
+              Admissions workspace
+            </div>
+            <h1 className="font-display text-[30px] font-semibold leading-[1.12] tracking-tight text-white sm:text-[36px]">A clearer view of every admission.</h1>
+            <p className="mt-3 max-w-lg text-[14px] leading-6 text-white/70">Enquiries, follow-ups, visits and admissions — organised in one place.</p>
           </div>
-          <Link to="/leads/new" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-accent-strong px-5 py-3 text-sm font-bold shadow-lg hover:bg-white/90 shrink-0 transition-colors">
-            <UserPlus className="w-4 h-4" /> New Lead
+          <Link to="/leads/new" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#14263A] shadow-sm transition-colors hover:bg-[#F1F5F7]">
+            <UserPlus className="h-4 w-4" /> New enquiry
           </Link>
         </div>
-      </div>
+      </section>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <StatTile value={metrics.totalLeadsThisMonth} label="Total Leads" icon={Users} tint="blue" trend={trends.totalLeadsTrend} href="/leads" />
