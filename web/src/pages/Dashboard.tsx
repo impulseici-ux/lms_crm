@@ -96,22 +96,22 @@ function StatTile({
 }) {
   const { fg } = STAT_TINTS[tint];
   return (
-    <Link to={href} className="group relative block overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
+    <Link to={href} className="lm-stat-tile group relative block overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
       <div className="absolute inset-x-0 top-0 h-[2px] opacity-70 transition-opacity group-hover:opacity-100" style={{ backgroundColor: fg }} />
       <div className="flex items-start justify-between gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border-soft bg-bg" style={{ color: fg }}>
+        <div className="lm-stat-icon flex h-10 w-10 items-center justify-center rounded-xl border border-border-soft bg-bg" style={{ color: fg }}>
           <Icon className="h-[18px] w-[18px]" />
         </div>
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">Overview</span>
       </div>
-      <div className="mt-4 font-display text-[30px] font-semibold leading-none tracking-tight text-ink tabular-nums">{value.toLocaleString("en-IN")}</div>
-      <div className="mt-2 text-[13px] font-medium text-ink-soft">{label}</div>
+      <div className="lm-stat-value mt-4 font-display text-[30px] font-semibold leading-none tracking-tight text-ink tabular-nums">{value.toLocaleString("en-IN")}</div>
+      <div className="lm-stat-label mt-2 text-[13px] font-medium text-ink-soft">{label}</div>
       <div className="mt-2"><TrendBadge pct={trend} /></div>
     </Link>
   );
 }
 
-const STAGE_COLORS = ["#60A5FA", "#3B82F6", "#8B5CF6", "#A855F7", "#EC4899", "#F97316", "#10B981"];
+const STAGE_COLORS = ["#1F3A6D", "#355783", "#4F6E94", "#6E87A4", "#687D45", "#526D25", "#456B39"];
 const STAGE_SHORT: Record<string, string> = {
   "New Lead": "New Lead",
   Contacted: "Contacted",
@@ -125,7 +125,7 @@ const STAGE_SHORT: Record<string, string> = {
 function PipelineChevron({ funnel }: { funnel: { stage: string; count: number }[] }) {
   const total = funnel[0]?.count || 1;
   return (
-    <div className="flex w-full overflow-x-auto rounded-xl">
+    <div className="lm-pipeline flex w-full overflow-x-auto rounded-xl">
       {funnel.map((stage, i) => {
         const pct = total ? Math.round((stage.count / total) * 100) : 0;
         const color = STAGE_COLORS[i % STAGE_COLORS.length];
@@ -156,7 +156,7 @@ function PipelineChevron({ funnel }: { funnel: { stage: string; count: number }[
   );
 }
 
-const DONUT_COLORS = ["#3B82F6", "#10B981", "#F97316", "#EC4899", "#8B5CF6", "#8D97A8"];
+const DONUT_COLORS = ["#1F3A6D", "#456B39", "#A6CE39", "#6E87A4", "#B49A62", "#9AA5B4"];
 
 function SourceDonut({ rows }: { rows: { key: string; total: number }[] }) {
   const top = rows.slice(0, 5);
@@ -300,16 +300,16 @@ export function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto pb-8">
-      <div className="relative overflow-hidden rounded-2xl bg-accent-strong text-white p-6 sm:p-8 mb-6">
+      <div className="lm-dashboard-hero relative overflow-hidden rounded-2xl bg-accent-strong text-white p-6 sm:p-8 mb-6">
         <div className="absolute -right-16 -top-20 w-56 h-56 rounded-full border-[36px] border-white/[0.07]" />
         <div className="absolute right-32 -bottom-28 w-56 h-56 rounded-full border-[40px] border-white/[0.05]" />
         <div className="relative flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/60 mb-2">Admissions control centre</div>
+            <div className="lm-hero-kicker text-[11px] font-bold uppercase tracking-[0.18em] text-white/60 mb-2">Admissions control centre</div>
             <h1 className="font-display text-[30px] sm:text-[36px] font-semibold tracking-tight leading-[1.1]">Here's your pipeline today.</h1>
             <p className="text-[14.5px] text-white/70 mt-2.5 max-w-lg">Every enquiry, follow-up, visit and admission — in one view.</p>
           </div>
-          <Link to="/leads/new" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-accent-strong px-5 py-3 text-sm font-bold shadow-lg hover:bg-white/90 shrink-0 transition-colors">
+          <Link to="/leads/new" className="lm-hero-action inline-flex items-center justify-center gap-2 rounded-xl bg-white text-accent-strong px-5 py-3 text-sm font-bold shadow-lg hover:bg-white/90 shrink-0 transition-colors">
             <UserPlus className="w-4 h-4" /> New Lead
           </Link>
         </div>
