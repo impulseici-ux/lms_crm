@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm --prefix web ci && npm --prefix backend ci",
+  "installCommand": "cd web && npm ci && cd ../backend && npm ci",
   "buildCommand": "npm run build:dev",
   "outputDirectory": "web/dist",
   "functions": {
