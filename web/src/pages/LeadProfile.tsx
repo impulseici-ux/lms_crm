@@ -397,7 +397,8 @@ export function LeadProfile() {
                 <div key={s} className="flex items-center shrink-0">
                   <button
                     type="button"
-                    disabled={current}
+                    disabled={current || s === "Admission Confirmed"}
+                    title={s === "Admission Confirmed" ? 'Use "Confirm admission" below — it records the payment too.' : undefined}
                     onClick={() =>
                       doAction(async () => {
                         if (!lead.nextFollowUpAt && !followUpAt) throw new Error("Set a next follow-up date first — required for any open status.");
@@ -405,7 +406,7 @@ export function LeadProfile() {
                         await changeLeadStatus(lead, s, user.uid, followUpValue ? { nextFollowUpAt: followUpValue, nextFollowUpType: followUpType } : undefined);
                       })
                     }
-                    className={`flex flex-col items-center gap-1.5 px-2 group`}
+                    className={`flex flex-col items-center gap-1.5 px-2 group disabled:cursor-not-allowed`}
                   >
                     <span
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${

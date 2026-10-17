@@ -141,6 +141,13 @@ export async function changeLeadStatus(
   byStaffId: string,
   opts?: { nextFollowUpAt?: Timestamp | null; nextFollowUpType?: FollowUpType | null }
 ) {
+  // "Admission Confirmed" must go through confirmAdmission() below, which requires an
+  // admission number and a payment amount — this generic status setter (also reachable
+  // from the pipeline stepper's click-any-stage UI) would otherwise let it be set with
+  // neither, silently skipping the payment capture this status is supposed to require.
+  if (toStatus === "Admission Confirmed") {
+    throw new Error('Use "Confirm admission" below to set this status — it also records the admission number and payment.');
+  }
   const nextFollowUpAt = opts?.nextFollowUpAt !== undefined ? opts.nextFollowUpAt : lead.nextFollowUpAt;
   assertFollowUpGuardrail(toStatus, nextFollowUpAt);
 
