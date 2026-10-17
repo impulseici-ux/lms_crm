@@ -13,10 +13,21 @@ const ALLOWED_ORIGINS = [
   "http://127.0.0.1:5199",
 ];
 
+// Every Preview/Production deployment under this Vercel team is served at a
+// "*-impulseici-uxs-projects.vercel.app" subdomain (confirmed across every
+// project in this account, not guessed) — covers the new lms-crm-web
+// frontend project and every future preview hash without re-editing this
+// allowlist per-deployment. Scoped to this exact team suffix, not "*".
+const ALLOWED_ORIGIN_SUFFIX = "-impulseici-uxs-projects.vercel.app";
+
+function isAllowedOrigin(origin: string): boolean {
+  return ALLOWED_ORIGINS.includes(origin) || (origin.startsWith("https://") && origin.endsWith(ALLOWED_ORIGIN_SUFFIX));
+}
+
 /** Applies CORS headers and handles the OPTIONS preflight. Returns true if the caller should stop (preflight handled). */
 export function applyCors(req: VercelRequest, res: VercelResponse): boolean {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
