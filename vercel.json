@@ -1,0 +1,11 @@
+{
+  "installCommand": "npm --prefix web ci && npm --prefix backend ci",
+  "buildCommand": "npm run build:dev",
+  "outputDirectory": "web/dist",
+  "functions": {
+    "backend/api/**/*.ts": {}
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/backend/api/:path*" }
+  ]
+}
