@@ -3,7 +3,7 @@
   "buildCommand": "npm run build:dev",
   "outputDirectory": "web/dist",
   "functions": {
-    "backend/api/**/*.ts": {}
+    "backend/api/**/*.ts": { "maxDuration": 10 }
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/backend/api/:path*" }
