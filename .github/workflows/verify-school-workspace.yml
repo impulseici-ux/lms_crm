@@ -1,0 +1,29 @@
+name: School workspace verification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feat/unified-school-workspace]
+
+jobs:
+  web-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        run: npm ci --prefix web
+      - name: TypeScript and CI-only build
+        env:
+          VITE_FIREBASE_PROJECT_ID: ci-placeholder-not-a-real-project
+          VITE_USE_EMULATORS: "false"
+        run: npm --prefix web run build -- --mode dev
+      - name: Lint
+        run: npm --prefix web run lint

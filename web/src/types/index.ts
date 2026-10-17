@@ -271,6 +271,20 @@ export interface LeadDoc {
   admissionFeePlan: string | null;
   admissionConfirmedAt: Timestamp | null;
 
+  // Admission payment capture — recorded by whoever confirms admission (often a
+  // counsellor, who cannot write financeIncome directly; see firestore.rules'
+  // canManageFinance()). Admin/management reviews these on the Income register
+  // ("Pending from admissions") and posts the matching financeIncome entry from
+  // there, which sets admissionIncomePosted/admissionIncomeEntryId.
+  // (Duplicates schoolFinance.ts's PaymentMode literal-for-literal rather than
+  // importing it, to avoid a types/index.ts <-> lib/data/schoolFinance.ts cycle.)
+  admissionAmountPaid: number | null;
+  admissionPaymentMode: "Cash" | "UPI" | "Bank Transfer" | "Card" | "Cheque" | null;
+  admissionPaymentDate: Timestamp | null;
+  admissionBalanceDueDate: Timestamp | null;
+  admissionIncomePosted: boolean;
+  admissionIncomeEntryId: string | null;
+
   householdId: string | null; // links sibling enquiries
 
   notes: string | null; // pinned internal note, staff-only

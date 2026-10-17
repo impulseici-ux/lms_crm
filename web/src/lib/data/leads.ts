@@ -141,6 +141,13 @@ export async function changeLeadStatus(
   byStaffId: string,
   opts?: { nextFollowUpAt?: Timestamp | null; nextFollowUpType?: FollowUpType | null }
 ) {
+  // "Admission Confirmed" must go through confirmAdmission() below, which requires an
+  // admission number and a payment amount — this generic status setter (also reachable
+  // from the pipeline stepper's click-any-stage UI) would otherwise let it be set with
+  // neither, silently skipping the payment capture this status is supposed to require.
+  if (toStatus === "Admission Confirmed") {
+    throw new Error('Use "Confirm admission" below to set this status — it also records the admission number and payment.');
+  }
   const nextFollowUpAt = opts?.nextFollowUpAt !== undefined ? opts.nextFollowUpAt : lead.nextFollowUpAt;
   assertFollowUpGuardrail(toStatus, nextFollowUpAt);
 
@@ -273,17 +280,49 @@ export async function recordVisit(
   );
 }
 
+export interface AdmissionPaymentInput {
+  programId: string | null; // the confirmed class — may differ from interestedProgramId
+  fees: number | null; // quoted/agreed total fee at admission
+  amountPaid: number; // paid now, at confirmation — required, must be > 0
+  paymentMode: LeadDoc["admissionPaymentMode"];
+  balanceDueDate: Timestamp | null; // when the remaining balance is expected
+}
+
+/**
+ * Captures what was paid at admission on the lead itself rather than writing a
+ * financeIncome doc directly — this is usually called by a counsellor, and
+ * firestore.rules' canManageFinance() gate (admin/superadmin/management only)
+ * would reject a direct financeIncome write from them. Admin/management posts
+ * the actual income entry from the "Pending from admissions" list on the Income
+ * register (see schoolFinance.ts's postAdmissionIncome), which is the one write
+ * that actually creates the financeIncome document.
+ */
 export async function confirmAdmission(
   lead: LeadDoc,
   admissionNumber: string,
   admissionFeePlan: string | null,
+  payment: AdmissionPaymentInput,
   byStaffId: string
 ) {
+  if (!Number.isFinite(payment.amountPaid) || payment.amountPaid <= 0) {
+    throw new Error("Enter an amount paid to confirm admission.");
+  }
   await updateDoc(leadDoc(lead.id), {
     status: "Admission Confirmed",
     admissionNumber,
     admissionFeePlan,
     admissionConfirmedAt: serverTimestamp(),
+    // updateDoc() rejects a literal `undefined` outright (distinct from omitting the
+    // key) — `a ?? b` still comes out undefined when BOTH sides are, e.g. a lead whose
+    // `fees`/`interestedProgramId` predate those fields existing, so pin the fallback.
+    interestedProgramId: payment.programId ?? lead.interestedProgramId ?? null,
+    fees: payment.fees ?? lead.fees ?? null,
+    admissionAmountPaid: payment.amountPaid,
+    admissionPaymentMode: payment.paymentMode,
+    admissionPaymentDate: payment.amountPaid ? serverTimestamp() : null,
+    admissionBalanceDueDate: payment.balanceDueDate ?? null,
+    admissionIncomePosted: false,
+    admissionIncomeEntryId: null,
     lastActivityAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

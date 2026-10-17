@@ -110,7 +110,14 @@ service cloud.firestore {
          (request.resource.data.nextFollowUpAt != null));
 
       allow update: if (isAdmin() ||
-          (isCounsellor() && resource.data.assignedStaffId == request.auth.uid)) &&
+          (isCounsellor() && resource.data.assignedStaffId == request.auth.uid) ||
+          // Management can't otherwise edit leads, but posting an admission payment to
+          // the Income register (schoolFinance.ts's postAdmissionIncome) needs one write
+          // to flip admissionIncomePosted/admissionIncomeEntryId so it can't double-post —
+          // scoped narrowly to just those two fields plus updatedAt.
+          (isManagement() &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+              ['admissionIncomePosted', 'admissionIncomeEntryId', 'updatedAt']))) &&
         // Reassignment (assignedStaffId change) is admin-only.
         (request.resource.data.assignedStaffId == resource.data.assignedStaffId || isAdmin()) &&
         (request.resource.data.status in
@@ -279,6 +286,157 @@ service cloud.firestore {
         (isStaff() && request.resource.data.type == 'lead_updated') ||
         (isAdmin() && request.resource.data.type == 'config_changed')
       );
+      allow update, delete: if false;
+    }
+
+    // ---- School finance and payroll ----
+    // Financial records are restricted to admin/superadmin and management.
+    function canManageFinance() {
+      return isAdmin() || isManagement();
+    }
+
+    // Monthly closing (financeClosings/{accountingMonth}) blocks a write only when
+    // that write's own `accountingMonth` field string-matches an already-closed
+    // month's document ID. `accountingMonth` is deliberately independent of each
+    // record's own date field (transactionDate/issueDate/settlementDate) — the app's
+    // UI lets staff enter, say, a December cash expense discovered and recorded only
+    // after December is closed, booking it into the current open month instead, same
+    // as a payroll pay-date landing a few days after the month it's paid for — so an
+    // exact match to the date field would reject legitimate entries. What's still
+    // unvalidated without this check: a missing/malformed accountingMonth (empty
+    // string, wrong format, whitespace) can never string-match any real
+    // financeClosings doc ID, so it would never be swept into monthly closing or
+    // report correctly grouped by month, permanently and silently. This only
+    // enforces that the value is a real "YYYY-MM" — the field truly meant to gate
+    // closing and group reports — not that it equals the date field's month.
+    function isAccountingMonth(value) {
+      return value is string && value.size() == 7 && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])$');
+    }
+
+    // Every finance record carries a `paymentMode` used to split dashboard/report
+    // totals into Cash vs. Bank (see FinanceOverview.tsx's `bankModes` list). A value
+    // outside this set — or a missing one — can't be matched by either the Cash check
+    // or the bankModes.includes() check, so it would silently vanish from the Cash/Bank
+    // reconciliation while still counting toward the overall month total. This keeps a
+    // direct Firestore write (bypassing the UI's fixed dropdown) from desyncing the two.
+    function isPaymentMode(value) {
+      return value in ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Cheque'];
+    }
+
+    match /financeIncome/{entryId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.status == 'posted' &&
+        request.resource.data.linkedPayrollPaymentId == null &&
+        isPaymentMode(request.resource.data.paymentMode) &&
+        (request.resource.data.get('linkedLeadId', null) == null || exists(/databases/$(database)/documents/leads/$(request.resource.data.linkedLeadId))) &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth));
+      allow update, delete: if false;
+    }
+
+    match /financeExpenses/{entryId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.status == 'posted' &&
+        isPaymentMode(request.resource.data.paymentMode) &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
+        ((request.resource.data.get('linkedPayrollPaymentId', null) == null && request.resource.data.get('linkedSalaryAdvanceId', null) == null) ||
+          (request.resource.data.get('linkedPayrollPaymentId', null) != null &&
+           getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.expenseId == entryId &&
+           getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.linkedPayrollPaymentId)).data.netAmount == request.resource.data.amount) ||
+          (request.resource.data.get('linkedSalaryAdvanceId', null) != null &&
+           getAfter(/databases/$(database)/documents/salaryAdvances/$(request.resource.data.linkedSalaryAdvanceId)).data.expenseId == entryId &&
+           getAfter(/databases/$(database)/documents/salaryAdvances/$(request.resource.data.linkedSalaryAdvanceId)).data.amount == request.resource.data.amount));
+      allow update, delete: if false;
+    }
+
+    match /schoolStaff/{staffId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+        request.resource.data.monthlySalary is number && request.resource.data.monthlySalary > 0;
+      allow update, delete: if false;
+    }
+
+    match /salaryAdvances/{advanceId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.amount is number && request.resource.data.amount > 0 &&
+        request.resource.data.recoveredAmount == 0 &&
+        request.resource.data.outstandingAmount == request.resource.data.amount &&
+        request.resource.data.status == 'open' &&
+        isPaymentMode(request.resource.data.paymentMode) &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedSalaryAdvanceId == advanceId &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.amount == request.resource.data.amount;
+      allow update: if canManageFinance() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['recoveredAmount', 'outstandingAmount', 'status', 'lastRecoveredPaymentId', 'updatedAt']) &&
+        request.resource.data.recoveredAmount > resource.data.recoveredAmount &&
+        request.resource.data.outstandingAmount >= 0 &&
+        request.resource.data.outstandingAmount == resource.data.outstandingAmount - (request.resource.data.recoveredAmount - resource.data.recoveredAmount) &&
+        request.resource.data.status == (request.resource.data.outstandingAmount == 0 ? 'repaid' : 'open') &&
+        getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.advanceId == advanceId &&
+        getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.advanceRecovery == request.resource.data.recoveredAmount - resource.data.recoveredAmount &&
+        getAfter(/databases/$(database)/documents/payrollPayments/$(request.resource.data.lastRecoveredPaymentId)).data.staffId == resource.data.staffId;
+      allow delete: if false;
+    }
+
+    match /payrollPayments/{paymentId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.status == 'paid' &&
+        isPaymentMode(request.resource.data.paymentMode) &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
+        request.resource.data.netAmount is number && request.resource.data.netAmount > 0 &&
+        request.resource.data.salaryAmount is number && request.resource.data.deductions is number && request.resource.data.advanceRecovery is number &&
+        request.resource.data.netAmount == request.resource.data.salaryAmount - request.resource.data.deductions - request.resource.data.advanceRecovery &&
+        ((request.resource.data.advanceRecovery == 0 && request.resource.data.get('advanceId', null) == null) ||
+          (request.resource.data.advanceRecovery > 0 && request.resource.data.get('advanceId', null) != null &&
+           getAfter(/databases/$(database)/documents/salaryAdvances/$(request.resource.data.advanceId)).data.lastRecoveredPaymentId == paymentId)) &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.linkedPayrollPaymentId == paymentId &&
+        getAfter(/databases/$(database)/documents/financeExpenses/$(request.resource.data.expenseId)).data.amount == request.resource.data.netAmount;
+      allow update, delete: if false;
+    }
+
+
+    match /expenseSettlements/{expenseId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.expenseId == expenseId &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        isPaymentMode(request.resource.data.paymentMode) &&
+        isAccountingMonth(request.resource.data.accountingMonth) &&
+        !exists(/databases/$(database)/documents/financeClosings/$(request.resource.data.accountingMonth)) &&
+        get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.category == 'Reimbursement' &&
+        get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.paidBy is string &&
+        get(/databases/$(database)/documents/financeExpenses/$(expenseId)).data.amount == request.resource.data.amount;
+      allow update, delete: if false;
+    }
+
+    match /financeClosings/{monthId} {
+      allow read: if canManageFinance();
+      allow create: if canManageFinance() &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.accountingMonth == monthId &&
+        isAccountingMonth(monthId) &&
+        request.resource.data.expectedCash is number &&
+        request.resource.data.expectedBank is number &&
+        request.resource.data.countedCash is number &&
+        request.resource.data.countedBank is number;
       allow update, delete: if false;
     }
 
