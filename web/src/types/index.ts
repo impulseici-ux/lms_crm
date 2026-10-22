@@ -206,6 +206,44 @@ export interface BranchDoc {
   active: boolean;
 }
 
+/** Section — Class-wise fee management. "Class" reuses ProgramDoc (the existing
+ * program/class lookup) rather than introducing a parallel entity. */
+export interface AdmissionTypeDoc {
+  id: string;
+  name: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+export interface AcademicYearDoc {
+  id: string;
+  name: string; // e.g. "2026-27"
+  active: boolean;
+  sortOrder: number;
+}
+
+export type FeeStructureStatus = "draft" | "active" | "inactive" | "archived";
+
+/** One Total Fee per class (programId -> amount), for one admission type + academic
+ * year. Deliberately no component breakdown (admission fee / kit / tuition, etc.) —
+ * see Section 3.5 of the fee-management spec: a single configured amount per class. */
+export interface FeeStructureDoc {
+  id: string;
+  name: string;
+  admissionTypeId: string;
+  academicYearId: string;
+  status: FeeStructureStatus;
+  classFees: Record<string, number>; // programId -> Total Fee
+  createdBy: string;
+  createdAt: Timestamp | null;
+  updatedBy: string | null;
+  updatedAt: Timestamp | null;
+  activatedBy: string | null;
+  activatedAt: Timestamp | null;
+  deactivatedBy: string | null;
+  deactivatedAt: Timestamp | null;
+}
+
 export interface CampaignDoc {
   id: string;
   name: string;
@@ -284,6 +322,17 @@ export interface LeadDoc {
   admissionBalanceDueDate: Timestamp | null;
   admissionIncomePosted: boolean;
   admissionIncomeEntryId: string | null;
+
+  // Class-wise Total Fee lookup snapshot, taken at admission confirmation — see
+  // lib/data/fees.ts's getApplicableTotalFee(). Distinct from the pre-admission
+  // `fees` field above (a free-text estimate editable earlier in the funnel);
+  // admissionTotalFee is the authoritative, server-validated figure (firestore.rules
+  // re-checks it against the referenced fee structure) and never changes afterward,
+  // even if that fee structure is later edited or deactivated.
+  admissionTypeId: string | null;
+  academicYearId: string | null;
+  admissionFeeStructureId: string | null;
+  admissionTotalFee: number | null;
 
   householdId: string | null; // links sibling enquiries
 

@@ -282,10 +282,16 @@ export async function recordVisit(
 
 export interface AdmissionPaymentInput {
   programId: string | null; // the confirmed class — may differ from interestedProgramId
-  fees: number | null; // quoted/agreed total fee at admission
   amountPaid: number; // paid now, at confirmation — required, must be > 0
   paymentMode: LeadDoc["admissionPaymentMode"];
   balanceDueDate: Timestamp | null; // when the remaining balance is expected
+  // Class-wise Total Fee lookup snapshot (lib/data/fees.ts's getApplicableTotalFee) —
+  // required, never a manually-typed amount. firestore.rules re-derives and checks
+  // this exact value server-side, so a tampered client value is rejected outright.
+  admissionTypeId: string;
+  academicYearId: string;
+  feeStructureId: string;
+  totalFee: number;
 }
 
 /**
@@ -307,6 +313,9 @@ export async function confirmAdmission(
   if (!Number.isFinite(payment.amountPaid) || payment.amountPaid <= 0) {
     throw new Error("Enter an amount paid to confirm admission.");
   }
+  if (!payment.admissionTypeId || !payment.academicYearId || !payment.feeStructureId || !Number.isFinite(payment.totalFee)) {
+    throw new Error("A valid Total Fee lookup is required to confirm admission.");
+  }
   await updateDoc(leadDoc(lead.id), {
     status: "Admission Confirmed",
     admissionNumber,
@@ -314,9 +323,12 @@ export async function confirmAdmission(
     admissionConfirmedAt: serverTimestamp(),
     // updateDoc() rejects a literal `undefined` outright (distinct from omitting the
     // key) — `a ?? b` still comes out undefined when BOTH sides are, e.g. a lead whose
-    // `fees`/`interestedProgramId` predate those fields existing, so pin the fallback.
+    // `interestedProgramId` predates that field existing, so pin the fallback.
     interestedProgramId: payment.programId ?? lead.interestedProgramId ?? null,
-    fees: payment.fees ?? lead.fees ?? null,
+    admissionTypeId: payment.admissionTypeId,
+    academicYearId: payment.academicYearId,
+    admissionFeeStructureId: payment.feeStructureId,
+    admissionTotalFee: payment.totalFee,
     admissionAmountPaid: payment.amountPaid,
     admissionPaymentMode: payment.paymentMode,
     admissionPaymentDate: payment.amountPaid ? serverTimestamp() : null,

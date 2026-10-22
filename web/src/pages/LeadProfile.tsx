@@ -18,6 +18,7 @@ import {
   markLeadViewed,
 } from "@/lib/data/leads";
 import { subscribeActivities, ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABELS, formatActivityDetail } from "@/lib/data/activities";
+import { getApplicableTotalFee, type ApplicableFee } from "@/lib/data/fees";
 import { subscribeWhatsAppMessagesForLead } from "@/lib/data/whatsapp";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
 import { DateTimePicker } from "@/components/DateTimePicker";
@@ -84,7 +85,7 @@ export function LeadProfile() {
   const location = useLocation();
   const { user, role } = useAuth();
   const { showToast } = useToast();
-  const { programs, programName, branchName, campaignName, staffName, users } = useLookups();
+  const { programs, programName, branchName, campaignName, admissionTypes, admissionTypeName, academicYears, academicYearName, staffName, users } = useLookups();
 
   const [lead, setLead] = useState<LeadDoc | null | undefined>(undefined);
   const [activities, setActivities] = useState<ActivityDoc[]>([]);
@@ -137,10 +138,32 @@ export function LeadProfile() {
   const [editParentName, setEditParentName] = useState("");
   const [editChildName, setEditChildName] = useState("");
   const [admissionProgramId, setAdmissionProgramId] = useState("");
-  const [admissionFeesQuoted, setAdmissionFeesQuoted] = useState("");
+  const [admissionTypeId, setAdmissionTypeId] = useState("");
+  const [admissionAcademicYearId, setAdmissionAcademicYearId] = useState("");
+  const [admissionFeeLookup, setAdmissionFeeLookup] = useState<ApplicableFee | null>(null);
+  const [admissionFeeLookupError, setAdmissionFeeLookupError] = useState("");
+  const [admissionFeeLookupPending, setAdmissionFeeLookupPending] = useState(false);
   const [admissionAmountPaid, setAdmissionAmountPaid] = useState("");
   const [admissionPaymentMode, setAdmissionPaymentMode] = useState<LeadDoc["admissionPaymentMode"]>("Cash");
   const [admissionBalanceDueDate, setAdmissionBalanceDueDate] = useState("");
+
+  // Re-runs the authoritative Total Fee lookup whenever admission type, academic year
+  // or class changes (class-wise fee spec, Section 6, "Dynamic updates before
+  // confirmation") — clears any previous value immediately rather than leaving a
+  // stale fee from a different combination visible while the new lookup is pending.
+  useEffect(() => {
+    const classId = admissionProgramId || lead?.interestedProgramId || "";
+    setAdmissionFeeLookup(null);
+    setAdmissionFeeLookupError("");
+    if (!lead || !admissionTypeId || !admissionAcademicYearId || !classId) return;
+    let cancelled = false;
+    setAdmissionFeeLookupPending(true);
+    getApplicableTotalFee(admissionTypeId, admissionAcademicYearId, classId)
+      .then((result) => { if (!cancelled) setAdmissionFeeLookup(result); })
+      .catch((e) => { if (!cancelled) setAdmissionFeeLookupError(e instanceof Error ? e.message : "Could not look up the fee."); })
+      .finally(() => { if (!cancelled) setAdmissionFeeLookupPending(false); });
+    return () => { cancelled = true; };
+  }, [admissionTypeId, admissionAcademicYearId, admissionProgramId, lead?.interestedProgramId]);
 
   if (lead === undefined) {
     return (
@@ -481,8 +504,11 @@ export function LeadProfile() {
                 <div className="grid sm:grid-cols-2 gap-x-5 gap-y-2.5 text-sm">
                   <FactRow icon={GraduationCap} label="Admission number" value={lead.admissionNumber ?? "—"} />
                   <FactRow icon={BookOpen} label="Class" value={programName(lead.interestedProgramId)} />
-                  <FactRow icon={IndianRupee} label="Fees quoted" value={lead.fees != null ? `₹${lead.fees.toLocaleString("en-IN")}` : "—"} />
+                  <FactRow icon={GraduationCap} label="Admission type" value={admissionTypeName(lead.admissionTypeId ?? null)} />
+                  <FactRow icon={CalendarClock} label="Academic year" value={academicYearName(lead.academicYearId ?? null)} />
+                  <FactRow icon={IndianRupee} label="Total fee" value={lead.admissionTotalFee != null ? `₹${lead.admissionTotalFee.toLocaleString("en-IN")}` : "—"} />
                   <FactRow icon={IndianRupee} label="Paid at admission" value={lead.admissionAmountPaid != null ? `₹${lead.admissionAmountPaid.toLocaleString("en-IN")} (${lead.admissionPaymentMode})` : "—"} />
+                  <FactRow icon={IndianRupee} label="Balance" value={lead.admissionTotalFee != null && lead.admissionAmountPaid != null ? `₹${(lead.admissionTotalFee - lead.admissionAmountPaid).toLocaleString("en-IN")}` : "—"} />
                   <FactRow icon={CalendarClock} label="Balance due" value={lead.admissionBalanceDueDate?.toDate().toLocaleDateString() ?? "—"} />
                   <FactRow
                     icon={IndianRupee}
@@ -511,8 +537,28 @@ export function LeadProfile() {
                         {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </Select>
                     </Field>
-                    <Field label="Fees quoted (₹)">
-                      <Input type="number" min="0" value={admissionFeesQuoted || (lead.fees != null ? String(lead.fees) : "")} onChange={(e) => setAdmissionFeesQuoted(e.target.value)} />
+                    <Field label="Admission type">
+                      <Select value={admissionTypeId} onChange={(e) => setAdmissionTypeId(e.target.value)}>
+                        <option value="">Select admission type…</option>
+                        {admissionTypes.filter((a) => a.active).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Academic year">
+                      <Select value={admissionAcademicYearId} onChange={(e) => setAdmissionAcademicYearId(e.target.value)}>
+                        <option value="">Select academic year…</option>
+                        {academicYears.filter((a) => a.active).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Total fee (₹)">
+                      <div className="flex h-9 items-center px-3 rounded-md border border-border-soft bg-surface-soft text-sm">
+                        {admissionFeeLookupPending
+                          ? <span className="text-ink-faint">Looking up…</span>
+                          : admissionFeeLookupError
+                          ? <span className="text-bad">{admissionFeeLookupError}</span>
+                          : admissionFeeLookup
+                          ? <span className="font-semibold text-ink">₹{admissionFeeLookup.totalFee.toLocaleString("en-IN")}</span>
+                          : <span className="text-ink-faint">Select admission type, academic year and class</span>}
+                      </div>
                     </Field>
                     <Field label="Amount paid now (₹)">
                       <Input required type="number" min="0.01" step="0.01" value={admissionAmountPaid} onChange={(e) => setAdmissionAmountPaid(e.target.value)} placeholder="0.00" />
@@ -530,11 +576,12 @@ export function LeadProfile() {
                   <Button
                     size="sm"
                     className="mt-2"
-                    disabled={!admissionNumber || !(Number(admissionAmountPaid) > 0)}
+                    disabled={!admissionNumber || !(Number(admissionAmountPaid) > 0) || !admissionFeeLookup}
                     onClick={() =>
                       user &&
                       admissionNumber &&
                       Number(admissionAmountPaid) > 0 &&
+                      admissionFeeLookup &&
                       doAction(() =>
                         confirmAdmission(
                           lead,
@@ -542,10 +589,13 @@ export function LeadProfile() {
                           admissionFeePlan || null,
                           {
                             programId: admissionProgramId || lead.interestedProgramId || null,
-                            fees: admissionFeesQuoted.trim() ? Number(admissionFeesQuoted) : lead.fees,
                             amountPaid: Number(admissionAmountPaid),
                             paymentMode: admissionPaymentMode ?? "Cash",
                             balanceDueDate: admissionBalanceDueDate ? Timestamp.fromDate(new Date(admissionBalanceDueDate)) : null,
+                            admissionTypeId,
+                            academicYearId: admissionAcademicYearId,
+                            feeStructureId: admissionFeeLookup.feeStructureId,
+                            totalFee: admissionFeeLookup.totalFee,
                           },
                           user.uid
                         )

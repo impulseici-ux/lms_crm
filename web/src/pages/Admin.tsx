@@ -4,13 +4,22 @@ import { useAuth } from "@/context/AuthContext";
 import { useLookups } from "@/hooks/useLookups";
 import { useLeads } from "@/hooks/useLeads";
 import { subscribeAllActivities, ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABELS, formatActivityDetail } from "@/lib/data/activities";
-import { addLeadSource, addProgram, addBranch, addCampaign, setActive } from "@/lib/data/lookups";
+import { addLeadSource, addProgram, addBranch, addCampaign, addAdmissionType, addAcademicYear, setActive } from "@/lib/data/lookups";
 import { setUserRole } from "@/lib/data/users";
 import { subscribeSyncConfig, subscribeSyncRuns } from "@/lib/data/sync";
 import { inviteUser, resendActivationCode, setUserActive, deleteUser, type IssueCodeResult } from "@/lib/data/onboarding";
 import { subscribeAuditLog } from "@/lib/data/auditLog";
+import {
+  subscribeFeeStructures,
+  createFeeStructure,
+  updateFeeStructureDraft,
+  activateFeeStructure,
+  deactivateFeeStructure,
+  archiveFeeStructure,
+  duplicateFeeStructure,
+} from "@/lib/data/fees";
 import { Button, Card, Field, Input, Select, SectionHeading, EmptyState, IconTile, Badge, Skeleton, SegmentedControl } from "@/components/ui";
-import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc, AuditLogDoc, AuditLogType, ActivityDoc, LeadDoc } from "@/types";
+import type { Role, SyncConfigDoc, SyncRunDoc, UserStatus, UserDoc, AuditLogDoc, AuditLogType, ActivityDoc, LeadDoc, FeeStructureDoc, FeeStructureStatus } from "@/types";
 import { resolveUserStatus } from "@/types";
 import {
   Radio,
@@ -40,6 +49,9 @@ import {
   FileX,
   UserCog,
   Pencil,
+  IndianRupee,
+  CalendarRange,
+  GraduationCap,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -48,6 +60,9 @@ const TABS: { key: string; icon: ComponentType<{ className?: string }> }[] = [
   { key: "Programs", icon: BookOpen },
   { key: "Branches", icon: MapPin },
   { key: "Campaigns", icon: Megaphone },
+  { key: "Admission Types", icon: GraduationCap },
+  { key: "Academic Years", icon: CalendarRange },
+  { key: "Fee Structures", icon: IndianRupee },
   { key: "Staff", icon: Users },
   { key: "Integrations", icon: RefreshCw },
 ];
@@ -114,6 +129,25 @@ export function Admin() {
         />
       )}
       {tab === "Campaigns" && <CampaignsEditor byStaffId={byStaffId} byDisplayName={byDisplayName} />}
+      {tab === "Admission Types" && (
+        <SimpleListEditor
+          icon={GraduationCap}
+          items={lookups.admissionTypes}
+          onAdd={(name) => addAdmissionType(name, lookups.admissionTypes.length, byStaffId, byDisplayName)}
+          onToggle={(id, active, name) => setActive("admissionTypes", id, active, name, byStaffId, byDisplayName)}
+          placeholder="e.g. Vijayadasami"
+        />
+      )}
+      {tab === "Academic Years" && (
+        <SimpleListEditor
+          icon={CalendarRange}
+          items={lookups.academicYears}
+          onAdd={(name) => addAcademicYear(name, lookups.academicYears.length, byStaffId, byDisplayName)}
+          onToggle={(id, active, name) => setActive("academicYears", id, active, name, byStaffId, byDisplayName)}
+          placeholder="e.g. 2026-27"
+        />
+      )}
+      {tab === "Fee Structures" && <FeeStructuresEditor uid={byStaffId} />}
       {tab === "Staff" && <StaffEditor />}
       {tab === "Integrations" && <IntegrationsPanel />}
     </div>
@@ -218,6 +252,260 @@ function CampaignsEditor({ byStaffId, byDisplayName }: { byStaffId: string; byDi
         ))}
         {campaigns.length === 0 && <EmptyState icon={<Megaphone />} title="No campaigns yet" description="Add your first marketing push above." />}
       </div>
+    </Card>
+  );
+}
+
+const FEE_STATUS_BADGE: Record<FeeStructureStatus, { label: string; tone: "good" | "warn" | "accent" | "neutral" }> = {
+  draft: { label: "Draft", tone: "neutral" },
+  active: { label: "Active", tone: "good" },
+  inactive: { label: "Inactive", tone: "warn" },
+  archived: { label: "Archived", tone: "neutral" },
+};
+
+/**
+ * One Total Fee per class (Section 3.5) — no admission fee / kit / tuition
+ * breakdown. A draft's class fees can be freely edited; once activated the
+ * structure is read-only here (firestore.rules enforces this too) — fix a
+ * mistake by deactivating and duplicating as a new draft.
+ */
+function FeeStructuresEditor({ uid }: { uid: string }) {
+  const { admissionTypes, academicYears, programs, admissionTypeName, academicYearName, staffName } = useLookups();
+  const { showToast } = useToast();
+  const [structures, setStructures] = useState<FeeStructureDoc[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    return subscribeFeeStructures((items) => {
+      setStructures(items);
+      setLoaded(true);
+    });
+  }, []);
+
+  const editing = editingId === "new" ? null : structures.find((s) => s.id === editingId) ?? null;
+  const isNew = editingId === "new";
+
+  const act = async (fn: () => Promise<unknown>, success: string) => {
+    try {
+      await fn();
+      showToast(success);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {(isNew || editing) ? (
+        <FeeStructureForm
+          uid={uid}
+          structure={editing}
+          admissionTypes={admissionTypes}
+          academicYears={academicYears}
+          programs={programs}
+          onDone={() => setEditingId(null)}
+        />
+      ) : (
+        <Button size="sm" onClick={() => setEditingId("new")}>
+          <Plus className="w-4 h-4" /> New fee structure
+        </Button>
+      )}
+
+      <Card padded={false}>
+        <div className="flex items-center gap-2.5 p-5 pb-4">
+          <IconTile tone="accent" size="sm"><IndianRupee /></IconTile>
+          <h2 className="font-semibold text-ink">Fee structures</h2>
+        </div>
+        {!loaded ? (
+          <Skeleton className="h-32 rounded-2xl mx-5 mb-5" />
+        ) : structures.length === 0 ? (
+          <EmptyState icon={<IndianRupee />} title="No fee structures yet" description="Create one above to configure class-wise Total Fees." />
+        ) : (
+          <div className="divide-y divide-border-soft">
+            {structures.map((s) => {
+              const badge = FEE_STATUS_BADGE[s.status];
+              return (
+                <div key={s.id} className="px-5 py-3.5">
+                  <div className="flex flex-wrap items-center gap-2 justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-semibold text-ink text-sm truncate">{s.name}</span>
+                      <Badge tone={badge.tone}>{badge.label}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {s.status === "draft" && (
+                        <>
+                          <button type="button" className="text-xs font-semibold text-accent hover:text-accent-strong" onClick={() => setEditingId(s.id)}>Edit</button>
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-good hover:text-good"
+                            onClick={() => act(() => activateFeeStructure(s, uid), "Structure activated")}
+                          >
+                            Activate
+                          </button>
+                        </>
+                      )}
+                      {s.status === "active" && (
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-bad hover:text-bad"
+                          onClick={() => act(() => deactivateFeeStructure(s, uid), "Structure deactivated")}
+                        >
+                          Deactivate
+                        </button>
+                      )}
+                      {s.status === "inactive" && (
+                        <>
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-good hover:text-good"
+                            onClick={() => act(() => activateFeeStructure(s, uid), "Structure activated")}
+                          >
+                            Reactivate
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-ink-soft hover:text-ink"
+                            onClick={() => act(() => archiveFeeStructure(s, uid), "Structure archived")}
+                          >
+                            Archive
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-ink-soft hover:text-ink"
+                        onClick={() => act(() => duplicateFeeStructure(s, uid).then(() => {}), "Duplicated as a new draft")}
+                      >
+                        Duplicate
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-ink-faint mt-1">
+                    {admissionTypeName(s.admissionTypeId)} · {academicYearName(s.academicYearId)}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {Object.entries(s.classFees).map(([classId, fee]) => (
+                      <span key={classId} className="text-[11px] font-medium text-ink-soft bg-surface-2 border border-border-soft rounded-full px-2.5 py-0.5">
+                        {programs.find((p) => p.id === classId)?.name ?? classId}: ₹{fee.toLocaleString("en-IN")}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-ink-faint mt-1.5">
+                    Created by {staffName(s.createdBy)} on {formatTimestamp(s.createdAt)}
+                    {s.activatedAt && <> · Activated by {staffName(s.activatedBy)} on {formatTimestamp(s.activatedAt)}</>}
+                    {s.deactivatedAt && <> · Deactivated by {staffName(s.deactivatedBy)} on {formatTimestamp(s.deactivatedAt)}</>}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function FeeStructureForm({
+  uid,
+  structure,
+  admissionTypes,
+  academicYears,
+  programs,
+  onDone,
+}: {
+  uid: string;
+  structure: FeeStructureDoc | null;
+  admissionTypes: { id: string; name: string; active: boolean }[];
+  academicYears: { id: string; name: string; active: boolean }[];
+  programs: { id: string; name: string; active: boolean }[];
+  onDone: () => void;
+}) {
+  const { showToast } = useToast();
+  const [name, setName] = useState(structure?.name ?? "");
+  const [admissionTypeId, setAdmissionTypeId] = useState(structure?.admissionTypeId ?? "");
+  const [academicYearId, setAcademicYearId] = useState(structure?.academicYearId ?? "");
+  const [classFees, setClassFees] = useState<Record<string, string>>(
+    () => Object.fromEntries(Object.entries(structure?.classFees ?? {}).map(([k, v]) => [k, String(v)]))
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setFee = (classId: string, value: string) => setClassFees((prev) => ({ ...prev, [classId]: value }));
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const parsedFees: Record<string, number> = {};
+    for (const [classId, raw] of Object.entries(classFees)) {
+      if (!raw.trim()) continue;
+      parsedFees[classId] = Number(raw);
+    }
+    setBusy(true);
+    try {
+      if (structure) {
+        await updateFeeStructureDraft(structure, { name, classFees: parsedFees }, uid);
+      } else {
+        await createFeeStructure({ name, admissionTypeId, academicYearId, classFees: parsedFees }, uid);
+      }
+      showToast("Saved as draft");
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save this fee structure.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <div className="flex items-center gap-2.5 mb-1">
+        <IconTile tone="accent" size="sm"><IndianRupee /></IconTile>
+        <h2 className="font-semibold text-ink">{structure ? "Edit draft" : "New fee structure"}</h2>
+      </div>
+      <form onSubmit={submit} className="mt-4">
+        <Field label="Structure name">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Vijayadasami Admission 2026-27" required />
+        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+          <Field label="Admission type">
+            <Select value={admissionTypeId} onChange={(e) => setAdmissionTypeId(e.target.value)} disabled={!!structure}>
+              <option value="">Select admission type…</option>
+              {admissionTypes.filter((a) => a.active || a.id === admissionTypeId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Academic year">
+            <Select value={academicYearId} onChange={(e) => setAcademicYearId(e.target.value)} disabled={!!structure}>
+              <option value="">Select academic year…</option>
+              {academicYears.filter((a) => a.active || a.id === academicYearId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </Field>
+        </div>
+        <div className="mt-2">
+          <div className="text-xs font-semibold text-ink-soft mb-2">Total fee per class (₹)</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+            {programs.filter((p) => p.active).map((p) => (
+              <Field key={p.id} label={p.name}>
+                <Input
+                  type="number"
+                  min="0"
+                  value={classFees[p.id] ?? ""}
+                  onChange={(e) => setFee(p.id, e.target.value)}
+                  placeholder="0"
+                />
+              </Field>
+            ))}
+          </div>
+          {programs.filter((p) => p.active).length === 0 && (
+            <p className="text-xs text-ink-faint">Add at least one active class under the Programs tab first.</p>
+          )}
+        </div>
+        {error && <div className="text-sm text-bad mb-3">{error}</div>}
+        <div className="flex gap-2">
+          <Button type="submit" disabled={busy || !name.trim() || !admissionTypeId || !academicYearId}>{busy ? "Saving…" : "Save as draft"}</Button>
+          <Button type="button" variant="secondary" onClick={onDone}>Cancel</Button>
+        </div>
+      </form>
     </Card>
   );
 }

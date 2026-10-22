@@ -63,6 +63,68 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---- Class-wise fee management ----
+    // "Class" reuses /programs above — no parallel class entity. Admission type and
+    // academic year are small admin-editable lists, same pattern as leadSources/programs.
+    match /admissionTypes/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    match /academicYears/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // One Total Fee per class (classFees: programId -> amount), never a component
+    // breakdown. A structure's name/classFees may only change while still `draft` —
+    // once activated, confirmed admissions may already reference it, so the only way
+    // to "fix" a mistake in an active structure is deactivate + create a corrected
+    // draft, keeping every historical admission's snapshot trustworthy.
+    match /feeStructures/{structureId} {
+      allow read: if isStaff();
+      allow create: if isAdmin() &&
+        request.resource.data.status == 'draft' &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+        request.resource.data.admissionTypeId is string &&
+        request.resource.data.academicYearId is string &&
+        request.resource.data.classFees is map &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAdmin() && (
+        // Draft content edits (name/classFees) — never also flips status (Section 4:
+        // "Creating or editing a draft must never activate it automatically").
+        (resource.data.status == 'draft' && request.resource.data.status == 'draft') ||
+        // Activate (draft or previously-inactive -> active) — paired in the same batch
+        // with the activeFeeStructures pointer create; fee amounts are frozen here on.
+        ((resource.data.status == 'draft' || resource.data.status == 'inactive') &&
+          request.resource.data.status == 'active' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'activatedBy', 'activatedAt'])) ||
+        // Deactivate — fee amounts stay untouched, historical admissions unaffected.
+        (resource.data.status == 'active' && request.resource.data.status == 'inactive' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deactivatedBy', 'deactivatedAt'])) ||
+        // Archive a non-active structure (soft delete — never archive directly from active).
+        (resource.data.status != 'active' && request.resource.data.status == 'archived' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+      );
+      allow delete: if false;
+    }
+
+    // Deterministic-ID pointer (see collections.ts's activeFeeStructureDoc) — the one
+    // mechanism preventing two active structures for the same admission type +
+    // academic year. `create` only succeeds when no document already exists at this
+    // path; a second activation attempt is routed to `update`, denied below.
+    match /activeFeeStructures/{pointerId} {
+      allow read: if isStaff();
+      allow create: if isAdmin() &&
+        request.resource.data.feeStructureId is string &&
+        // getAfter(), not get(): the paired feeStructures status flip to 'active'
+        // commits in the same batch as this pointer create, so get() would still see
+        // the pre-write 'draft'/'inactive' status and always fail.
+        getAfter(/databases/$(database)/documents/feeStructures/$(request.resource.data.feeStructureId)).data.status == 'active';
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // ---- Staff directory ----
     // A user may always read their own profile document; admin can read/write all.
     // Regular staff can read the directory (needed for "assigned staff" pickers /
@@ -124,7 +186,19 @@ service cloud.firestore {
           ['Not Interested', 'Not Reachable', 'Wrong/Invalid Number',
            'Future Requirement', 'Lost to Competitor', 'Duplicate', 'Visit No-Show',
            'Out of Service Area'] ||
-         (request.resource.data.nextFollowUpAt != null));
+         (request.resource.data.nextFollowUpAt != null)) &&
+        // Admission fee lookup is never trusted from the client (class-wise fee spec,
+        // Section 6: "Do not trust a fee amount supplied by the browser"). Only applies
+        // to an actual confirmation transition (open status -> Admission Confirmed);
+        // every other update is unaffected by this clause. Re-derives the Total Fee
+        // from the referenced fee structure and the active-structure pointer exactly
+        // as lib/data/fees.ts's getApplicableTotalFee() does, and denies the write
+        // outright (get() throws on a missing doc) if either is missing/mismatched.
+        (!(resource.data.status != 'Admission Confirmed' && request.resource.data.status == 'Admission Confirmed') ||
+          (request.resource.data.admissionFeeStructureId is string &&
+           get(/databases/$(database)/documents/activeFeeStructures/$(request.resource.data.admissionTypeId + '_' + request.resource.data.academicYearId)).data.feeStructureId == request.resource.data.admissionFeeStructureId &&
+           request.resource.data.admissionTotalFee ==
+             get(/databases/$(database)/documents/feeStructures/$(request.resource.data.admissionFeeStructureId)).data.classFees[request.resource.data.interestedProgramId]));
 
       allow delete: if isAdmin();
 
