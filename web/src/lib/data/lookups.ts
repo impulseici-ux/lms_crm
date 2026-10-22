@@ -9,14 +9,18 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { leadSourcesCol, programsCol, branchesCol, campaignsCol, auditLogCol } from "@/lib/data/collections";
-import type { LeadSourceDoc, ProgramDoc, BranchDoc, CampaignDoc } from "@/types";
+import { leadSourcesCol, programsCol, branchesCol, campaignsCol, admissionTypesCol, academicYearsCol, auditLogCol } from "@/lib/data/collections";
+import type { LeadSourceDoc, ProgramDoc, BranchDoc, CampaignDoc, AdmissionTypeDoc, AcademicYearDoc } from "@/types";
 
-const CONFIG_LABEL: Record<"leadSources" | "programs" | "branches" | "campaigns", string> = {
+type LookupCollectionName = "leadSources" | "programs" | "branches" | "campaigns" | "admissionTypes" | "academicYears";
+
+const CONFIG_LABEL: Record<LookupCollectionName, string> = {
   leadSources: "Lead Source",
   programs: "Program",
   branches: "Branch",
   campaigns: "Campaign",
+  admissionTypes: "Admission Type",
+  academicYears: "Academic Year",
 };
 
 function logConfigChange(byStaffId: string, byDisplayName: string | null, details: string) {
@@ -58,6 +62,22 @@ export async function addProgram(name: string, sortOrder: number, byStaffId: str
   await addDoc(programsCol(), { name, active: true, sortOrder });
   await logConfigChange(byStaffId, byDisplayName, `Added ${CONFIG_LABEL.programs} "${name}"`);
 }
+
+export const subscribeAdmissionTypes = (onChange: (items: AdmissionTypeDoc[]) => void) =>
+  watchSimpleCollection<AdmissionTypeDoc>(admissionTypesCol(), onChange);
+export const subscribeAcademicYears = (onChange: (items: AcademicYearDoc[]) => void) =>
+  watchSimpleCollection<AcademicYearDoc>(academicYearsCol(), onChange);
+
+/** Admin-expandable per Section 3.1/3.2 of the fee-management spec — adding a new
+ * admission type or academic year is pure configuration, no code change. */
+export async function addAdmissionType(name: string, sortOrder: number, byStaffId: string, byDisplayName: string | null) {
+  await addDoc(admissionTypesCol(), { name, active: true, sortOrder });
+  await logConfigChange(byStaffId, byDisplayName, `Added ${CONFIG_LABEL.admissionTypes} "${name}"`);
+}
+export async function addAcademicYear(name: string, sortOrder: number, byStaffId: string, byDisplayName: string | null) {
+  await addDoc(academicYearsCol(), { name, active: true, sortOrder });
+  await logConfigChange(byStaffId, byDisplayName, `Added ${CONFIG_LABEL.academicYears} "${name}"`);
+}
 export async function addBranch(name: string, byStaffId: string, byDisplayName: string | null) {
   await addDoc(branchesCol(), { name, active: true });
   await logConfigChange(byStaffId, byDisplayName, `Added ${CONFIG_LABEL.branches} "${name}"`);
@@ -76,7 +96,7 @@ export async function addCampaign(
 }
 
 export async function setActive(
-  collectionName: "leadSources" | "programs" | "branches" | "campaigns",
+  collectionName: LookupCollectionName,
   id: string,
   active: boolean,
   name: string,
@@ -87,5 +107,5 @@ export async function setActive(
   await logConfigChange(byStaffId, byDisplayName, `${active ? "Activated" : "Deactivated"} ${CONFIG_LABEL[collectionName]} "${name}"`);
 }
 
-export const removeLookup = (collectionName: "leadSources" | "programs" | "branches" | "campaigns", id: string) =>
+export const removeLookup = (collectionName: LookupCollectionName, id: string) =>
   deleteDoc(doc(db, collectionName, id));

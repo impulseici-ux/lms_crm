@@ -18,6 +18,7 @@ import {
   markLeadViewed,
 } from "@/lib/data/leads";
 import { subscribeActivities, ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABELS, formatActivityDetail } from "@/lib/data/activities";
+import { getApplicableTotalFee, type ApplicableFee } from "@/lib/data/fees";
 import { subscribeWhatsAppMessagesForLead } from "@/lib/data/whatsapp";
 import { Button, Card, Field, Input, Select, Textarea, IconTile, Skeleton } from "@/components/ui";
 import { DateTimePicker } from "@/components/DateTimePicker";
@@ -84,7 +85,7 @@ export function LeadProfile() {
   const location = useLocation();
   const { user, role } = useAuth();
   const { showToast } = useToast();
-  const { programName, branchName, campaignName, staffName, users } = useLookups();
+  const { programs, programName, branchName, campaignName, admissionTypes, admissionTypeName, academicYears, academicYearName, staffName, users } = useLookups();
 
   const [lead, setLead] = useState<LeadDoc | null | undefined>(undefined);
   const [activities, setActivities] = useState<ActivityDoc[]>([]);
@@ -134,6 +135,35 @@ export function LeadProfile() {
   const [editingFacts, setEditingFacts] = useState(false);
   const [editLocation, setEditLocation] = useState("");
   const [editFees, setEditFees] = useState("");
+  const [editParentName, setEditParentName] = useState("");
+  const [editChildName, setEditChildName] = useState("");
+  const [admissionProgramId, setAdmissionProgramId] = useState("");
+  const [admissionTypeId, setAdmissionTypeId] = useState("");
+  const [admissionAcademicYearId, setAdmissionAcademicYearId] = useState("");
+  const [admissionFeeLookup, setAdmissionFeeLookup] = useState<ApplicableFee | null>(null);
+  const [admissionFeeLookupError, setAdmissionFeeLookupError] = useState("");
+  const [admissionFeeLookupPending, setAdmissionFeeLookupPending] = useState(false);
+  const [admissionAmountPaid, setAdmissionAmountPaid] = useState("");
+  const [admissionPaymentMode, setAdmissionPaymentMode] = useState<LeadDoc["admissionPaymentMode"]>("Cash");
+  const [admissionBalanceDueDate, setAdmissionBalanceDueDate] = useState("");
+
+  // Re-runs the authoritative Total Fee lookup whenever admission type, academic year
+  // or class changes (class-wise fee spec, Section 6, "Dynamic updates before
+  // confirmation") — clears any previous value immediately rather than leaving a
+  // stale fee from a different combination visible while the new lookup is pending.
+  useEffect(() => {
+    const classId = admissionProgramId || lead?.interestedProgramId || "";
+    setAdmissionFeeLookup(null);
+    setAdmissionFeeLookupError("");
+    if (!lead || !admissionTypeId || !admissionAcademicYearId || !classId) return;
+    let cancelled = false;
+    setAdmissionFeeLookupPending(true);
+    getApplicableTotalFee(admissionTypeId, admissionAcademicYearId, classId)
+      .then((result) => { if (!cancelled) setAdmissionFeeLookup(result); })
+      .catch((e) => { if (!cancelled) setAdmissionFeeLookupError(e instanceof Error ? e.message : "Could not look up the fee."); })
+      .finally(() => { if (!cancelled) setAdmissionFeeLookupPending(false); });
+    return () => { cancelled = true; };
+  }, [admissionTypeId, admissionAcademicYearId, admissionProgramId, lead?.interestedProgramId]);
 
   if (lead === undefined) {
     return (
@@ -293,6 +323,8 @@ export function LeadProfile() {
               onClick={() => {
                 setEditLocation(lead.location ?? "");
                 setEditFees(lead.fees != null ? String(lead.fees) : "");
+                setEditParentName(lead.parentName);
+                setEditChildName(lead.childName);
                 setEditingFacts(true);
               }}
               className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:text-accent-strong"
@@ -332,6 +364,13 @@ export function LeadProfile() {
         </div>
         {editingFacts && (
           <div className="grid sm:grid-cols-2 gap-x-5 mt-3 pt-3 border-t border-border-soft">
+            <Field label="Parent / guardian name">
+              <Input value={editParentName} onChange={(e) => setEditParentName(e.target.value)} />
+            </Field>
+            <Field label="Child name">
+              <Input value={editChildName} onChange={(e) => setEditChildName(e.target.value)} />
+            </Field>
+            <p className="sm:col-span-2 -mt-1.5 text-[11px] text-ink-faint">Correct these if the names captured from the original enquiry (e.g. an Instagram DM) don't match the family's actual names.</p>
             <Field label="Location">
               <Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} placeholder="e.g. Singanallur" />
             </Field>
@@ -341,11 +380,17 @@ export function LeadProfile() {
             <div className="sm:col-span-2 flex gap-2">
               <Button
                 size="sm"
+                disabled={!editParentName.trim() || !editChildName.trim()}
                 onClick={() =>
                   doAction(async () => {
                     await updateLeadFields(
                       lead,
-                      { location: editLocation.trim() || null, fees: editFees.trim() ? Number(editFees) : null },
+                      {
+                        parentName: editParentName.trim(),
+                        childName: editChildName.trim(),
+                        location: editLocation.trim() || null,
+                        fees: editFees.trim() ? Number(editFees) : null,
+                      },
                       user!.uid,
                       staffName(user?.uid ?? null)
                     );
@@ -375,7 +420,8 @@ export function LeadProfile() {
                 <div key={s} className="flex items-center shrink-0">
                   <button
                     type="button"
-                    disabled={current}
+                    disabled={current || s === "Admission Confirmed"}
+                    title={s === "Admission Confirmed" ? 'Use "Confirm admission" below — it records the payment too.' : undefined}
                     onClick={() =>
                       doAction(async () => {
                         if (!lead.nextFollowUpAt && !followUpAt) throw new Error("Set a next follow-up date first — required for any open status.");
@@ -383,7 +429,7 @@ export function LeadProfile() {
                         await changeLeadStatus(lead, s, user.uid, followUpValue ? { nextFollowUpAt: followUpValue, nextFollowUpType: followUpType } : undefined);
                       })
                     }
-                    className={`flex flex-col items-center gap-1.5 px-2 group`}
+                    className={`flex flex-col items-center gap-1.5 px-2 group disabled:cursor-not-allowed`}
                   >
                     <span
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
@@ -454,17 +500,112 @@ export function LeadProfile() {
                 <IconTile tone="good" size="sm"><GraduationCap /></IconTile>
                 <h3 className="font-semibold text-sm text-ink">Admission</h3>
               </div>
-              <div className="grid md:grid-cols-2 gap-3">
-                <Field label="Admission number">
-                  <Input value={admissionNumber || lead.admissionNumber || ""} onChange={(e) => setAdmissionNumber(e.target.value)} />
-                </Field>
-                <Field label="Fee plan">
-                  <Input value={admissionFeePlan || lead.admissionFeePlan || ""} onChange={(e) => setAdmissionFeePlan(e.target.value)} />
-                </Field>
-              </div>
-              <Button size="sm" onClick={() => user && admissionNumber && doAction(() => confirmAdmission(lead, admissionNumber, admissionFeePlan || null, user.uid))}>
-                Confirm admission
-              </Button>
+              {lead.status === "Admission Confirmed" ? (
+                <div className="grid sm:grid-cols-2 gap-x-5 gap-y-2.5 text-sm">
+                  <FactRow icon={GraduationCap} label="Admission number" value={lead.admissionNumber ?? "—"} />
+                  <FactRow icon={BookOpen} label="Class" value={programName(lead.interestedProgramId)} />
+                  <FactRow icon={GraduationCap} label="Admission type" value={admissionTypeName(lead.admissionTypeId ?? null)} />
+                  <FactRow icon={CalendarClock} label="Academic year" value={academicYearName(lead.academicYearId ?? null)} />
+                  <FactRow icon={IndianRupee} label="Total fee" value={lead.admissionTotalFee != null ? `₹${lead.admissionTotalFee.toLocaleString("en-IN")}` : "—"} />
+                  <FactRow icon={IndianRupee} label="Paid at admission" value={lead.admissionAmountPaid != null ? `₹${lead.admissionAmountPaid.toLocaleString("en-IN")} (${lead.admissionPaymentMode})` : "—"} />
+                  <FactRow icon={IndianRupee} label="Balance" value={lead.admissionTotalFee != null && lead.admissionAmountPaid != null ? `₹${(lead.admissionTotalFee - lead.admissionAmountPaid).toLocaleString("en-IN")}` : "—"} />
+                  <FactRow icon={CalendarClock} label="Balance due" value={lead.admissionBalanceDueDate?.toDate().toLocaleDateString() ?? "—"} />
+                  <FactRow
+                    icon={IndianRupee}
+                    label="Income status"
+                    value={
+                      !lead.admissionAmountPaid
+                        ? "—"
+                        : lead.admissionIncomePosted
+                        ? <span className="text-good font-semibold">Posted to Income register</span>
+                        : <span className="text-warn font-semibold">Pending — awaiting admin/management to post</span>
+                    }
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <Field label="Admission number">
+                      <Input value={admissionNumber || lead.admissionNumber || ""} onChange={(e) => setAdmissionNumber(e.target.value)} />
+                    </Field>
+                    <Field label="Fee plan">
+                      <Input value={admissionFeePlan || lead.admissionFeePlan || ""} onChange={(e) => setAdmissionFeePlan(e.target.value)} />
+                    </Field>
+                    <Field label="Class">
+                      <Select value={admissionProgramId || lead.interestedProgramId || ""} onChange={(e) => setAdmissionProgramId(e.target.value)}>
+                        <option value="">Select class…</option>
+                        {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Admission type">
+                      <Select value={admissionTypeId} onChange={(e) => setAdmissionTypeId(e.target.value)}>
+                        <option value="">Select admission type…</option>
+                        {admissionTypes.filter((a) => a.active).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Academic year">
+                      <Select value={admissionAcademicYearId} onChange={(e) => setAdmissionAcademicYearId(e.target.value)}>
+                        <option value="">Select academic year…</option>
+                        {academicYears.filter((a) => a.active).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Total fee (₹)">
+                      <div className="flex h-9 items-center px-3 rounded-md border border-border-soft bg-surface-soft text-sm">
+                        {admissionFeeLookupPending
+                          ? <span className="text-ink-faint">Looking up…</span>
+                          : admissionFeeLookupError
+                          ? <span className="text-bad">{admissionFeeLookupError}</span>
+                          : admissionFeeLookup
+                          ? <span className="font-semibold text-ink">₹{admissionFeeLookup.totalFee.toLocaleString("en-IN")}</span>
+                          : <span className="text-ink-faint">Select admission type, academic year and class</span>}
+                      </div>
+                    </Field>
+                    <Field label="Amount paid now (₹)">
+                      <Input required type="number" min="0.01" step="0.01" value={admissionAmountPaid} onChange={(e) => setAdmissionAmountPaid(e.target.value)} placeholder="0.00" />
+                    </Field>
+                    <Field label="Payment mode">
+                      <Select value={admissionPaymentMode ?? "Cash"} onChange={(e) => setAdmissionPaymentMode(e.target.value as LeadDoc["admissionPaymentMode"])}>
+                        {(["Cash", "UPI", "Bank Transfer", "Card", "Cheque"] as const).map((m) => <option key={m}>{m}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label="Balance repayment due by (optional)">
+                      <Input type="date" value={admissionBalanceDueDate} onChange={(e) => setAdmissionBalanceDueDate(e.target.value)} />
+                    </Field>
+                  </div>
+                  <p className="mt-2 text-[11px] text-ink-faint">An amount paid is required to confirm admission — it's recorded here and shows up as "Pending from admissions" on the Income register for admin/management to post, since counsellors can't post income entries directly.</p>
+                  <Button
+                    size="sm"
+                    className="mt-2"
+                    disabled={!admissionNumber || !(Number(admissionAmountPaid) > 0) || !admissionFeeLookup}
+                    onClick={() =>
+                      user &&
+                      admissionNumber &&
+                      Number(admissionAmountPaid) > 0 &&
+                      admissionFeeLookup &&
+                      doAction(() =>
+                        confirmAdmission(
+                          lead,
+                          admissionNumber,
+                          admissionFeePlan || null,
+                          {
+                            programId: admissionProgramId || lead.interestedProgramId || null,
+                            amountPaid: Number(admissionAmountPaid),
+                            paymentMode: admissionPaymentMode ?? "Cash",
+                            balanceDueDate: admissionBalanceDueDate ? Timestamp.fromDate(new Date(admissionBalanceDueDate)) : null,
+                            admissionTypeId,
+                            academicYearId: admissionAcademicYearId,
+                            feeStructureId: admissionFeeLookup.feeStructureId,
+                            totalFee: admissionFeeLookup.totalFee,
+                          },
+                          user.uid
+                        )
+                      )
+                    }
+                  >
+                    Confirm admission
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </Card>

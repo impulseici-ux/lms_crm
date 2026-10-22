@@ -17,6 +17,19 @@ export const programDoc = (id: string) => doc(db, "programs", id);
 export const branchesCol = () => collection(db, "branches");
 export const campaignsCol = () => collection(db, "campaigns");
 
+// Class-wise fee management
+export const admissionTypesCol = () => collection(db, "admissionTypes");
+export const academicYearsCol = () => collection(db, "academicYears");
+export const feeStructuresCol = () => collection(db, "feeStructures");
+export const feeStructureDoc = (id: string) => doc(db, "feeStructures", id);
+// Deterministic ID (admissionTypeId_academicYearId) is the whole mechanism that
+// prevents two active structures for the same combination — same pattern as
+// payrollPayments/financeClosings: a Firestore `create` is only legal when no
+// document already exists at that path, so a second activation attempt for the
+// same combo is routed to `update`, which firestore.rules denies outright.
+export const activeFeeStructureDoc = (admissionTypeId: string, academicYearId: string) =>
+  doc(db, "activeFeeStructures", `${admissionTypeId}_${academicYearId}`);
+
 // Google Sheets → Meta Ads lead sync (written by scripts/sync-google-sheets-leads.mjs
 // via the Admin SDK; the app only ever reads these).
 export const syncConfigDoc = () => doc(db, "integrations", "googleSheetsSync");

@@ -51,9 +51,42 @@ async function main() {
   for (const [i, name] of sourceNames.entries()) await addLookup("leadSources", name, i);
 
   console.log("Seeding programs…");
-  const programNames = ["Nursery", "LKG", "UKG", "Grade 1", "Grade 2", "Grade 3"];
+  const programNames = ["Nursery", "LKG", "UKG", "Grade 1", "Grade 2", "Grade 3", "Developing Roots", "Emerging Wings", "Ready To Fly 1", "Ready To Fly 2"];
   const programIds = [];
   for (const [i, name] of programNames.entries()) programIds.push(await addLookup("programs", name, i));
+  const [, , , , , , drId, ewId, rtf1Id, rtf2Id] = programIds;
+
+  console.log("Seeding admission types and academic years…");
+  const vijayadasamiTypeId = await addLookup("admissionTypes", "Vijayadasami", 0);
+  await addLookup("admissionTypes", "Academic Year", 1);
+  const ay2627Id = await addLookup("academicYears", "2026-27", 0);
+  await addLookup("academicYears", "2027-28", 1);
+  await addLookup("academicYears", "2028-29", 2);
+
+  console.log("Seeding and activating a reference fee structure (Vijayadasami 2026-27)…");
+  const feeStructureRef = await db.collection("feeStructures").add({
+    name: "Vijayadasami Admission 2026-27",
+    admissionTypeId: vijayadasamiTypeId,
+    academicYearId: ay2627Id,
+    classFees: { [drId]: 39100, [ewId]: 41300, [rtf1Id]: 43800, [rtf2Id]: 46100 },
+    status: "draft",
+    createdBy: adminUid,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedBy: adminUid,
+    updatedAt: FieldValue.serverTimestamp(),
+    activatedBy: null,
+    activatedAt: null,
+    deactivatedBy: null,
+    deactivatedAt: null,
+  });
+  await db.runTransaction(async (tx) => {
+    tx.set(db.collection("activeFeeStructures").doc(`${vijayadasamiTypeId}_${ay2627Id}`), {
+      feeStructureId: feeStructureRef.id,
+      setBy: adminUid,
+      setAt: FieldValue.serverTimestamp(),
+    });
+    tx.update(feeStructureRef, { status: "active", activatedBy: adminUid, activatedAt: FieldValue.serverTimestamp() });
+  });
 
   console.log("Seeding a sample campaign…");
   const campaignRef = await db.collection("campaigns").add({
