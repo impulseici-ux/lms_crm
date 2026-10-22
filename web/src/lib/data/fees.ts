@@ -1,4 +1,4 @@
-import { addDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
+import { addDoc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { feeStructuresCol, feeStructureDoc, activeFeeStructureDoc } from "@/lib/data/collections";
 import type { FeeStructureDoc } from "@/types";
