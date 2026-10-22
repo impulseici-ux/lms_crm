@@ -168,21 +168,29 @@ function SimpleListEditor({
   placeholder: string;
 }) {
   const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
   const { showToast } = useToast();
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    await onAdd(name.trim());
-    setName("");
-    showToast("Saved");
+    setBusy(true);
+    try {
+      await onAdd(name.trim());
+      setName("");
+      showToast("Saved");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Could not save this entry.", "error");
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Card padded={false}>
       <div className="p-5 border-b border-border-soft">
         <form onSubmit={submit} className="flex flex-col sm:flex-row gap-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={placeholder} className="flex-1" />
-          <Button type="submit" className="w-full sm:w-auto">
-            <Plus className="w-4 h-4" /> Add
+          <Button type="submit" disabled={busy} className="w-full sm:w-auto">
+            <Plus className="w-4 h-4" /> {busy ? "Adding…" : "Add"}
           </Button>
         </form>
       </div>
@@ -193,7 +201,15 @@ function SimpleListEditor({
               <IconTile tone={item.active ? "accent" : "neutral"} size="sm"><Icon /></IconTile>
               <span className={`min-w-0 truncate font-medium ${item.active ? "text-ink" : "text-ink-faint line-through"}`}>{item.name}</span>
             </div>
-            <button type="button" className="shrink-0 text-xs font-semibold text-accent hover:text-accent-strong" onClick={() => onToggle(item.id, !item.active, item.name)}>
+            <button
+              type="button"
+              className="shrink-0 text-xs font-semibold text-accent hover:text-accent-strong"
+              onClick={() =>
+                onToggle(item.id, !item.active, item.name).catch((err) =>
+                  showToast(err instanceof Error ? err.message : "Could not update this entry.", "error")
+                )
+              }
+            >
               {item.active ? "Deactivate" : "Activate"}
             </button>
           </div>
