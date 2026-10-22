@@ -9,6 +9,10 @@ const ALLOWED_ORIGINS = [
   "https://littlemillennium-crm.firebaseapp.com",
   "https://littlemillennium-crm-prod.web.app",
   "https://littlemillennium-crm-prod.firebaseapp.com",
+  // The dedicated frontend's short custom-style Vercel domain — doesn't end in
+  // "-impulseici-uxs-projects.vercel.app" like every other deployment URL below,
+  // so the suffix match doesn't catch it; listed explicitly instead.
+  "https://littlemillenniumsinganallurcrm.vercel.app",
   "http://localhost:5173",
   "http://127.0.0.1:5199",
 ];
